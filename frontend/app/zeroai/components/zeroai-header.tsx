@@ -20,7 +20,7 @@ export const ZeroAIHeader = React.memo(({ showSettings = false, onToggleSettings
                         <i className="fa-solid fa-arrow-left" />
                     </button>
                 )}
-                <i className={makeIconClass("fa-solid fa-robot", false)} />
+                <i className={makeIconClass("robot", false)} />
                 <span>{showSettings ? "Settings" : "ZeroAI"}</span>
             </div>
             {!showSettings && (
@@ -29,7 +29,7 @@ export const ZeroAIHeader = React.memo(({ showSettings = false, onToggleSettings
                     onClick={onToggleSettings}
                     title="Settings"
                 >
-                    <i className={makeIconClass("fa-solid fa-gear", false)} />
+                    <i className={makeIconClass("gear", false)} />
                 </button>
             )}
         </div>

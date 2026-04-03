@@ -12,10 +12,10 @@ import (
 )
 
 // SessionService provides business logic for session operations
-// It coordinates between Agent interface and SessionStore
 type SessionService struct {
-	agent agent.Agent
-	store store.SessionStore
+	agent   agent.Agent
+	agentFn func(ctx context.Context, backend string) (agent.Agent, error)
+	store   store.SessionStore
 }
 
 // NewSessionService creates a new session service
@@ -33,15 +33,42 @@ func NewSessionService(ag agent.Agent, sessionStore store.SessionStore) (*Sessio
 	}, nil
 }
 
+// NewSessionServiceWithAgentFactory creates a session service that dynamically resolves agents
+func NewSessionServiceWithAgentFactory(
+	agentFn func(ctx context.Context, backend string) (agent.Agent, error),
+	sessionStore store.SessionStore,
+) (*SessionService, error) {
+	if agentFn == nil {
+		return nil, fmt.Errorf("agent factory is required")
+	}
+	if sessionStore == nil {
+		return nil, fmt.Errorf("session store is required")
+	}
+
+	return &SessionService{
+		agentFn: agentFn,
+		store:   sessionStore,
+	}, nil
+}
+
+func (s *SessionService) resolveAgent(ctx context.Context, backend string) (agent.Agent, error) {
+	if s.agentFn != nil {
+		return s.agentFn(ctx, backend)
+	}
+	return s.agent, nil
+}
+
 // CreateSession creates a new session
 func (s *SessionService) CreateSession(ctx context.Context, opts agent.AgentSessionOptions) (*agent.AgentSession, error) {
-	// Create session via agent
-	session, err := s.agent.CreateSession(ctx, opts)
+	ag, err := s.resolveAgent(ctx, opts.Backend)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve agent: %w", err)
+	}
+	session, err := ag.CreateSession(ctx, opts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create session in agent: %w", err)
 	}
 
-	// Store in database
 	storeSession := &store.Session{
 		ID:            session.ID,
 		Backend:       session.Backend,
@@ -66,22 +93,50 @@ func (s *SessionService) GetSession(sessionID string) (*agent.AgentSession, erro
 		return nil, fmt.Errorf("session ID is required")
 	}
 
-	return s.agent.GetSession(sessionID)
+	storeSession, err := s.store.Get(sessionID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get session from store: %w", err)
+	}
+
+	return &agent.AgentSession{
+		ID:            storeSession.ID,
+		Backend:       storeSession.Backend,
+		WorkDir:       storeSession.WorkDir,
+		Model:         storeSession.Model,
+		Provider:      storeSession.Provider,
+		ThinkingLevel: storeSession.ThinkingLevel,
+		CreatedAt:     storeSession.CreatedAt,
+		UpdatedAt:     storeSession.UpdatedAt,
+	}, nil
 }
 
 // ListSessions returns all sessions
 func (s *SessionService) ListSessions() ([]*agent.AgentSession, error) {
-	return s.agent.ListSessions()
+	storeSessions, err := s.store.List(store.ListOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list sessions from store: %w", err)
+	}
+
+	result := make([]*agent.AgentSession, len(storeSessions))
+	for i, ss := range storeSessions {
+		result[i] = &agent.AgentSession{
+			ID:            ss.ID,
+			Backend:       ss.Backend,
+			WorkDir:       ss.WorkDir,
+			Model:         ss.Model,
+			Provider:      ss.Provider,
+			ThinkingLevel: ss.ThinkingLevel,
+			CreatedAt:     ss.CreatedAt,
+			UpdatedAt:     ss.UpdatedAt,
+		}
+	}
+	return result, nil
 }
 
 // DeleteSession deletes a session
 func (s *SessionService) DeleteSession(sessionID string) error {
 	if sessionID == "" {
 		return fmt.Errorf("session ID is required")
-	}
-
-	if err := s.agent.DeleteSession(sessionID); err != nil {
-		return fmt.Errorf("failed to delete session from agent: %w", err)
 	}
 
 	if err := s.store.Delete(sessionID); err != nil {
@@ -97,14 +152,6 @@ func (s *SessionService) SetWorkDir(sessionID string, workDir string) error {
 		return fmt.Errorf("session ID is required")
 	}
 
-	// Get the session from the agent to verify it exists
-	_, err := s.agent.GetSession(sessionID)
-	if err != nil {
-		return fmt.Errorf("failed to get session: %w", err)
-	}
-
-	// Create a copy to update (workdir update is done via session reload
-	// in actual implementation - for now just update in store)
 	storeSession, err := s.store.Get(sessionID)
 	if err != nil {
 		return fmt.Errorf("failed to get session from store: %w", err)
@@ -112,10 +159,17 @@ func (s *SessionService) SetWorkDir(sessionID string, workDir string) error {
 
 	storeSession.WorkDir = workDir
 
-	// Update in store
 	if err := s.store.Update(storeSession); err != nil {
 		return fmt.Errorf("failed to update session in store: %w", err)
 	}
 
 	return nil
+}
+
+// StoreSession persists a session to the store
+func (s *SessionService) StoreSession(session *store.Session) error {
+	if session == nil {
+		return fmt.Errorf("session is nil")
+	}
+	return s.store.Create(session)
 }

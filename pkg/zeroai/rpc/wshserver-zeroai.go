@@ -7,7 +7,9 @@ package rpc
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
+	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/panichandler"
 	"github.com/wavetermdev/waveterm/pkg/wshrpc"
@@ -35,11 +37,12 @@ type SessionServiceInterface interface {
 	ListSessions() ([]*agent.AgentSession, error)
 	DeleteSession(sessionID string) error
 	SetWorkDir(sessionID string, workDir string) error
+	StoreSession(session *store.Session) error
 }
 
 // MessageServiceInterface abstracts message service operations
 type MessageServiceInterface interface {
-	AddMessage(msg *store.Message) interface{}
+	AddMessage(msg *store.Message) error
 	GetSessionMessages(sessionID string) ([]*store.Message, error)
 	DeleteSessionMessages(sessionID string) error
 }
@@ -73,20 +76,95 @@ func (zs *WshRpcZeroaiServer) ZeroAiCreateSessionCommand(ctx context.Context, re
 		panichandler.PanicHandler("ZeroAiCreateSessionCommand", recover())
 	}()
 
-	opts := agent.AgentSessionOptions{
-		Backend:       req.Backend,
-		WorkDir:       req.WorkDir,
-		Model:         req.Model,
-		ResumeSession: false,
+	if zs.sessionService == nil {
+		return wshrpc.CommandZeroAiCreateSessionRtnData{}, fmt.Errorf("session service not initialized")
 	}
 
-	session, err := zs.sessionService.CreateSession(ctx, opts)
-	if err != nil {
-		return wshrpc.CommandZeroAiCreateSessionRtnData{}, err
+	backend := req.Backend
+	if backend == "" {
+		backend = zs.defaultBackend
+	}
+
+	// Check if backend is a custom provider ID
+	var customProvider *wshrpc.ZeroAiProviderInfo
+	if zs.providerService != nil {
+		providers, _ := zs.providerService.ListProviders()
+		for _, p := range providers {
+			if p.ID == backend && p.IsCustom {
+				customProvider = p
+				break
+			}
+		}
+	}
+
+	// Custom LLM providers don't need an agent process (they use API calls)
+	if customProvider == nil {
+		agentConfig := agent.AgentConfig{Backend: backend}
+
+		// Use background context for agent start (may take longer than RPC timeout)
+		startCtx, startCancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer startCancel()
+
+		// Get or create agent and ensure it's running
+		ag, err := zs.agentService.GetAgent(startCtx, agentConfig)
+		if err != nil {
+			return wshrpc.CommandZeroAiCreateSessionRtnData{}, fmt.Errorf("failed to get agent: %w", err)
+		}
+		if !ag.IsRunning() {
+			if err := ag.Start(startCtx); err != nil {
+				return wshrpc.CommandZeroAiCreateSessionRtnData{}, fmt.Errorf("failed to start agent: %w", err)
+			}
+		}
+
+		// Create session directly using the verified agent
+		opts := agent.AgentSessionOptions{
+			Backend:       backend,
+			WorkDir:       req.WorkDir,
+			Model:         req.Model,
+			ResumeSession: false,
+		}
+
+		session, err := ag.CreateSession(ctx, opts)
+		if err != nil {
+			return wshrpc.CommandZeroAiCreateSessionRtnData{}, err
+		}
+
+		// Store session in database
+		storeSession := &store.Session{
+			ID:        session.ID,
+			Backend:   session.Backend,
+			WorkDir:   session.WorkDir,
+			Model:     session.Model,
+			Provider:  session.Provider,
+			CreatedAt: session.CreatedAt,
+			UpdatedAt: session.UpdatedAt,
+		}
+		if err := zs.sessionService.StoreSession(storeSession); err != nil {
+			log.Printf("failed to store session: %v", err)
+		}
+
+		return wshrpc.CommandZeroAiCreateSessionRtnData{
+			SessionID: session.ID,
+		}, nil
+	}
+
+	// Custom LLM provider - create session without agent process
+	sessionID := fmt.Sprintf("custom-%s-%d", backend, time.Now().UnixMilli())
+	storeSession := &store.Session{
+		ID:        sessionID,
+		Backend:   backend,
+		WorkDir:   req.WorkDir,
+		Model:     req.Model,
+		Provider:  backend,
+		CreatedAt: time.Now().UnixMilli(),
+		UpdatedAt: time.Now().UnixMilli(),
+	}
+	if err := zs.sessionService.StoreSession(storeSession); err != nil {
+		return wshrpc.CommandZeroAiCreateSessionRtnData{}, fmt.Errorf("failed to store session: %w", err)
 	}
 
 	return wshrpc.CommandZeroAiCreateSessionRtnData{
-		SessionID: session.ID,
+		SessionID: sessionID,
 	}, nil
 }
 
@@ -192,14 +270,14 @@ func (zs *WshRpcZeroaiServer) ZeroAiSendMessageCommand(ctx context.Context, req 
 	}
 
 	// Store user message
-	userMsgID := zs.messageService.AddMessage(&store.Message{
-		SessionID: req.SessionID,
-		Role:      req.Role,
-		Content:   req.Content,
-	})
-	var messageID int64
-	if msgID, ok := userMsgID.(int64); ok {
-		messageID = msgID
+	if zs.messageService != nil {
+		if err := zs.messageService.AddMessage(&store.Message{
+			SessionID: req.SessionID,
+			Role:      req.Role,
+			Content:   req.Content,
+		}); err != nil {
+			log.Printf("failed to store user message: %v", err)
+		}
 	}
 
 	// Send message and collect events
@@ -211,12 +289,14 @@ func (zs *WshRpcZeroaiServer) ZeroAiSendMessageCommand(ctx context.Context, req 
 	// Stream agent events to message store until end of turn
 	for event := range eventCh {
 		if zs.messageService != nil {
-			zs.messageService.AddMessage(&store.Message{
+			if storeErr := zs.messageService.AddMessage(&store.Message{
 				SessionID: req.SessionID,
 				Role:      "assistant",
 				Content:   eventDataToString(event.Data),
 				EventType: string(event.Type),
-			})
+			}); storeErr != nil {
+				log.Printf("failed to store assistant message: %v", storeErr)
+			}
 		}
 
 		if event.Type == agent.EventTypeEndTurn {
@@ -225,7 +305,7 @@ func (zs *WshRpcZeroaiServer) ZeroAiSendMessageCommand(ctx context.Context, req 
 	}
 
 	return wshrpc.CommandZeroAiSendMessageRtnData{
-		MessageID: messageID,
+		MessageID: 0,
 		Streaming: false,
 	}, nil
 }

@@ -1,60 +1,38 @@
-// Package agent implements ACP-based AI agents
-//
-// This file provides the AcpAgent implementation which wraps the ACP connection
-// and provides a clean interface for interacting with AI agents.
+// Copyright 2025, Command Line Inc.
+// SPDX-License-Identifier: Apache-2.0
+
 package agent
 
 import (
 	"context"
 	"fmt"
-	"sync"
 	"time"
 
+	"github.com/wavetermdev/waveterm/pkg/acpclient"
 	"github.com/wavetermdev/waveterm/pkg/zeroai/protocol"
-	"github.com/wavetermdev/waveterm/pkg/zeroai/types"
 )
 
-// AcpAgent implements the Agent interface using ACP protocol
+// AcpAgent implements the Agent interface using the ACP protocol via acpclient
 type AcpAgent struct {
-	mu sync.RWMutex
-
-	// Agent configuration
-	config    AgentConfig
-	backend   protocol.AcpBackend
-	conn      protocol.Connection
-	adapter   *protocol.AcpAdapter
-
-	// Session management
-	sessions  map[string]*AgentSession
-	activeSession string
-
-	// Event channels
-	eventChs    map[string]chan AgentEvent // sessionID -> event channel
-	eventChsMu  sync.RWMutex
-
-	// Status
-	status     AgentStatus
-	running    bool
-
-	// Context for cancellation
-	ctx        context.Context
-	cancel     context.CancelFunc
+	config   AgentConfig
+	backend  protocol.AcpBackend
+	client   *acpclient.ACPClient
+	sessions map[string]*AgentSession
+	eventChs map[string]chan AgentEvent
+	status   AgentStatus
+	running  bool
 }
 
 // NewAcpAgent creates a new ACP agent
 func NewAcpAgent(config AgentConfig) (Agent, error) {
-	// Parse backend string
 	backend, err := protocol.GetBackendFromString(config.Backend)
 	if err != nil {
 		return nil, fmt.Errorf("invalid backend: %w", err)
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-
 	agent := &AcpAgent{
 		config:   config,
 		backend:  backend,
-		adapter:  protocol.NewAcpAdapter(),
 		sessions: make(map[string]*AgentSession),
 		eventChs: make(map[string]chan AgentEvent),
 		status: AgentStatus{
@@ -64,8 +42,6 @@ func NewAcpAgent(config AgentConfig) (Agent, error) {
 			LastSeen:    time.Now(),
 		},
 		running: false,
-		ctx:     ctx,
-		cancel:  cancel,
 	}
 
 	return agent, nil
@@ -73,35 +49,22 @@ func NewAcpAgent(config AgentConfig) (Agent, error) {
 
 // Start initializes the connection to the agent process
 func (a *AcpAgent) Start(ctx context.Context) error {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-
-	if a.running {
-		return fmt.Errorf("agent already running")
+	aConfig := &acpclient.ACPConfig{
+		CLI:     string(a.backend),
+		Model:   "",
+		WorkDir: "",
+	}
+	if a.config.CliPath != "" {
+		aConfig.CLI = a.config.CliPath
+	}
+	if a.config.Env != nil {
+		aConfig.EnvVars = a.config.Env
 	}
 
-	// Create ACP connection
-	a.conn = protocol.NewAcpConnection()
+	a.client = acpclient.NewACPClient(aConfig)
 
-	// Set up callbacks for session updates and permissions
-	a.conn.SetCallbacks(protocol.AcpCallbacks{
-		OnSessionUpdate: a.handleSessionUpdate,
-		OnPermission:    a.handlePermissionRequest,
-		OnError:         a.handleError,
-		OnDisconnect:    a.handleDisconnect,
-	})
-
-	// Build session config
-	sessionConfig := protocol.AcpSessionConfig{
-		Backend: a.backend,
-		CliPath: a.config.CliPath,
-		Cwd:     "", // Will be set per session
-		Env:     a.config.Env,
-	}
-
-	// Initialize connection
-	if err := a.conn.Initialize(sessionConfig); err != nil {
-		return fmt.Errorf("failed to initialize connection: %w", err)
+	if err := a.client.Initialize(ctx); err != nil {
+		return fmt.Errorf("failed to initialize ACP client: %w", err)
 	}
 
 	a.running = true
@@ -113,42 +76,18 @@ func (a *AcpAgent) Start(ctx context.Context) error {
 
 // Stop shuts down the agent connection
 func (a *AcpAgent) Stop() error {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-
-	if !a.running {
-		return nil
+	if a.client != nil {
+		a.client.Close()
 	}
-
-	a.cancel()
-
-	// Close connection
-	if a.conn != nil {
-		if err := a.conn.Close(); err != nil {
-			return fmt.Errorf("failed to close connection: %w", err)
-		}
-	}
-
-	// Close all event channels
-	a.eventChsMu.Lock()
-	for sessionID, ch := range a.eventChs {
-		close(ch)
-		delete(a.eventChs, sessionID)
-	}
-	a.eventChsMu.Unlock()
-
 	a.running = false
 	a.status.IsConnected = false
 	a.status.HasSession = false
 	a.status.IsStreaming = false
-
 	return nil
 }
 
 // IsRunning returns whether the agent is running
 func (a *AcpAgent) IsRunning() bool {
-	a.mu.RLock()
-	defer a.mu.RUnlock()
 	return a.running
 }
 
@@ -158,47 +97,19 @@ func (a *AcpAgent) CreateSession(ctx context.Context, opts AgentSessionOptions) 
 		return nil, fmt.Errorf("agent not running")
 	}
 
-	a.mu.Lock()
-	defer a.mu.Unlock()
-
-	// Create event channel for this session
-	eventCh := make(chan AgentEvent, 100)
-	a.eventChsMu.Lock()
-	a.eventChs[""] = eventCh // Temporary empty key, will be set after NewSession
-	a.eventChsMu.Unlock()
-
-	// Set working directory if specified
-	if opts.WorkDir != "" {
-		sessionConfig := protocol.AcpSessionConfig{
-			Backend: a.backend,
-			CliPath: a.config.CliPath,
-			Cwd:     opts.WorkDir,
-			Env:     a.config.Env,
-		}
-		if err := a.conn.Initialize(sessionConfig); err != nil {
-			a.eventChsMu.Lock()
-			delete(a.eventChs, "")
-			a.eventChsMu.Unlock()
-			return nil, fmt.Errorf("failed to initialize session with workDir: %w", err)
-		}
-	}
-
-	// Create session via ACP
-	result, err := a.conn.NewSession(ctx)
+	sessionID, err := a.client.CreateSession(ctx)
 	if err != nil {
-		a.eventChsMu.Lock()
-		delete(a.eventChs, "")
-		a.eventChsMu.Unlock()
 		return nil, fmt.Errorf("failed to create session: %w", err)
 	}
 
-	// Create agent session
+	eventCh := make(chan AgentEvent, 100)
+
 	now := time.Now().Unix()
 	session := &AgentSession{
-		ID:            result.SessionID,
+		ID:            sessionID,
 		Backend:       string(a.backend),
 		WorkDir:       opts.WorkDir,
-		Model:         "", // Will be updated from ACP session info
+		Model:         "",
 		Provider:      string(a.backend),
 		ThinkingLevel: "",
 		CreatedAt:     now,
@@ -206,23 +117,8 @@ func (a *AcpAgent) CreateSession(ctx context.Context, opts AgentSessionOptions) 
 		Metadata:      make(map[string]interface{}),
 	}
 
-	// Extract model info from result
-	if result.Models != nil {
-		session.Model = result.Models.DefaultModel
-		session.Provider = string(a.backend)
-		session.Metadata["models"] = result.Models.Models
-		session.Metadata["options"] = result.Options
-	}
-
-	// Update event channel mapping
-	a.eventChsMu.Lock()
-	delete(a.eventChs, "")
-	a.eventChs[session.ID] = eventCh
-	a.eventChsMu.Unlock()
-
-	// Store session
-	a.sessions[session.ID] = session
-	a.activeSession = session.ID
+	a.sessions[sessionID] = session
+	a.eventChs[sessionID] = eventCh
 	a.status.HasSession = true
 
 	return session, nil
@@ -234,364 +130,215 @@ func (a *AcpAgent) LoadSession(ctx context.Context, sessionID string) (*AgentSes
 		return nil, fmt.Errorf("agent not running")
 	}
 
-	a.mu.Lock()
-	defer a.mu.Unlock()
+	eventCh := make(chan AgentEvent, 100)
 
-	// Load session via ACP
-	result, err := a.conn.LoadSession(ctx, sessionID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load session: %w", err)
-	}
-
-	// Create agent session
 	now := time.Now().Unix()
 	session := &AgentSession{
 		ID:            sessionID,
 		Backend:       string(a.backend),
-		WorkDir:       "", // Will be persisted in store
-		Model:         "", // Will be loaded from store
+		WorkDir:       "",
+		Model:         "",
 		Provider:      string(a.backend),
 		ThinkingLevel: "",
-		CreatedAt:     now, // Will be updated from store
+		CreatedAt:     now,
 		UpdatedAt:     now,
 		Metadata:      make(map[string]interface{}),
 	}
 
-	// Note: Session details (model, provider, workDir, thinkingLevel)
-	// should be loaded from the store layer, not from ACP load result.
-	// The ACP load result only contains sessionID and updated flag.
-	session.Metadata["updated"] = result.Updated
-
-	// Create event channel if not exists
-	a.eventChsMu.Lock()
-	if _, exists := a.eventChs[session.ID]; !exists {
-		a.eventChs[session.ID] = make(chan AgentEvent, 100)
-	}
-	a.eventChsMu.Unlock()
-
-	// Store session
-	a.sessions[session.ID] = session
-	a.activeSession = session.ID
-	a.status.HasSession = true
+	a.sessions[sessionID] = session
+	a.eventChs[sessionID] = eventCh
 
 	return session, nil
 }
 
+// GetSession retrieves a session by ID
+func (a *AcpAgent) GetSession(sessionID string) (*AgentSession, error) {
+	session, exists := a.sessions[sessionID]
+	if !exists {
+		return nil, fmt.Errorf("session not found: %s", sessionID)
+	}
+	return session, nil
+}
+
+// ListSessions returns all sessions
+func (a *AcpAgent) ListSessions() ([]*AgentSession, error) {
+	result := make([]*AgentSession, 0, len(a.sessions))
+	for _, s := range a.sessions {
+		result = append(result, s)
+	}
+	return result, nil
+}
+
 // DeleteSession deletes a session
 func (a *AcpAgent) DeleteSession(sessionID string) error {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-
-	// Close event channel
-	a.eventChsMu.Lock()
-	if ch, exists := a.eventChs[sessionID]; exists {
-		close(ch)
-		delete(a.eventChs, sessionID)
+	if _, exists := a.sessions[sessionID]; !exists {
+		return fmt.Errorf("session not found: %s", sessionID)
 	}
-	a.eventChsMu.Unlock()
 
-	// Remove from sessions map
 	delete(a.sessions, sessionID)
+	delete(a.eventChs, sessionID)
 
-	// Update active session if needed
-	if a.activeSession == sessionID {
-		a.activeSession = ""
-		if len(a.sessions) > 0 {
-			// Pick any session
-			for id := range a.sessions {
-				a.activeSession = id
-				break
-			}
-		} else {
-			a.status.HasSession = false
-		}
+	if len(a.sessions) == 0 {
+		a.status.HasSession = false
 	}
 
 	return nil
 }
 
-// ListSessions returns all sessions
-func (a *AcpAgent) ListSessions() ([]*AgentSession, error) {
-	a.mu.RLock()
-	defer a.mu.RUnlock()
-
-	sessions := make([]*AgentSession, 0, len(a.sessions))
-	for _, session := range a.sessions {
-		sessions = append(sessions, session)
-	}
-
-	return sessions, nil
-}
-
-// SendMessage sends a message to the agent and returns an event channel
+// SendMessage sends a message and returns a channel of streaming events
 func (a *AcpAgent) SendMessage(ctx context.Context, sessionID string, message SendMessageInput) (<-chan AgentEvent, error) {
 	if !a.IsRunning() {
 		return nil, fmt.Errorf("agent not running")
 	}
 
-	a.mu.RLock()
-	_, exists := a.sessions[sessionID]
-	a.mu.RUnlock()
-
-	if !exists {
+	if _, exists := a.sessions[sessionID]; !exists {
 		return nil, fmt.Errorf("session not found: %s", sessionID)
 	}
 
-	// Check if session matches current connection session
-	if a.conn.GetSessionID() != sessionID {
-		return nil, fmt.Errorf("session %s not active in connection", sessionID)
-	}
-
-	// Get event channel
-	a.eventChsMu.RLock()
 	eventCh, exists := a.eventChs[sessionID]
-	a.eventChsMu.RUnlock()
-
 	if !exists {
 		eventCh = make(chan AgentEvent, 100)
-		a.eventChsMu.Lock()
 		a.eventChs[sessionID] = eventCh
-		a.eventChsMu.Unlock()
 	}
 
-	// Update status
-	a.mu.Lock()
 	a.status.IsStreaming = true
 	a.status.LastSeen = time.Now()
-	a.mu.Unlock()
 
-	// Build prompt options
-	opts := protocol.AcpPromptOptions{
-		Files:         message.Files,
-		ModelOverride: message.Model,
-	}
+	// Use acpclient.SendPrompt which returns msgCh and errCh
+	msgCh, errCh := a.client.SendPrompt(ctx, message.Content)
 
-	// Start streaming via ACP
-	if err := a.conn.StreamPrompt(ctx, sessionID, message.Content, opts, a.handleStreamCallback(sessionID)); err != nil {
-		a.mu.Lock()
-		a.status.IsStreaming = false
-		a.status.LastError = err
-		a.mu.Unlock()
+	// Forward messages from msgCh to eventCh
+	go func() {
+		defer func() {
+			a.status.IsStreaming = false
+		}()
 
-		// Send error event
-		a.sendEvent(sessionID, AgentEvent{
-			Type:    EventTypeError,
-			Session: sessionID,
-			Error:   err,
-			Created: time.Now().Unix(),
-		})
+		for {
+			select {
+			case msg := <-msgCh:
+				if msg == nil {
+					// End of stream
+					a.sendEvent(sessionID, AgentEvent{
+						Type:    EventTypeEndTurn,
+						Session: sessionID,
+						Created: time.Now().Unix(),
+					})
+					return
+				}
 
-		return nil, fmt.Errorf("failed to send message: %w", err)
-	}
+				// Convert ACP message to AgentEvent
+				event := a.convertACPMessageToEvent(sessionID, msg)
+				if event != nil {
+					a.sendEvent(sessionID, *event)
+				}
+
+			case err := <-errCh:
+				if err != nil {
+					a.sendEvent(sessionID, AgentEvent{
+						Type:    EventTypeError,
+						Session: sessionID,
+						Error:   err,
+						Created: time.Now().Unix(),
+					})
+				}
+				return
+
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
 
 	return eventCh, nil
 }
 
-// ConfirmPermission confirms a permission request with an option
+// ConfirmPermission confirms a permission request
 func (a *AcpAgent) ConfirmPermission(ctx context.Context, sessionID string, callID string, optionID string) error {
 	if !a.IsRunning() {
 		return fmt.Errorf("agent not running")
 	}
-
-	if err := a.conn.ConfirmPermission(ctx, callID, optionID); err != nil {
-		return fmt.Errorf("failed to confirm permission: %w", err)
-	}
-
-	return nil
+	// TODO: implement via acpclient
+	return fmt.Errorf("not implemented")
 }
 
 // GetStatus returns the current agent status
 func (a *AcpAgent) GetStatus() AgentStatus {
-	a.mu.RLock()
-	defer a.mu.RUnlock()
-
-	// Update connection status
-	if a.running && a.conn != nil {
-		connStatus := a.conn.GetStatus()
-		a.status.IsConnected = a.conn.IsConnected()
-		a.status.HasSession = a.conn.HasSession()
-		a.status.LastSeen = connStatus.LastSeen
-	}
-
+	a.status.LastSeen = time.Now()
 	return a.status
 }
 
-// GetSession returns a session by ID
-func (a *AcpAgent) GetSession(sessionID string) (*AgentSession, error) {
-	a.mu.RLock()
-	defer a.mu.RUnlock()
-
-	session, exists := a.sessions[sessionID]
-	if !exists {
-		return nil, fmt.Errorf("session not found: %s", sessionID)
+// GetSessionID returns the current session ID
+func (a *AcpAgent) GetSessionID() string {
+	if a.client != nil {
+		return a.client.GetSessionID()
 	}
-
-	return session, nil
+	return ""
 }
 
-// handleStreamCallback creates a callback for stream events
-func (a *AcpAgent) handleStreamCallback(sessionID string) protocol.StreamCallback {
-	return func(update *protocol.AcpSessionUpdate) error {
-		// Convert update to internal event
-		result := a.adapter.ConvertSessionUpdateFromAcp(update, sessionID)
-		if result.Error != nil {
-			// Send error event
-			a.sendEvent(sessionID, AgentEvent{
-				Type:    EventTypeError,
-				Session: sessionID,
-				Error:   result.Error,
-				Created: time.Now().Unix(),
-			})
-			return result.Error
-		}
-
-		// Map ZeroAiEvent types to AgentEvent types
-		agentEvent := a.convertToAgentEvent(sessionID, result.Event)
-		a.sendEvent(sessionID, agentEvent)
-
-		return nil
-	}
-}
-
-// handleSessionUpdate handles session update notifications from ACP
-func (a *AcpAgent) handleSessionUpdate(update *protocol.AcpSessionUpdate) error {
-	sessionID := a.conn.GetSessionID()
-	if sessionID == "" {
-		return fmt.Errorf("no active session")
-	}
-
-	// Convert and send event
-	result := a.adapter.ConvertSessionUpdateFromAcp(update, sessionID)
-	if result.Error != nil {
-		// Send error event
-		a.sendEvent(sessionID, AgentEvent{
-			Type:    EventTypeError,
-			Session: sessionID,
-			Error:   result.Error,
-			Created: time.Now().Unix(),
-		})
-		return result.Error
-	}
-
-	agentEvent := a.convertToAgentEvent(sessionID, result.Event)
-	a.sendEvent(sessionID, agentEvent)
-
-	return nil
-}
-
-// handlePermissionRequest handles permission request notifications
-func (a *AcpAgent) handlePermissionRequest(req *protocol.AcpPermissionRequest) error {
-	sessionID := a.conn.GetSessionID()
-	if sessionID == "" {
-		return fmt.Errorf("no active session")
-	}
-
-	// Convert to internal format
-	permData := a.adapter.ConvertPermission(req)
-
-	// Send permission event
-	a.sendEvent(sessionID, AgentEvent{
-		Type:    EventTypePermission,
-		Session: sessionID,
-		Data:    permData,
-		Created: time.Now().Unix(),
-	})
-
-	return nil
-}
-
-// handleError handles errors from ACP connection
-func (a *AcpAgent) handleError(err error) {
-	a.mu.Lock()
-	a.status.LastError = err
-	a.mu.Unlock()
-
-	// Send error event to all active sessions
-	a.eventChsMu.RLock()
-	defer a.eventChsMu.RUnlock()
-
-	for sessionID := range a.eventChs {
-		a.sendEvent(sessionID, AgentEvent{
-			Type:    EventTypeError,
-			Session: sessionID,
-			Error:   err,
-			Created: time.Now().Unix(),
-		})
-	}
-}
-
-// handleDisconnect handles disconnection events
-func (a *AcpAgent) handleDisconnect(info *protocol.AcpDisconnectInfo) {
-	a.mu.Lock()
-	a.running = false
-	a.status.IsConnected = false
-	a.status.HasSession = false
-	a.status.IsStreaming = false
-	a.status.LastSeen = time.Now()
-	a.mu.Unlock()
-
-	// Send error event to all active sessions
-	disconnectErr := fmt.Errorf("disconnected: %s", info.Reason)
-
-	a.eventChsMu.RLock()
-	defer a.eventChsMu.RUnlock()
-
-	for sessionID := range a.eventChs {
-		a.sendEvent(sessionID, AgentEvent{
-			Type:    EventTypeError,
-			Session: sessionID,
-			Error:   disconnectErr,
-			Created: time.Now().Unix(),
-		})
-	}
-}
-
-// sendEvent sends an event to the session's event channel
 func (a *AcpAgent) sendEvent(sessionID string, event AgentEvent) {
-	a.eventChsMu.RLock()
 	ch, exists := a.eventChs[sessionID]
-	a.eventChsMu.RUnlock()
-
 	if !exists {
 		return
 	}
 
 	select {
 	case ch <- event:
-		// Event sent successfully
 	case <-time.After(100 * time.Millisecond):
-		// Channel full or closed, skip event
-	case <-a.ctx.Done():
-		// Agent shutting down
-		return
+	case <-a.ctxDone():
 	}
 }
 
-// convertToAgentEvent converts a ZeroAiEvent to an AgentEvent
-func (a *AcpAgent) convertToAgentEvent(sessionID string, zeroEvent *types.ZeroAiEvent) AgentEvent {
-	// Map ZeroAiEvent types to AgentEvent types
-	var eventType EventType
+func (a *AcpAgent) ctxDone() <-chan struct{} {
+	// Simple channel that never closes for now
+	ch := make(chan struct{})
+	close(ch)
+	return ch
+}
 
-	switch zeroEvent.Type {
-	case "text", "text_chunk":
-		eventType = EventTypeContent
-	case "tool_call", "tool_started", "tool_completed", "tool_failed":
-		eventType = EventTypeToolCall
-	case "permission", "permission_request":
-		eventType = EventTypePermission
-	case "plan", "plan_update":
-		eventType = EventTypeContent // Plan updates treated as content
-	case "end_turn":
-		eventType = EventTypeEndTurn
-	default:
-		eventType = EventTypeContent
+func (a *AcpAgent) convertACPMessageToEvent(sessionID string, msg *acpclient.ACPMessage) *AgentEvent {
+	if msg == nil {
+		return nil
 	}
 
-	return AgentEvent{
-		Type:    eventType,
-		Session: sessionID,
-		Data:    zeroEvent.Data,
-		Error:   zeroEvent.Error,
-		Created: time.Now().Unix(),
+	// Check for session/update notification
+	if msg.Method == "session/update" {
+		var update protocol.AcpSessionUpdate
+		if params, ok := msg.Params.(map[string]interface{}); ok {
+			if sessionUpdate, ok := params["sessionUpdate"].(string); ok {
+				update.SessionUpdate = sessionUpdate
+			}
+			if content, ok := params["content"].(string); ok {
+				update.Content = content
+			}
+		}
+
+		eventType := EventTypeContent
+		switch update.SessionUpdate {
+		case "text", "text_chunk":
+			eventType = EventTypeContent
+		case "tool_call", "tool_started", "tool_completed", "tool_failed":
+			eventType = EventType(update.SessionUpdate)
+		case "end_turn":
+			eventType = EventTypeEndTurn
+		case "error":
+			eventType = EventTypeError
+		default:
+			eventType = EventTypeContent
+		}
+
+		return &AgentEvent{
+			Type:    eventType,
+			Session: sessionID,
+			Data:    update,
+			Created: time.Now().Unix(),
+		}
 	}
+
+	// Check for final response (no method)
+	if msg.Method == "" {
+		// This is the final response, handled by nil check in SendPrompt
+		return nil
+	}
+
+	return nil
 }

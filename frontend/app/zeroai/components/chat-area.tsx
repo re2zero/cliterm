@@ -280,7 +280,12 @@ const SUGGESTED_PROMPTS = [
 export const ChatArea = React.memo(({ messages, className }: { messages: ZeroAiMessage[]; className?: string }) => {
     const scrollRef = React.useRef<HTMLDivElement>(null);
     const [autoScroll, setAutoScroll] = React.useState(true);
-    const prevLen = React.useRef(messages.length);
+    const prevContentLen = React.useRef(0);
+
+    // Calculate total content length for scroll detection
+    const totalContentLen = React.useMemo(() => {
+        return messages.reduce((sum, msg) => sum + (msg.content?.length || 0), 0);
+    }, [messages]);
 
     const handleScroll = React.useCallback(() => {
         if (!scrollRef.current) return;
@@ -289,11 +294,11 @@ export const ChatArea = React.memo(({ messages, className }: { messages: ZeroAiM
     }, []);
 
     React.useEffect(() => {
-        if (messages.length !== prevLen.current && autoScroll && scrollRef.current) {
+        if (autoScroll && scrollRef.current && totalContentLen !== prevContentLen.current) {
             scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
         }
-        prevLen.current = messages.length;
-    }, [messages, autoScroll]);
+        prevContentLen.current = totalContentLen;
+    }, [messages, autoScroll, totalContentLen]);
 
     return (
         <div className={clsx("chat-area", className)}>

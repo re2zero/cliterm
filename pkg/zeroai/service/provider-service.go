@@ -26,6 +26,11 @@ func (ps *ProviderService) ListProviders() ([]*wshrpc.ZeroAiProviderInfo, error)
 	providers := make([]*wshrpc.ZeroAiProviderInfo, 0, len(config.ZeroAiProviders))
 
 	for id, prov := range config.ZeroAiProviders {
+		available := ps.checkProviderAvailable(prov.CliCommand, prov.CliPath)
+		// LLM API providers are always considered available if they have a base URL configured
+		if prov.CliCommand == "llm-api" && prov.EnvVars != nil && prov.EnvVars["API_BASE_URL"] != "" {
+			available = true
+		}
 		info := &wshrpc.ZeroAiProviderInfo{
 			ID:                id,
 			DisplayName:       prov.DisplayName,
@@ -39,7 +44,7 @@ func (ps *ProviderService) ListProviders() ([]*wshrpc.ZeroAiProviderInfo, error)
 			AvailableModels:   prov.AvailableModels,
 			AuthRequired:      prov.AuthRequired,
 			IsCustom:          true,
-			IsAvailable:       ps.checkProviderAvailable(prov.CliCommand, prov.CliPath),
+			IsAvailable:       available,
 		}
 		providers = append(providers, info)
 	}

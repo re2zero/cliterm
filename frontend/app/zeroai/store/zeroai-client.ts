@@ -17,9 +17,8 @@ import type {
     ZeroAiStreamMessageEvent,
 } from "../types";
 
-/**
- * Error class for ZeroAI client errors
- */
+const ZEROAI_ROUTE = "zeroai";
+
 export class ZeroAiClientError extends Error {
     constructor(
         message: string,
@@ -31,26 +30,17 @@ export class ZeroAiClientError extends Error {
     }
 }
 
-/**
- * Options for RPC calls - matches the project's RpcOpts
- */
 export interface ZeroAiClientOpts {
-    /** No response expected */
     noresponse?: boolean;
-    /** Timeout in milliseconds */
     timeout?: number;
-    /** Route for the RPC call */
     route?: string;
 }
 
-/**
- * ZeroAI WSH RPC Client
- * Wrapper around the WSH RPC API for ZeroAI operations
- */
+function zeroaiOpts(opts?: ZeroAiClientOpts): ZeroAiClientOpts {
+    return { ...opts, route: ZEROAI_ROUTE };
+}
+
 export class ZeroAiClient {
-    /**
-     * Create a new ZeroAI session
-     */
     async createSession(request: CreateSessionRequest, opts?: ZeroAiClientOpts): Promise<{ sessionId: string }> {
         try {
             const createRequest = {
@@ -61,61 +51,46 @@ export class ZeroAiClient {
                 yoloMode: request.yoloMode ?? false,
                 workDir: request.workDir || "",
             };
-            return await RpcApi.ZeroAiCreateSessionCommand(TabRpcClient, createRequest, opts);
+            return await RpcApi.ZeroAiCreateSessionCommand(TabRpcClient, createRequest, zeroaiOpts(opts));
         } catch (error) {
             throw new ZeroAiClientError(`Failed to create session: ${error}`, "CREATE_SESSION_ERROR", error);
         }
     }
 
-    /**
-     * Get a session by ID
-     */
     async getSession(sessionId: string, opts?: ZeroAiClientOpts): Promise<ZeroAiSession> {
         try {
-            const result = await RpcApi.ZeroAiGetSessionCommand(TabRpcClient, { sessionId }, opts);
+            const result = await RpcApi.ZeroAiGetSessionCommand(TabRpcClient, { sessionId }, zeroaiOpts(opts));
             return result as unknown as ZeroAiSession;
         } catch (error) {
             throw new ZeroAiClientError(`Failed to get session: ${error}`, "GET_SESSION_ERROR", error);
         }
     }
 
-    /**
-     * List all sessions
-     */
     async listSessions(opts?: ZeroAiClientOpts): Promise<ZeroAiSessionInfo[]> {
         try {
-            const result = await RpcApi.ZeroAiListSessionsCommand(TabRpcClient, {}, opts);
+            const result = await RpcApi.ZeroAiListSessionsCommand(TabRpcClient, {}, zeroaiOpts(opts));
             return result.sessions || [];
         } catch (error) {
             throw new ZeroAiClientError(`Failed to list sessions: ${error}`, "LIST_SESSIONS_ERROR", error);
         }
     }
 
-    /**
-     * Delete a session
-     */
     async deleteSession(sessionId: string, opts?: ZeroAiClientOpts): Promise<void> {
         try {
-            await RpcApi.ZeroAiDeleteSessionCommand(TabRpcClient, { sessionId }, opts);
+            await RpcApi.ZeroAiDeleteSessionCommand(TabRpcClient, { sessionId }, zeroaiOpts(opts));
         } catch (error) {
             throw new ZeroAiClientError(`Failed to delete session: ${error}`, "DELETE_SESSION_ERROR", error);
         }
     }
 
-    /**
-     * Set work directory for a session
-     */
     async setWorkDir(sessionId: string, workDir: string, opts?: ZeroAiClientOpts): Promise<void> {
         try {
-            await RpcApi.ZeroAiSetWorkDirCommand(TabRpcClient, { sessionId, workDir }, opts);
+            await RpcApi.ZeroAiSetWorkDirCommand(TabRpcClient, { sessionId, workDir }, zeroaiOpts(opts));
         } catch (error) {
             throw new ZeroAiClientError(`Failed to set work directory: ${error}`, "SET_WORKDIR_ERROR", error);
         }
     }
 
-    /**
-     * Send a non-streaming message to an agent
-     */
     async sendMessage(request: SendMessageRequest, opts?: ZeroAiClientOpts): Promise<{ messageId: number }> {
         try {
             const sendMessageRequest = {
@@ -125,23 +100,18 @@ export class ZeroAiClient {
                 eventType: request.eventType || "",
                 metadata: request.metadata || {},
             };
-            return await RpcApi.ZeroAiSendMessageCommand(TabRpcClient, sendMessageRequest, opts);
+            return await RpcApi.ZeroAiSendMessageCommand(TabRpcClient, sendMessageRequest, zeroaiOpts(opts));
         } catch (error) {
             throw new ZeroAiClientError(`Failed to send message: ${error}`, "SEND_MESSAGE_ERROR", error);
         }
     }
 
-    /**
-     * Send a streaming message to an agent
-     * Returns an async generator that yields message events
-     */
     async *streamMessage(
         request: SendMessageRequest,
         opts?: ZeroAiClientOpts
     ): AsyncGenerator<ZeroAiStreamMessageEvent, void, unknown> {
         try {
-            const stream = RpcApi.ZeroAiSendStreamMessageCommand(TabRpcClient, request, opts);
-
+            const stream = RpcApi.ZeroAiSendStreamMessageCommand(TabRpcClient, request, zeroaiOpts(opts));
             for await (const event of stream) {
                 yield event as ZeroAiStreamMessageEvent;
             }
@@ -150,9 +120,6 @@ export class ZeroAiClient {
         }
     }
 
-    /**
-     * Get messages for a session
-     */
     async getMessages(
         sessionId: string,
         opts?: ZeroAiClientOpts & { limit?: number; offset?: number }
@@ -165,7 +132,7 @@ export class ZeroAiClient {
                     limit: opts?.limit ?? 100,
                     offset: opts?.offset ?? 0,
                 },
-                opts
+                zeroaiOpts(opts)
             );
             return result.messages || [];
         } catch (error) {
@@ -173,20 +140,14 @@ export class ZeroAiClient {
         }
     }
 
-    /**
-     * List available agents
-     */
     async getAgents(opts?: ZeroAiClientOpts): Promise<ZeroAiAgentInfo[]> {
         try {
-            return await RpcApi.ZeroAiGetAgentsCommand(TabRpcClient, {}, opts);
+            return await RpcApi.ZeroAiGetAgentsCommand(TabRpcClient, {}, zeroaiOpts(opts));
         } catch (error) {
             throw new ZeroAiClientError(`Failed to get agents: ${error}`, "GET_AGENTS_ERROR", error);
         }
     }
 
-    /**
-     * Confirm a permission request
-     */
     async confirmPermission(
         sessionId: string,
         callId: string,
@@ -203,7 +164,7 @@ export class ZeroAiClient {
                     optionId,
                     confirmAll,
                 },
-                opts
+                zeroaiOpts(opts)
             );
         } catch (error) {
             throw new ZeroAiClientError(`Failed to confirm permission: ${error}`, "CONFIRM_PERMISSION_ERROR", error);
@@ -211,7 +172,7 @@ export class ZeroAiClient {
     }
 
     async listProviders(opts?: ZeroAiClientOpts): Promise<ZeroAiProviderInfo[]> {
-        const result = await RpcApi.ZeroAiListProvidersCommand(TabRpcClient, {}, opts);
+        const result = await RpcApi.ZeroAiListProvidersCommand(TabRpcClient, {}, zeroaiOpts(opts));
         return result.providers || [];
     }
 
@@ -229,27 +190,21 @@ export class ZeroAiClient {
             availableModels: request.availableModels || [],
             authRequired: request.authRequired ?? false,
         };
-        await RpcApi.ZeroAiSaveProviderCommand(TabRpcClient, saveRequest, opts);
+        await RpcApi.ZeroAiSaveProviderCommand(TabRpcClient, saveRequest, zeroaiOpts(opts));
     }
 
     async deleteProvider(request: DeleteProviderRequest, opts?: ZeroAiClientOpts): Promise<void> {
-        await RpcApi.ZeroAiDeleteProviderCommand(TabRpcClient, request, opts);
+        await RpcApi.ZeroAiDeleteProviderCommand(TabRpcClient, request, zeroaiOpts(opts));
     }
 
     async testProvider(providerId: string, opts?: ZeroAiClientOpts): Promise<TestProviderResult> {
-        const result = await RpcApi.ZeroAiTestProviderCommand(TabRpcClient, { providerId }, opts);
+        const result = await RpcApi.ZeroAiTestProviderCommand(TabRpcClient, { providerId }, zeroaiOpts(opts));
         return result.result as TestProviderResult;
     }
 }
 
-/**
- * Singleton ZeroAI client instance
- */
 export const zeroAiClient = new ZeroAiClient();
 
-/**
- * Retry helper for RPC calls with exponential backoff
- */
 export async function retryRpcCall<T>(
     fn: () => Promise<T>,
     maxRetries: number = 3,
@@ -261,7 +216,6 @@ export async function retryRpcCall<T>(
         } catch (error) {
             const isLastAttempt = attempt === maxRetries - 1;
             if (isLastAttempt) throw error;
-
             const delay = baseDelay * Math.pow(2, attempt);
             await new Promise((resolve) => setTimeout(resolve, delay));
         }
@@ -269,9 +223,6 @@ export async function retryRpcCall<T>(
     throw new Error("Retry failed");
 }
 
-/**
- * Helper to execute a call with retry support
- */
 export function withRetry<T>(fn: () => Promise<T>, opts: { retries?: number; delay?: number } = {}): Promise<T> {
     return retryRpcCall(fn, opts.retries ?? 3, opts.delay ?? 1000);
 }

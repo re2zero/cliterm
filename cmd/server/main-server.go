@@ -46,6 +46,10 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/wshutil"
 	"github.com/wavetermdev/waveterm/pkg/wslconn"
 	"github.com/wavetermdev/waveterm/pkg/wstore"
+	"github.com/wavetermdev/waveterm/pkg/zeroai/agent"
+	zeroairpc "github.com/wavetermdev/waveterm/pkg/zeroai/rpc"
+	zeroaiservice "github.com/wavetermdev/waveterm/pkg/zeroai/service"
+	"github.com/wavetermdev/waveterm/pkg/zeroai/store"
 
 	"net/http"
 	_ "net/http/pprof"
@@ -394,6 +398,25 @@ func createMainWshClient() {
 	wshutil.DefaultRouter.RegisterTrustedLeaf(localConnWsh, wshutil.MakeConnectionRouteId(wshrpc.LocalConnName))
 	wshfs.RpcClient = localConnWsh
 	wshfs.RpcClientRouteId = wshutil.MakeConnectionRouteId(wshrpc.LocalConnName)
+
+	// Initialize ZeroAI services
+	agentSvc := zeroaiservice.NewAgentService()
+	sessionStore, _ := store.NewSessionStore()
+	msgStore, _ := store.NewMessageStore()
+	msgSvc, _ := zeroaiservice.NewMessageService(msgStore)
+	providerSvc := zeroaiservice.NewProviderService()
+
+	// Create session service with agent factory for dynamic agent resolution
+	sessionSvc, _ := zeroaiservice.NewSessionServiceWithAgentFactory(
+		func(ctx context.Context, backend string) (agent.Agent, error) {
+			return agentSvc.GetAgent(ctx, agent.AgentConfig{Backend: backend})
+		},
+		sessionStore,
+	)
+
+	zeroaiServer := zeroairpc.NewWshRpcZeroaiServer(sessionSvc, msgSvc, agentSvc, providerSvc, nil, nil)
+	zeroaiWsh := wshutil.MakeWshRpc(wshrpc.RpcContext{}, zeroaiServer, "zeroai")
+	wshutil.DefaultRouter.RegisterTrustedLeaf(zeroaiWsh, "zeroai")
 }
 
 func grabAndRemoveEnvVars() error {

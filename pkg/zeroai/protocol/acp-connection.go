@@ -34,11 +34,11 @@ const (
 
 // ConnectionStatus represents the connection status
 type ConnectionStatus struct {
-	State       ConnectionState `json:"state"`
-	HasSession  bool            `json:"hasSession"`
-	LastError   error           `json:"lastError,omitempty"`
-	LastSeen    time.Time       `json:"lastSeen"`
-	ProcessID   int             `json:"processId,omitempty"`
+	State      ConnectionState `json:"state"`
+	HasSession bool            `json:"hasSession"`
+	LastError  error           `json:"lastError,omitempty"`
+	LastSeen   time.Time       `json:"lastSeen"`
+	ProcessID  int             `json:"processId,omitempty"`
 }
 
 // PendingRequest represents an in-flight JSON-RPC request waiting for response
@@ -73,15 +73,15 @@ type AcpConnection struct {
 	mu sync.RWMutex
 
 	// Connection state
-	state      atomic.Int32 // ConnectionState
-	config     AcpSessionConfig
-	process    *exec.Cmd
-	processID  int
+	state     atomic.Int32 // ConnectionState
+	config    AcpSessionConfig
+	process   *exec.Cmd
+	processID int
 
 	// stdio pipes
-	stdin      io.WriteCloser
-	stdout     io.Reader
-	stderr     io.Reader
+	stdin  io.WriteCloser
+	stdout io.Reader
+	stderr io.Reader
 
 	// Session tracking
 	sessionID  string
@@ -97,8 +97,8 @@ type AcpConnection struct {
 	background sync.WaitGroup
 
 	// Error tracking
-	lastError  error
-	lastSeen   atomic.Value // time.Time
+	lastError error
+	lastSeen  atomic.Value // time.Time
 
 	// Channel for signaling shutdown
 	shutdownCh chan struct{}
@@ -226,6 +226,60 @@ func (c *AcpConnection) Initialize(config AcpSessionConfig) error {
 	c.background.Add(1)
 	go c.readStderrLoop()
 
+	// Send JSON-RPC initialize handshake (required by ACP protocol)
+	// Must bypass SendMessage's connected check since we're still connecting
+	initID := int(c.requestID.Add(1))
+	initReq := map[string]interface{}{
+		"jsonrpc": "2.0",
+		"id":      initID,
+		"method":  "initialize",
+		"params": map[string]interface{}{
+			"protocolVersion": "2025-03-26",
+			"clientInfo": map[string]string{
+				"name":    "zeroai",
+				"version": "0.1.0",
+			},
+			"capabilities": map[string]interface{}{},
+		},
+	}
+
+	initReqBytes, _ := json.Marshal(initReq)
+
+	// Register pending request before sending
+	respCh := make(chan *AcpResponse, 1)
+	c.reqMu.Lock()
+	c.pendingReq[initID] = &PendingRequest{
+		ID:        initID,
+		Method:    "initialize",
+		Response:  respCh,
+		Timeout:   15 * time.Second,
+		CreatedAt: time.Now(),
+	}
+	c.reqMu.Unlock()
+
+	if err := c.sendData(initReqBytes); err != nil {
+		c.process.Process.Kill()
+		return fmt.Errorf("failed to send initialize: %w", err)
+	}
+
+	// Wait for initialize response
+	initCtx, initCancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer initCancel()
+
+	select {
+	case resp := <-respCh:
+		if resp.Error != nil {
+			c.process.Process.Kill()
+			return fmt.Errorf("initialize error: %v", resp.Error)
+		}
+	case <-initCtx.Done():
+		c.process.Process.Kill()
+		return fmt.Errorf("initialize timeout")
+	case <-c.shutdownCh:
+		c.process.Process.Kill()
+		return fmt.Errorf("connection closed during initialize")
+	}
+
 	c.state.Store(int32(ConnectionStateConnected))
 	return nil
 }
@@ -316,11 +370,11 @@ func (c *AcpConnection) GetStatus() ConnectionStatus {
 	lastSeen, _ := c.lastSeen.Load().(time.Time)
 
 	return ConnectionStatus{
-		State:       state,
-		HasSession:  c.hasSession,
-		LastError:   c.lastError,
-		LastSeen:    lastSeen,
-		ProcessID:   c.processID,
+		State:      state,
+		HasSession: c.hasSession,
+		LastError:  c.lastError,
+		LastSeen:   lastSeen,
+		ProcessID:  c.processID,
 	}
 }
 
@@ -489,11 +543,16 @@ func (c *AcpConnection) SendNotification(method string, params map[string]interf
 	return c.sendData(data)
 }
 
-// StreamPrompt sends a prompt and receives streaming responses
+// StreamPrompt sends a prompt and receives streaming responses via session/update notifications
 func (c *AcpConnection) StreamPrompt(ctx context.Context, sessionID, prompt string, opts AcpPromptOptions, callback StreamCallback) error {
 	params := map[string]interface{}{
 		"sessionId": sessionID,
-		"prompt":    prompt,
+		"prompt": []map[string]interface{}{
+			{
+				"type": "text",
+				"text": prompt,
+			},
+		},
 	}
 	if len(opts.Files) > 0 {
 		params["files"] = opts.Files
@@ -502,12 +561,12 @@ func (c *AcpConnection) StreamPrompt(ctx context.Context, sessionID, prompt stri
 		params["model"] = opts.ModelOverride
 	}
 
-	if err := c.SendNotification("prompt/stream", params); err != nil {
-		return err
-	}
+	// Send session/prompt request in a goroutine - don't block waiting for response.
+	// Streaming responses come via session/update notifications handled by readOutputLoop.
+	go func() {
+		_, _ = c.SendMessage(context.Background(), "session/prompt", params, 5*time.Minute)
+	}()
 
-	// Streaming responses come via notifications, handled by readOutputLoop
-	// The callback will be invoked for each session update
 	return nil
 }
 

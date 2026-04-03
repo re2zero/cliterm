@@ -5,7 +5,7 @@ import { useAtomValue } from "jotai";
 import { useEffect, useRef, useState } from "react";
 import { ChatArea, ChatInput, ProviderSettings, SessionList, StatusBar, ZeroAIHeader } from "./components";
 import "./index.scss";
-import { dispatchMessageAction, messagesAtom } from "./models/message-model";
+import { dispatchMessageAction, messagesAtom, streamingMessageAtom } from "./models/message-model";
 import { activeModelAtom, activeProviderAtom, activeProviderIdAtom } from "./models/provider-model";
 import { activeSessionIdAtom, dispatchSessionAction, removeSession, sessionsAtom } from "./models/session-model";
 import {
@@ -56,6 +56,10 @@ export function AIPanel(_props: { roundTopLeft?: boolean }) {
     }, []);
 
     const currentMessages = activeSessionId ? messagesMap[activeSessionId] || [] : [];
+    const streamingMessage = useAtomValue(streamingMessageAtom);
+    const displayMessages = activeSessionId
+        ? [...currentMessages, ...(streamingMessage[activeSessionId] ? [streamingMessage[activeSessionId]] : [])]
+        : currentMessages;
     const currentSession = sessions.find((s) => s.sessionId === activeSessionId);
 
     const handleSelectSession = (sessionId: string) => {
@@ -123,8 +127,45 @@ export function AIPanel(_props: { roundTopLeft?: boolean }) {
     };
 
     const handleSendMessage = async () => {
-        if (!inputValue.trim() || !activeSessionId || !clientRef.current || isStreaming) {
+        if (!inputValue.trim() || !clientRef.current || isStreaming) {
             return;
+        }
+
+        // Auto-create session if none exists
+        let sessionId = activeSessionId;
+        if (!sessionId) {
+            try {
+                setIsStreaming(true);
+                setThinking(true);
+
+                const backend = (activeProviderId as CreateSessionRequest["backend"]) || "claude";
+                const model = activeModel || "claude-sonnet-4-5";
+
+                const request: CreateSessionRequest = {
+                    backend,
+                    model,
+                    provider: activeProviderId,
+                };
+
+                const result = await clientRef.current.createSession(request);
+
+                const newSession: ZeroAiSessionInfo = {
+                    sessionId: result.sessionId,
+                    provider: activeProviderId,
+                    model,
+                    workDir: null,
+                    createdAt: Date.now() / 1000,
+                    lastMessageAt: Date.now() / 1000,
+                };
+
+                dispatchSessionAction({ type: "addSession", session: newSession, setActive: true });
+                sessionId = result.sessionId;
+            } catch (error) {
+                console.error("Failed to create session:", error);
+                setIsStreaming(false);
+                setThinking(false);
+                return;
+            }
         }
 
         const content = inputValue.trim();
@@ -134,10 +175,12 @@ export function AIPanel(_props: { roundTopLeft?: boolean }) {
 
         try {
             const stream = clientRef.current.streamMessage({
-                sessionId: activeSessionId,
+                sessionId,
                 role: "user",
                 content,
             });
+
+            let streamStarted = false;
 
             for await (const event of stream) {
                 if (event.message) {
@@ -150,17 +193,31 @@ export function AIPanel(_props: { roundTopLeft?: boolean }) {
                         eventType === "tool_completed" ||
                         eventType === "tool_failed"
                     ) {
-                        dispatchMessageAction({ type: "addMessage", sessionId: activeSessionId, message: msg });
+                        dispatchMessageAction({ type: "addMessage", sessionId, message: msg });
                     } else if (eventType === "permission" || eventType === "permission_request") {
-                        dispatchMessageAction({ type: "addMessage", sessionId: activeSessionId, message: msg });
+                        dispatchMessageAction({ type: "addMessage", sessionId, message: msg });
                     } else if (eventType === "plan_update" || eventType === "plan") {
-                        dispatchMessageAction({ type: "addMessage", sessionId: activeSessionId, message: msg });
+                        dispatchMessageAction({ type: "addMessage", sessionId, message: msg });
                     } else if (eventType === "error") {
-                        dispatchMessageAction({ type: "addMessage", sessionId: activeSessionId, message: msg });
+                        dispatchMessageAction({ type: "addMessage", sessionId, message: msg });
                     } else if (eventType === "end_turn") {
-                        // End of assistant response
+                        dispatchMessageAction({ type: "finalizeStream", sessionId });
                     } else if (msg.content) {
-                        dispatchMessageAction({ type: "addMessage", sessionId: activeSessionId, message: msg });
+                        if (!streamStarted) {
+                            dispatchMessageAction({
+                                type: "startStream",
+                                sessionId,
+                                message: {
+                                    role: msg.role,
+                                    content: msg.content,
+                                    sessionId,
+                                    createdAt: Date.now() / 1000,
+                                },
+                            });
+                            streamStarted = true;
+                        } else {
+                            dispatchMessageAction({ type: "appendChunk", sessionId, chunk: msg });
+                        }
                     }
                 }
             }
@@ -212,7 +269,7 @@ export function AIPanel(_props: { roundTopLeft?: boolean }) {
                             onToggleCollapse={toggleSessionListCollapsed}
                         />
                         <div className="chat-area-wrapper">
-                            <ChatArea messages={currentMessages} />
+                            <ChatArea messages={displayMessages} />
                             <ChatInput
                                 value={inputValue}
                                 onChange={setInputValue}
