@@ -1,0 +1,12 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": "pkg/wshrpc/wshrpctypes.go", "reason": "All ZeroAI RPC type definitions (Phase 1-4)"}
+{"file": "frontend/app/zeroai/store/zeroai-client.ts", "reason": "Current manual RPC client to refactor"}
+{"file": "frontend/app/zeroai/types/index.ts", "reason": "Current hand-written types to sync with gotypes.d.ts"}
+{"file": ".kilocode/skills/add-rpc/SKILL.md", "reason": "RPC addition workflow and generation guide"}
+{"file": "frontend/app/zeroai/components/provider-settings.tsx", "reason": "Consumer of provider types"}
+{"file": "frontend/app/zeroai/models/provider-model.ts", "reason": "Consumer of provider types"}
+{"file": "frontend/app/zeroai/index.tsx", "reason": "Main panel consuming types"}
+{"file": "frontend/app/zeroai/models/session-model.ts", "reason": "Consumer of session types"}
+{"file": "frontend/app/zeroai/models/message-model.ts", "reason": "Consumer of message types"}

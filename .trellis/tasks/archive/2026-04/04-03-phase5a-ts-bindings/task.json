@@ -1,0 +1,44 @@
+{
+  "id": "phase5a-ts-bindings",
+  "name": "phase5a-ts-bindings",
+  "title": "Phase 5a: task generate + TS bindings refactor",
+  "description": "",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": "zeroai",
+  "priority": "P2",
+  "creator": "claude-agent",
+  "assignee": "claude-agent",
+  "createdAt": "2026-04-03",
+  "completedAt": null,
+  "branch": "feature/phase5a-ts-bindings",
+  "base_branch": "zeroai",
+  "worktree_path": "/home/zero/zero/trellis-worktrees/feature/phase5a-ts-bindings",
+  "current_phase": 0,
+  "next_action": [
+    {
+      "phase": 1,
+      "action": "implement"
+    },
+    {
+      "phase": 2,
+      "action": "check"
+    },
+    {
+      "phase": 3,
+      "action": "finish"
+    },
+    {
+      "phase": 4,
+      "action": "create-pr"
+    }
+  ],
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}

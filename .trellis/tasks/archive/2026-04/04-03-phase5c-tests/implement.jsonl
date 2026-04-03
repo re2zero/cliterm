@@ -1,0 +1,10 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": "pkg/zeroai/store/team-store_test.go", "reason": "Gold standard test pattern with in-memory SQLite"}
+{"file": "pkg/zeroai/service/agent-service_test.go", "reason": "Basic service test pattern"}
+{"file": "pkg/zeroai/service/session-service.go", "reason": "Session service source under test"}
+{"file": "pkg/zeroai/service/message-service.go", "reason": "Message service source under test"}
+{"file": "pkg/zeroai/service/provider-service.go", "reason": "Provider service source under test"}
+{"file": "pkg/zeroai/store/store-interface.go", "reason": "Store interfaces to mock/impl"}
+{"file": "pkg/zeroai/store/session-store.go", "reason": "Session store SQLite implementation"}
+{"file": "pkg/zeroai/store/message-store.go", "reason": "Message store SQLite implementation"}

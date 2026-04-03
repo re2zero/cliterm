@@ -1,0 +1,44 @@
+{
+  "id": "phase5c-tests",
+  "name": "phase5c-tests",
+  "title": "Phase 5c: ZeroAI Integration Tests",
+  "description": "Add integration tests for ZeroAI backend Go packages",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "priority": "P1",
+  "creator": "claude-agent",
+  "assignee": "claude-agent",
+  "createdAt": "2026-04-03",
+  "completedAt": null,
+  "branch": "feature/phase5c-tests",
+  "base_branch": "zeroai",
+  "worktree_path": "/home/zero/zero/trellis-worktrees/feature/phase5c-tests",
+  "current_phase": 0,
+  "next_action": [
+    {
+      "phase": 1,
+      "action": "implement"
+    },
+    {
+      "phase": 2,
+      "action": "check"
+    },
+    {
+      "phase": 3,
+      "action": "finish"
+    },
+    {
+      "phase": 4,
+      "action": "create-pr"
+    }
+  ],
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}

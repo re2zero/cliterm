@@ -1,0 +1,3 @@
+{"file": ".opencode/commands/trellis/check-backend.md", "reason": "Backend check spec"}
+{"file": "pkg/zeroai/store/store-interface.go", "reason": "Debug store interface issues"}
+{"file": "pkg/zeroai/service/session-service.go", "reason": "Debug session service issues"}
