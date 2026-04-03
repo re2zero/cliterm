@@ -481,6 +481,7 @@ type ZeroAiTestProviderResult struct {
 	Error     string `json:"error,omitempty"`
 	Version   string `json:"version,omitempty"`
 	ModelInfo string `json:"modelInfo,omitempty"`
+	LatencyMs int64  `json:"latencyMs"`
 }
 
 // CommandZeroAiListProvidersData is the request data for listing providers

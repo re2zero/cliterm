@@ -10,8 +10,8 @@
 export * from "./types";
 
 // Models
-export * from "./models/session-model";
 export * from "./models/message-model";
+export * from "./models/session-model";
 export * from "./models/ui-model";
 
 // Store/Client
