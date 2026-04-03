@@ -15,17 +15,23 @@ export const ZeroAIHeader = React.memo(({ showSettings = false, onToggleSettings
     return (
         <div className={cn("zeroai-header", className)}>
             <div className="zeroai-header-title">
+                {showSettings && (
+                    <button className="zeroai-header-back" onClick={onToggleSettings} title="Back to chat">
+                        <i className="fa-solid fa-arrow-left" />
+                    </button>
+                )}
                 <i className={makeIconClass("fa-solid fa-robot", false)} />
-                <span>ZeroAI</span>
+                <span>{showSettings ? "Settings" : "ZeroAI"}</span>
             </div>
-            <button
-                className={cn("zeroai-header-btn", showSettings && "active")}
-                onClick={onToggleSettings}
-                title="Custom Providers"
-            >
-                <i className={makeIconClass("fa-solid fa-plug", false)} />
-                <span>Providers</span>
-            </button>
+            {!showSettings && (
+                <button
+                    className={cn("zeroai-header-btn", showSettings && "active")}
+                    onClick={onToggleSettings}
+                    title="Settings"
+                >
+                    <i className={makeIconClass("fa-solid fa-gear", false)} />
+                </button>
+            )}
         </div>
     );
 });

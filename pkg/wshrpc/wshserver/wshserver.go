@@ -58,6 +58,7 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/wsl"
 	"github.com/wavetermdev/waveterm/pkg/wslconn"
 	"github.com/wavetermdev/waveterm/pkg/wstore"
+	"github.com/wavetermdev/waveterm/pkg/zeroai/service"
 	"github.com/wavetermdev/waveterm/tsunami/build"
 )
 
@@ -1577,4 +1578,56 @@ func (ws *WshServer) JobControllerDetachJobCommand(ctx context.Context, jobId st
 
 func (ws *WshServer) BlockJobStatusCommand(ctx context.Context, blockId string) (*wshrpc.BlockJobStatusData, error) {
 	return jobcontroller.GetBlockJobStatus(ctx, blockId)
+}
+
+// ZeroAI Provider Commands
+
+func (ws *WshServer) ZeroAiListProvidersCommand(ctx context.Context, data wshrpc.CommandZeroAiListProvidersData) (wshrpc.CommandZeroAiListProvidersRtnData, error) {
+	defer func() {
+		panichandler.PanicHandler("ZeroAiListProvidersCommand", recover())
+	}()
+
+	ps := service.NewProviderService()
+	providers, err := ps.ListProviders()
+	if err != nil {
+		return wshrpc.CommandZeroAiListProvidersRtnData{}, err
+	}
+
+	return wshrpc.CommandZeroAiListProvidersRtnData{
+		Providers: providers,
+	}, nil
+}
+
+func (ws *WshServer) ZeroAiSaveProviderCommand(ctx context.Context, data wshrpc.CommandZeroAiSaveProviderData) error {
+	defer func() {
+		panichandler.PanicHandler("ZeroAiSaveProviderCommand", recover())
+	}()
+
+	ps := service.NewProviderService()
+	return ps.SaveProvider(data)
+}
+
+func (ws *WshServer) ZeroAiDeleteProviderCommand(ctx context.Context, data wshrpc.CommandZeroAiDeleteProviderData) error {
+	defer func() {
+		panichandler.PanicHandler("ZeroAiDeleteProviderCommand", recover())
+	}()
+
+	ps := service.NewProviderService()
+	return ps.DeleteProvider(data.ProviderID)
+}
+
+func (ws *WshServer) ZeroAiTestProviderCommand(ctx context.Context, data wshrpc.CommandZeroAiTestProviderData) (wshrpc.CommandZeroAiTestProviderRtnData, error) {
+	defer func() {
+		panichandler.PanicHandler("ZeroAiTestProviderCommand", recover())
+	}()
+
+	ps := service.NewProviderService()
+	result, err := ps.TestProvider(ctx, data.ProviderID)
+	if err != nil {
+		return wshrpc.CommandZeroAiTestProviderRtnData{}, err
+	}
+
+	return wshrpc.CommandZeroAiTestProviderRtnData{
+		Result: result,
+	}, nil
 }

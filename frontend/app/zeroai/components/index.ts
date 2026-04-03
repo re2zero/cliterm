@@ -5,10 +5,9 @@ export { SessionList } from "./session-list";
 export type { SessionListProps } from "./session-list";
 
 export { ChatArea } from "./chat-area";
-export type { ChatAreaProps } from "./chat-area";
 
-export { default as ResizableInput } from "./resizable-input";
-export type { ResizableInputProps } from "./resizable-input";
+export { default as ChatInput } from "./chat-input";
+export type { ChatInputProps } from "./chat-input";
 
 export { StatusBar } from "./status-bar";
 export type { StatusBarProps } from "./status-bar";

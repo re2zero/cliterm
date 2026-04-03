@@ -472,6 +472,7 @@ type ZeroAiProviderInfo struct {
 	AuthRequired      bool              `json:"authRequired" tstype:"boolean"`
 	IsCustom          bool              `json:"isCustom" tstype:"boolean"`
 	IsAvailable       bool              `json:"isAvailable" tstype:"boolean"`
+	InstallHint       string            `json:"installHint,omitempty"`
 }
 
 // ZeroAiTestProviderResult represents the result of testing a provider

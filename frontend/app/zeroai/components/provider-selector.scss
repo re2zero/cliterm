@@ -1,0 +1,190 @@
+// Copyright 2026, Command Line Inc.
+// SPDX-License-Identifier: Apache-2.0
+
+.provider-selector {
+    position: relative;
+    display: inline-flex;
+    width: 100%;
+}
+
+.provider-selector-trigger {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    border: none;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.45);
+    font-size: 11px;
+    font-family: inherit;
+    cursor: pointer;
+    border-radius: 6px;
+    transition: all 0.15s ease;
+    width: 100%;
+    justify-content: center;
+
+    &:hover {
+        color: rgba(255, 255, 255, 0.7);
+        background: rgba(255, 255, 255, 0.04);
+    }
+
+    i {
+        font-size: 10px;
+        opacity: 0.7;
+    }
+}
+
+.provider-selector-name {
+    font-weight: 500;
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.provider-selector-model {
+    max-width: 80px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.provider-sep {
+    opacity: 0.3;
+    margin: 0 -2px;
+}
+
+.provider-chevron {
+    font-size: 8px !important;
+    opacity: 0.4;
+    margin-left: 2px;
+    transition: transform 0.15s ease;
+}
+
+.provider-selector.open .provider-chevron {
+    transform: rotate(180deg);
+}
+
+// Dropdown
+.provider-dropdown {
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 50%;
+    transform: translateX(-50%);
+    min-width: 240px;
+    max-width: 300px;
+    background: var(--bg-secondary, #1a1a2e);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    z-index: 100;
+    overflow: hidden;
+    animation: pdSlideUp 0.15s ease;
+}
+
+@keyframes pdSlideUp {
+    from {
+        opacity: 0;
+        transform: translateX(-50%) translateY(4px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+    }
+}
+
+.pd-group {
+    padding: 4px 0;
+}
+
+.pd-group-label {
+    padding: 6px 12px 4px;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: rgba(255, 255, 255, 0.3);
+}
+
+.pd-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 7px 12px;
+    border: none;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.85);
+    text-align: left;
+    font-family: inherit;
+    font-size: 12px;
+    cursor: pointer;
+    transition: background 0.1s ease;
+
+    &:hover:not(:disabled) {
+        background: rgba(255, 255, 255, 0.06);
+    }
+
+    &.active {
+        background: rgba(147, 197, 253, 0.08);
+        color: rgba(147, 197, 253, 0.95);
+    }
+
+    &.disabled {
+        opacity: 0.35;
+        cursor: default;
+    }
+
+    i {
+        font-size: 11px;
+        opacity: 0.6;
+        width: 14px;
+        text-align: center;
+        flex-shrink: 0;
+    }
+}
+
+.pd-item-name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.pd-item-model {
+    font-size: 10px;
+    opacity: 0.4;
+    max-width: 80px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.pd-check {
+    font-size: 10px !important;
+    color: rgba(147, 197, 253, 0.8);
+    opacity: 1 !important;
+}
+
+.pd-item-unavailable {
+    font-size: 9px;
+    color: rgba(239, 68, 68, 0.6);
+}
+
+.pd-divider {
+    height: 1px;
+    background: rgba(255, 255, 255, 0.06);
+    margin: 2px 8px;
+}
+
+.pd-settings {
+    color: rgba(255, 255, 255, 0.5) !important;
+    padding: 8px 12px !important;
+    font-size: 11px !important;
+
+    &:hover {
+        background: rgba(255, 255, 255, 0.06) !important;
+        color: rgba(255, 255, 255, 0.8) !important;
+    }
+}

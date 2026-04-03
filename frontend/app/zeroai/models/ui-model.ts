@@ -41,6 +41,11 @@ export const isInputFocusedAtom = atom<boolean>(false);
 export const showProviderSettingsAtom = atom<boolean>(false);
 
 /**
+ * Session list collapsed state
+ */
+export const sessionListCollapsedAtom = atom<boolean>(true);
+
+/**
  * UI actions atom - provides functions to manipulate UI state
  */
 export const uiActionsAtom = atom(null, (_get, set, action: UIAction) => {
@@ -221,4 +226,25 @@ export function toggleProviderSettings(): void {
  */
 export function getProviderSettingsVisible(): boolean {
     return globalStore.get(showProviderSettingsAtom);
+}
+
+/**
+ * Helper: Is session list collapsed
+ */
+export function getSessionListCollapsed(): boolean {
+    return globalStore.get(sessionListCollapsedAtom);
+}
+
+/**
+ * Helper: Set session list collapsed state
+ */
+export function setSessionListCollapsed(collapsed: boolean): void {
+    globalStore.set(sessionListCollapsedAtom, collapsed);
+}
+
+/**
+ * Helper: Toggle session list collapsed state
+ */
+export function toggleSessionListCollapsed(): void {
+    globalStore.set(sessionListCollapsedAtom, (prev) => !prev);
 }

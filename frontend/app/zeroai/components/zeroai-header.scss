@@ -17,35 +17,53 @@
     color: white;
 
     i {
-        color: rgb(147, 197, 253); /* light blue accent */
+        color: rgb(147, 197, 253);
+    }
+}
+
+.zeroai-header-back {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.5);
+    cursor: pointer;
+    font-size: 12px;
+    transition: all 0.15s ease;
+
+    &:hover {
+        background: rgba(255, 255, 255, 0.08);
+        color: rgba(255, 255, 255, 0.9);
     }
 }
 
 .zeroai-header-btn {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
-    padding: 0.375rem 0.75rem;
-    font-size: 0.875rem;
-    color: rgb(209, 213, 219); /* gray-300 */
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    font-size: 14px;
+    color: rgba(255, 255, 255, 0.5);
     background-color: transparent;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 0.375rem;
+    border: none;
+    border-radius: 6px;
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: all 0.15s ease;
 
     &:hover {
-        background-color: rgba(255, 255, 255, 0.05);
-        color: white;
+        background-color: rgba(255, 255, 255, 0.08);
+        color: rgba(255, 255, 255, 0.9);
     }
 
     &.active {
-        background-color: rgba(147, 197, 253, 0.2); /* light blue with opacity */
-        border-color: rgba(147, 197, 253, 0.5);
+        background-color: rgba(147, 197, 253, 0.15);
         color: rgb(147, 197, 253);
-    }
-
-    i {
-        font-size: 0.75rem;
     }
 }

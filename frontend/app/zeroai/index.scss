@@ -1,25 +1,78 @@
 .zeroai-panel {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+    position: relative;
 }
 
 .zeroai-content {
-  display: flex;
-  flex: 1;
-  overflow: hidden;
+    display: flex;
+    flex: 1;
+    overflow: hidden;
 }
 
 .chat-area-wrapper {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    overflow: hidden;
 }
 
-.provider-settings-full {
-  width: 100%;
-  height: 100%;
-  overflow-y: auto;
+// Inline settings (replaces chat area when settings open)
+.zeroai-settings-inline {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    overflow: hidden;
+    animation: settingsFadeIn 0.15s ease;
+}
+
+@keyframes settingsFadeIn {
+    from {
+        opacity: 0;
+        transform: translateX(-8px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+.zeroai-settings-inline-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 16px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    font-size: 14px;
+    font-weight: 600;
+    flex-shrink: 0;
+    color: rgba(255, 255, 255, 0.85);
+}
+
+.zeroai-settings-back {
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.5);
+    cursor: pointer;
+    font-size: 13px;
+    transition: all 0.15s ease;
+
+    &:hover {
+        background: rgba(255, 255, 255, 0.08);
+        color: rgba(255, 255, 255, 0.9);
+    }
+}
+
+.zeroai-settings-inline-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0;
 }

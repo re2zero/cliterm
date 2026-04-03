@@ -127,6 +127,7 @@ export interface ZeroAiProviderInfo {
     authRequired: boolean;
     isAvailable: boolean;
     isCustom: boolean;
+    installHint: string;
 }
 
 export interface SaveProviderRequest {

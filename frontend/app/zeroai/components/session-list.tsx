@@ -14,6 +14,8 @@ export interface SessionListProps {
     onCreateSession: () => void;
     onDeleteSession?: (sessionId: string) => void;
     className?: string;
+    collapsed?: boolean;
+    onToggleCollapse?: () => void;
 }
 
 interface SessionItemProps {
@@ -104,10 +106,11 @@ export const SessionList = React.memo(
         onCreateSession,
         onDeleteSession,
         className,
+        collapsed = false,
+        onToggleCollapse,
     }: SessionListProps) => {
         const [filterText, setFilterText] = React.useState("");
 
-        // Group sessions by backend
         const groupedSessions = React.useMemo(() => {
             const groups: Record<string, ZeroAiSession[]> = {};
             sessions.forEach((session) => {
@@ -118,7 +121,6 @@ export const SessionList = React.memo(
                 groups[backend].push(session);
             });
 
-            // Sort sessions within each group by updatedAt (newest first)
             Object.keys(groups).forEach((backend) => {
                 groups[backend].sort((a, b) => b.updatedAt - a.updatedAt);
             });
@@ -126,7 +128,6 @@ export const SessionList = React.memo(
             return groups;
         }, [sessions]);
 
-        // Filter sessions based on search text
         const filteredSessions = React.useMemo(() => {
             if (!filterText) {
                 return sessions;
@@ -144,29 +145,47 @@ export const SessionList = React.memo(
             return [...filteredSessions].sort((a, b) => b.updatedAt - a.updatedAt);
         }, [filteredSessions]);
 
-        const handleSort = () => {
-            // Could add sort functionality here (by date, by backend, etc.)
-        };
-
         return (
-            <div className={clsx("session-list", className)}>
+            <div className={clsx("session-list", className, { collapsed })}>
                 <div className="session-list-header">
-                    <div className="session-list-title">
-                        <i className="fa-solid fa-clock-rotate-left" />
-                        <span>Sessions</span>
-                        <span className="session-count">{sessions.length}</span>
-                    </div>
                     <button
-                        className="session-list-create"
-                        onClick={onCreateSession}
-                        title="Create new session"
-                        aria-label="Create new session"
+                        className="session-list-toggle"
+                        onClick={onToggleCollapse}
+                        title={collapsed ? "Expand sessions" : "Collapse sessions"}
+                        aria-label={collapsed ? "Expand sessions" : "Collapse sessions"}
                     >
-                        <i className="fa-solid fa-plus" />
+                        <i className={clsx("fa-solid", collapsed ? "fa-chevron-right" : "fa-chevron-left")} />
                     </button>
+                    {!collapsed && (
+                        <>
+                            <div className="session-list-title">
+                                <i className="fa-solid fa-clock-rotate-left" />
+                                <span>Sessions</span>
+                                <span className="session-count">{sessions.length}</span>
+                            </div>
+                            <button
+                                className="session-list-create"
+                                onClick={onCreateSession}
+                                title="Create new session"
+                                aria-label="Create new session"
+                            >
+                                <i className="fa-solid fa-plus" />
+                            </button>
+                        </>
+                    )}
+                    {collapsed && (
+                        <button
+                            className="session-list-create-collapsed"
+                            onClick={onCreateSession}
+                            title="Create new session"
+                            aria-label="Create new session"
+                        >
+                            <i className="fa-solid fa-plus" />
+                        </button>
+                    )}
                 </div>
 
-                {sessions.length > 0 && (
+                {!collapsed && sessions.length > 0 && (
                     <div className="session-list-search">
                         <i className="fa-solid fa-magnifying-glass search-icon" />
                         <input
@@ -188,36 +207,38 @@ export const SessionList = React.memo(
                     </div>
                 )}
 
-                <div className="session-list-content">
-                    {sortedFilteredSessions.length === 0 ? (
-                        <div className="session-list-empty">
-                            {filterText ? (
-                                <>
-                                    <i className="fa-solid fa-search empty-icon" />
-                                    <p className="empty-text">No sessions found</p>
-                                </>
-                            ) : (
-                                <>
-                                    <i className="fa-solid fa-comments empty-icon" />
-                                    <p className="empty-text">No sessions yet</p>
-                                    <button className="empty-action" onClick={onCreateSession}>
-                                        Create your first session
-                                    </button>
-                                </>
-                            )}
-                        </div>
-                    ) : (
-                        sortedFilteredSessions.map((session) => (
-                            <SessionItem
-                                key={session.id}
-                                session={session}
-                                isActive={session.id === currentSessionId}
-                                onSelect={() => onSelectSession(session.id)}
-                                onDelete={onDeleteSession ? () => onDeleteSession(session.id) : undefined}
-                            />
-                        ))
-                    )}
-                </div>
+                {!collapsed && (
+                    <div className="session-list-content">
+                        {sortedFilteredSessions.length === 0 ? (
+                            <div className="session-list-empty">
+                                {filterText ? (
+                                    <>
+                                        <i className="fa-solid fa-search empty-icon" />
+                                        <p className="empty-text">No sessions found</p>
+                                    </>
+                                ) : (
+                                    <>
+                                        <i className="fa-solid fa-comments empty-icon" />
+                                        <p className="empty-text">No sessions yet</p>
+                                        <button className="empty-action" onClick={onCreateSession}>
+                                            Create your first session
+                                        </button>
+                                    </>
+                                )}
+                            </div>
+                        ) : (
+                            sortedFilteredSessions.map((session) => (
+                                <SessionItem
+                                    key={session.id}
+                                    session={session}
+                                    isActive={session.id === currentSessionId}
+                                    onSelect={() => onSelectSession(session.id)}
+                                    onDelete={onDeleteSession ? () => onDeleteSession(session.id) : undefined}
+                                />
+                            ))
+                        )}
+                    </div>
+                )}
             </div>
         );
     }

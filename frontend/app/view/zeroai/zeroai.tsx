@@ -1,7 +1,7 @@
 // Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { ZeroAIPanel } from "@/app/zeroai/index.tsx";
+import { AIPanel } from "@/app/zeroai/aipanel";
 import { atom } from "jotai";
 
 export class ZeroAiModel implements ViewModel {
@@ -9,7 +9,7 @@ export class ZeroAiModel implements ViewModel {
     viewIcon = atom("smart_toy");
     viewName = atom("ZeroAI");
     noPadding = atom(true);
-    viewComponent = ZeroAIPanel;
+    viewComponent = AIPanel;
 
     constructor(_: ViewModelInitType) {}
 }

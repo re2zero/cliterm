@@ -16,3 +16,6 @@ export * from "./models/ui-model";
 
 // Store/Client
 export * from "./store/zeroai-client";
+
+// Components
+// export { ZeroAIPanel } from "./aipanel";

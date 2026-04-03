@@ -6,431 +6,444 @@ import clsx from "clsx";
 import { atom, useAtom, useAtomValue } from "jotai";
 import * as React from "react";
 import {
+    activeProviderIdAtom,
     deleteProvider,
     fetchProviders,
     providerLoadingAtom,
-    providerTestingAtom,
     providersAtom,
     saveProvider,
+    setActiveProvider,
     testProvider,
 } from "../models/provider-model";
-import type { SaveProviderRequest, TestProviderResult, ZeroAiProviderInfo } from "../types";
+import type { SaveProviderRequest, ZeroAiProviderInfo } from "../types";
 import "./provider-settings.scss";
 
 export interface ProviderSettingsProps {
     className?: string;
-    onProviderSelect?: (provider: ZeroAiProviderInfo) => void;
-    selectedProviderId?: string;
 }
 
-type FormMode = "idle" | "add" | "edit";
+type SettingsGroup = "providers" | "mcp" | "skills";
+const settingsGroupAtom = atom<SettingsGroup>("providers");
 
-const emptyForm: SaveProviderRequest = {
-    providerId: "",
-    displayName: "",
-    cliCommand: "",
-    cliPath: "",
-    cliArgs: [],
-    envVars: {},
-    supportsStreaming: false,
-    defaultModel: "",
-    availableModels: [],
-    authRequired: false,
-};
+export const ProviderSettings = React.memo(({ className }: ProviderSettingsProps) => {
+    const [group, setGroup] = useAtom(settingsGroupAtom);
+    const providers = useAtomValue(providersAtom);
+    const loading = useAtomValue(providerLoadingAtom);
 
-const formAtom = atom<SaveProviderRequest>(emptyForm) as import("jotai").PrimitiveAtom<SaveProviderRequest>;
-const formModeAtom = atom<FormMode>("idle") as import("jotai").PrimitiveAtom<FormMode>;
-const formErrorAtom = atom<string>("") as import("jotai").PrimitiveAtom<string>;
-const testResultAtom = atom<TestProviderResult | null>(
-    null
-) as import("jotai").PrimitiveAtom<TestProviderResult | null>;
+    React.useEffect(() => {
+        fetchProviders();
+    }, []);
 
-export const ProviderSettings = React.memo(
-    ({ className, onProviderSelect, selectedProviderId }: ProviderSettingsProps) => {
-        const providers = useAtomValue(providersAtom);
-        const loading = useAtomValue(providerLoadingAtom);
-        const testingId = useAtomValue(providerTestingAtom);
-        const [formMode, setFormMode] = useAtom(formModeAtom);
-        const [form, setForm] = useAtom(formAtom);
-        const [formError, setFormError] = useAtom(formErrorAtom);
-        const [testResult, setTestResult] = useAtom(testResultAtom);
-
-        React.useEffect(() => {
-            fetchProviders();
-        }, []);
-
-        const handleAdd = React.useCallback(() => {
-            setFormMode("add");
-            setForm(emptyForm);
-            setFormError("");
-            setTestResult(null);
-        }, [setFormMode, setForm, setFormError, setTestResult]);
-
-        const handleEdit = React.useCallback(
-            (provider: ZeroAiProviderInfo) => {
-                setFormMode("edit");
-                setFormError("");
-                setTestResult(null);
-                setForm({
-                    providerId: provider.id,
-                    displayName: provider.displayName,
-                    cliCommand: provider.cliCommand,
-                    cliPath: provider.cliPath,
-                    cliArgs: provider.cliArgs,
-                    envVars: provider.envVars,
-                    supportsStreaming: provider.supportsStreaming,
-                    defaultModel: provider.defaultModel,
-                    availableModels: provider.availableModels,
-                    authRequired: provider.authRequired,
-                });
-            },
-            [setFormMode, setForm, setFormError, setTestResult]
-        );
-
-        const handleSave = React.useCallback(async () => {
-            if (!form.displayName.trim()) {
-                setFormError("Display name is required");
-                return;
-            }
-            if (!form.cliCommand.trim()) {
-                setFormError("CLI command is required");
-                return;
-            }
-
-            const request = { ...form };
-            if (formMode === "add") {
-                request.providerId = form.displayName
-                    .toLowerCase()
-                    .replace(/\s+/g, "-")
-                    .replace(/[^a-z0-9-]/g, "");
-            }
-
-            try {
-                await saveProvider(request);
-                setFormMode("idle");
-                setForm(emptyForm);
-            } catch (err) {
-                setFormError(`Failed to save: ${err}`);
-            }
-        }, [form, formMode, setFormMode, setForm, setFormError]);
-
-        const handleDelete = React.useCallback(
-            async (providerId: string) => {
-                try {
-                    await deleteProvider(providerId);
-                } catch (err) {
-                    setFormError(`Failed to delete: ${err}`);
-                }
-            },
-            [setFormError]
-        );
-
-        const handleTest = React.useCallback(
-            async (providerId: string) => {
-                try {
-                    const result = await testProvider(providerId);
-                    setTestResult(result);
-                } catch (err) {
-                    setTestResult({ success: false, version: "", error: String(err), latencyMs: 0 });
-                }
-            },
-            [setTestResult]
-        );
-
-        const handleCancel = React.useCallback(() => {
-            setFormMode("idle");
-            setForm(emptyForm);
-            setFormError("");
-            setTestResult(null);
-        }, [setFormMode, setForm, setFormError, setTestResult]);
-
-        return (
-            <div className={clsx("provider-settings", className)}>
-                <div className="provider-settings-header">
-                    <h3 className="provider-settings-title">
-                        <i className={makeIconClass("fa-solid fa-plug", false)} />
-                        Custom Providers
-                    </h3>
-                    {formMode === "idle" && (
-                        <button className="provider-add-btn" onClick={handleAdd}>
-                            <i className={makeIconClass("fa-solid fa-plus", false)} />
-                            Add Provider
-                        </button>
-                    )}
-                </div>
-
-                {formError && <div className="provider-error">{formError}</div>}
-
-                {formMode !== "idle" && (
-                    <ProviderForm
-                        form={form}
-                        formMode={formMode}
-                        onFormChange={setForm}
-                        onSave={handleSave}
-                        onCancel={handleCancel}
-                        onTest={formMode === "edit" ? () => handleTest(form.providerId) : undefined}
-                        testing={testingId === form.providerId}
-                        testResult={testResult}
-                    />
-                )}
-
-                <div className="provider-list">
-                    {loading && <div className="provider-loading">Loading...</div>}
-                    {!loading && providers.length === 0 && (
-                        <div className="provider-empty">
-                            <i className={makeIconClass("fa-solid fa-plug", false)} />
-                            <p>No custom providers configured</p>
-                            <p className="provider-empty-hint">
-                                Add a CLI-based AI provider like Ollama, LM Studio, or custom scripts
-                            </p>
-                        </div>
-                    )}
-                    {!loading &&
-                        providers.map((provider) => (
-                            <ProviderCard
-                                key={provider.id}
-                                provider={provider}
-                                selected={provider.id === selectedProviderId}
-                                onSelect={onProviderSelect}
-                                onEdit={handleEdit}
-                                onDelete={handleDelete}
-                                onTest={handleTest}
-                                testing={testingId === provider.id}
-                            />
-                        ))}
-                </div>
+    return (
+        <div className={clsx("provider-settings", className)}>
+            <div className="ps-sidebar">
+                {(["providers", "mcp", "skills"] as SettingsGroup[]).map((g) => (
+                    <button
+                        key={g}
+                        className={clsx("ps-sidebar-btn", { active: group === g })}
+                        onClick={() => setGroup(g)}
+                    >
+                        <i
+                            className={makeIconClass(
+                                g === "providers"
+                                    ? "fa-solid fa-plug"
+                                    : g === "mcp"
+                                      ? "fa-solid fa-diagram-project"
+                                      : "fa-solid fa-wand-magic-sparkles",
+                                false
+                            )}
+                        />
+                        <span>{g === "providers" ? "Providers" : g === "mcp" ? "MCP" : "Skills"}</span>
+                    </button>
+                ))}
             </div>
-        );
-    }
-);
-ProviderSettings.displayName = "ProviderSettings";
-
-interface ProviderCardProps {
-    provider: ZeroAiProviderInfo;
-    selected?: boolean;
-    onSelect?: (provider: ZeroAiProviderInfo) => void;
-    onEdit: (provider: ZeroAiProviderInfo) => void;
-    onDelete: (providerId: string) => void;
-    onTest: (providerId: string) => void;
-    testing?: boolean;
-}
-
-const ProviderCard = React.memo(
-    ({ provider, selected, onSelect, onEdit, onDelete, onTest, testing }: ProviderCardProps) => (
-        <div
-            className={clsx("provider-card", {
-                selected,
-                available: provider.isAvailable,
-                unavailable: !provider.isAvailable,
-            })}
-            onClick={() => onSelect?.(provider)}
-        >
-            <div className="provider-card-info">
-                <div className="provider-card-name">
-                    <i className={makeIconClass(provider.displayIcon || "fa-solid fa-robot", false)} />
-                    <span>{provider.displayName}</span>
-                    {provider.isAvailable ? (
-                        <span className="provider-status-badge available">Available</span>
-                    ) : (
-                        <span className="provider-status-badge unavailable">Not Found</span>
-                    )}
-                </div>
-                <div className="provider-card-details">
-                    <span className="provider-card-cmd">{provider.cliCommand}</span>
-                    {provider.defaultModel && <span className="provider-card-model">{provider.defaultModel}</span>}
-                </div>
-                {provider.envVars && Object.keys(provider.envVars).length > 0 && (
-                    <div className="provider-card-env">
-                        {Object.keys(provider.envVars).map((key) => (
-                            <span key={key} className="provider-env-var">
-                                {key}
-                            </span>
-                        ))}
-                    </div>
-                )}
-            </div>
-            <div className="provider-card-actions">
-                <button
-                    className="provider-action-btn test"
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        onTest(provider.id);
-                    }}
-                    disabled={testing}
-                    title="Test Connection"
-                >
-                    {testing ? (
-                        <i className={makeIconClass("fa-solid fa-spinner fa-spin", false)} />
-                    ) : (
-                        <i className={makeIconClass("fa-solid fa-flask", false)} />
-                    )}
-                </button>
-                <button
-                    className="provider-action-btn edit"
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        onEdit(provider);
-                    }}
-                    title="Edit"
-                >
-                    <i className={makeIconClass("fa-solid fa-pen", false)} />
-                </button>
-                <button
-                    className="provider-action-btn delete"
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        onDelete(provider.id);
-                    }}
-                    title="Delete"
-                >
-                    <i className={makeIconClass("fa-solid fa-trash", false)} />
-                </button>
+            <div className="ps-content">
+                {group === "providers" && <ProvidersGroup providers={providers} loading={loading} />}
+                {group === "mcp" && <McpGroup />}
+                {group === "skills" && <SkillsGroup />}
             </div>
         </div>
-    )
-);
-ProviderCard.displayName = "ProviderCard";
+    );
+});
+ProviderSettings.displayName = "ProviderSettings";
 
-interface ProviderFormProps {
-    form: SaveProviderRequest;
-    formMode: FormMode;
-    onFormChange: (form: SaveProviderRequest) => void;
-    onSave: () => void;
-    onCancel: () => void;
-    onTest?: () => void;
-    testing?: boolean;
-    testResult?: TestProviderResult | null;
-}
+const ProvidersGroup = React.memo(({ providers, loading }: { providers: ZeroAiProviderInfo[]; loading: boolean }) => {
+    const builtIns = React.useMemo(() => providers.filter((p) => !p.isCustom), [providers]);
+    const customs = React.useMemo(() => providers.filter((p) => p.isCustom), [providers]);
 
-const ProviderForm = React.memo(
-    ({ form, formMode, onFormChange, onSave, onCancel, onTest, testing, testResult }: ProviderFormProps) => {
-        const updateField = React.useCallback(
-            <K extends keyof SaveProviderRequest>(key: K, value: SaveProviderRequest[K]) => {
-                onFormChange({ ...form, [key]: value });
-            },
-            [form, onFormChange]
-        );
+    return (
+        <div className="ps-providers-stack">
+            <div className="ps-providers-pane">
+                <div className="ps-providers-pane-title">
+                    <i className={makeIconClass("fa-solid fa-terminal", false)} />
+                    <span>CLI Agents</span>
+                </div>
+                <CliList providers={builtIns} loading={loading} />
+            </div>
+            <div className="ps-providers-pane">
+                <div className="ps-providers-pane-title">
+                    <i className={makeIconClass("fa-solid fa-cloud", false)} />
+                    <span>LLM API</span>
+                </div>
+                <LlmList providers={customs} loading={loading} />
+            </div>
+        </div>
+    );
+});
+ProvidersGroup.displayName = "ProvidersGroup";
 
+const CliList = React.memo(({ providers, loading }: { providers: ZeroAiProviderInfo[]; loading: boolean }) => {
+    const activeId = useAtomValue(activeProviderIdAtom);
+    const [connecting, setConnecting] = React.useState<string | null>(null);
+    const [statuses, setStatuses] = React.useState<Record<string, "ok" | "error" | "connecting">>({});
+
+    const handleConnect = React.useCallback(async (provider: ZeroAiProviderInfo) => {
+        setActiveProvider(provider.id);
+        setConnecting(provider.id);
+        setStatuses((prev) => ({ ...prev, [provider.id]: "connecting" }));
+
+        try {
+            const result = await testProvider(provider.id);
+            setStatuses((prev) => ({
+                ...prev,
+                [provider.id]: result.success ? "ok" : "error",
+            }));
+        } catch {
+            setStatuses((prev) => ({ ...prev, [provider.id]: "error" }));
+        } finally {
+            setConnecting(null);
+        }
+    }, []);
+
+    if (loading) {
         return (
-            <div className="provider-form">
-                <div className="provider-form-title">
-                    {formMode === "add" ? "Add Custom Provider" : "Edit Provider"}
-                </div>
-
-                <div className="provider-form-grid">
-                    <label className="provider-form-label">
-                        Display Name
-                        <input
-                            type="text"
-                            className="provider-form-input"
-                            value={form.displayName}
-                            onChange={(e) => updateField("displayName", e.target.value)}
-                            placeholder="e.g., Ollama, LM Studio"
-                            disabled={formMode === "edit"}
-                        />
-                    </label>
-
-                    <label className="provider-form-label">
-                        CLI Command
-                        <input
-                            type="text"
-                            className="provider-form-input"
-                            value={form.cliCommand}
-                            onChange={(e) => updateField("cliCommand", e.target.value)}
-                            placeholder="e.g., ollama, lm-studio"
-                        />
-                    </label>
-
-                    <label className="provider-form-label">
-                        CLI Path (optional)
-                        <input
-                            type="text"
-                            className="provider-form-input"
-                            value={form.cliPath}
-                            onChange={(e) => updateField("cliPath", e.target.value)}
-                            placeholder="e.g., /usr/local/bin/ollama"
-                        />
-                    </label>
-
-                    <label className="provider-form-label">
-                        CLI Args (comma-separated)
-                        <input
-                            type="text"
-                            className="provider-form-input"
-                            value={form.cliArgs?.join(", ") ?? ""}
-                            onChange={(e) =>
-                                updateField(
-                                    "cliArgs",
-                                    e.target.value
-                                        .split(",")
-                                        .map((s) => s.trim())
-                                        .filter(Boolean)
-                                )
-                            }
-                            placeholder="e.g., --stdio, --model llama3"
-                        />
-                    </label>
-
-                    <label className="provider-form-label">
-                        Default Model (optional)
-                        <input
-                            type="text"
-                            className="provider-form-input"
-                            value={form.defaultModel}
-                            onChange={(e) => updateField("defaultModel", e.target.value)}
-                            placeholder="e.g., llama3"
-                        />
-                    </label>
-
-                    <label className="provider-form-label checkbox-label">
-                        <input
-                            type="checkbox"
-                            checked={form.supportsStreaming ?? false}
-                            onChange={(e) => updateField("supportsStreaming", e.target.checked)}
-                        />
-                        Supports Streaming
-                    </label>
-                </div>
-
-                {testResult && (
-                    <div
-                        className={clsx("provider-test-result", {
-                            success: testResult.success,
-                            failure: !testResult.success,
-                        })}
-                    >
-                        {testResult.success ? (
-                            <>
-                                <i className={makeIconClass("fa-solid fa-check-circle", false)} />
-                                <span>
-                                    Connected ({testResult.latencyMs}ms)
-                                    {testResult.version && ` — ${testResult.version.trim().split("\n")[0]}`}
-                                </span>
-                            </>
-                        ) : (
-                            <>
-                                <i className={makeIconClass("fa-solid fa-exclamation-circle", false)} />
-                                <span>{testResult.error}</span>
-                            </>
-                        )}
-                    </div>
-                )}
-
-                <div className="provider-form-actions">
-                    {onTest && (
-                        <button className="provider-form-btn test" onClick={onTest} disabled={testing}>
-                            {testing ? "Testing..." : "Test Connection"}
-                        </button>
-                    )}
-                    <button className="provider-form-btn cancel" onClick={onCancel}>
-                        Cancel
-                    </button>
-                    <button className="provider-form-btn save" onClick={onSave}>
-                        {formMode === "add" ? "Add Provider" : "Save Changes"}
-                    </button>
-                </div>
+            <div className="ps-loading">
+                <i className={makeIconClass("fa-solid fa-spinner fa-spin", false)} /> Scanning...
             </div>
         );
     }
-);
-ProviderForm.displayName = "ProviderForm";
+
+    return (
+        <div className="ps-cli-list">
+            {providers.map((p) => {
+                const isActive = p.id === activeId;
+                const isInstalled = p.isAvailable;
+                const status = statuses[p.id] || (isInstalled ? "ok" : undefined);
+
+                return (
+                    <div
+                        key={p.id}
+                        className={clsx("ps-cli-item", {
+                            active: isActive,
+                            installed: isInstalled,
+                        })}
+                    >
+                        <div className="ps-cli-item-icon">
+                            <i className={makeIconClass(p.displayIcon || "fa-solid fa-terminal", false)} />
+                        </div>
+                        <div className="ps-cli-item-info">
+                            <div className="ps-cli-item-header">
+                                <span className="ps-cli-item-name">{p.displayName}</span>
+                                <div className="ps-cli-item-status">
+                                    {isActive && status === "connecting" && (
+                                        <span className="ps-status-dot connecting" title="Connecting...">
+                                            <i className="fa-solid fa-circle-notch fa-spin" />
+                                        </span>
+                                    )}
+                                    {isActive && status === "ok" && (
+                                        <span className="ps-status-dot ok" title="Connected" />
+                                    )}
+                                    {isActive && status === "error" && (
+                                        <span className="ps-status-dot error" title="Connection failed" />
+                                    )}
+                                    {isActive && !status && isInstalled && (
+                                        <span className="ps-status-dot ok" title="Available" />
+                                    )}
+                                </div>
+                            </div>
+                            <code className="ps-cli-item-cmd">{p.cliCommand}</code>
+                            {!isInstalled && p.installHint && (
+                                <div className="ps-cli-item-hint">
+                                    <i className="fa-solid fa-download" />
+                                    <code>{p.installHint}</code>
+                                </div>
+                            )}
+                        </div>
+                        {isInstalled && (
+                            <button
+                                className={clsx("ps-cli-connect", { active: isActive })}
+                                onClick={() => handleConnect(p)}
+                                disabled={connecting === p.id}
+                            >
+                                {isActive && status === "connecting" ? (
+                                    <i className="fa-solid fa-circle-notch fa-spin" />
+                                ) : isActive ? (
+                                    "Connected"
+                                ) : (
+                                    "Connect"
+                                )}
+                            </button>
+                        )}
+                    </div>
+                );
+            })}
+        </div>
+    );
+});
+CliList.displayName = "CliList";
+
+interface LlmFormState {
+    providerId: string;
+    displayName: string;
+    baseUrl: string;
+    apiKey: string;
+    model: string;
+}
+
+const emptyLlmForm: LlmFormState = {
+    providerId: "",
+    displayName: "",
+    baseUrl: "",
+    apiKey: "",
+    model: "",
+};
+
+const LlmList = React.memo(({ providers, loading }: { providers: ZeroAiProviderInfo[]; loading: boolean }) => {
+    const [editing, setEditing] = React.useState<string | null>(null);
+    const [form, setForm] = React.useState<LlmFormState>(emptyLlmForm);
+    const [formError, setFormError] = React.useState("");
+    const [testResult, setTestResult] = React.useState<{ success: boolean; msg: string } | null>(null);
+    const isTesting = useAtomValue(providerLoadingAtom);
+
+    const handleAdd = React.useCallback(() => {
+        setEditing("new");
+        setForm(emptyLlmForm);
+        setFormError("");
+        setTestResult(null);
+    }, []);
+
+    const handleEdit = React.useCallback((p: ZeroAiProviderInfo) => {
+        setEditing(p.id);
+        setFormError("");
+        setTestResult(null);
+        setForm({
+            providerId: p.id,
+            displayName: p.displayName,
+            baseUrl: (p.envVars?.["API_BASE_URL"] as string) || "",
+            apiKey: (p.envVars?.["API_KEY"] as string) || "",
+            model: p.defaultModel || "",
+        });
+    }, []);
+
+    const handleSave = React.useCallback(async () => {
+        if (!form.displayName.trim()) {
+            setFormError("Name is required");
+            return;
+        }
+        if (!form.baseUrl.trim()) {
+            setFormError("Base URL is required");
+            return;
+        }
+        if (!form.model.trim()) {
+            setFormError("Model is required");
+            return;
+        }
+
+        const request: SaveProviderRequest = {
+            providerId:
+                editing === "new"
+                    ? form.displayName
+                          .toLowerCase()
+                          .replace(/\s+/g, "-")
+                          .replace(/[^a-z0-9-]/g, "")
+                    : form.providerId,
+            displayName: form.displayName,
+            cliCommand: "llm-api",
+            envVars: {
+                API_BASE_URL: form.baseUrl,
+                API_KEY: form.apiKey,
+            },
+            defaultModel: form.model,
+            supportsStreaming: true,
+        };
+
+        try {
+            await saveProvider(request);
+            setEditing(null);
+            setForm(emptyLlmForm);
+        } catch (err) {
+            setFormError(`Failed to save: ${err}`);
+        }
+    }, [form, editing]);
+
+    const handleTest = React.useCallback(async () => {
+        if (!form.baseUrl.trim()) {
+            setFormError("Base URL is required");
+            return;
+        }
+        setFormError("");
+        try {
+            const id = editing === "new" ? "temp" : form.providerId;
+            const result = await testProvider(id);
+            setTestResult({
+                success: result.success,
+                msg: result.success ? `Connected (${result.latencyMs}ms)` : result.error || "Connection failed",
+            });
+        } catch (err) {
+            setTestResult({ success: false, msg: String(err) });
+        }
+    }, [form, editing]);
+
+    const handleDelete = React.useCallback(
+        async (id: string) => {
+            try {
+                await deleteProvider(id);
+                if (editing === id) {
+                    setEditing(null);
+                    setForm(emptyLlmForm);
+                }
+            } catch (err) {
+                setFormError(`Failed to delete: ${err}`);
+            }
+        },
+        [editing]
+    );
+
+    const handleCancel = React.useCallback(() => {
+        setEditing(null);
+        setForm(emptyLlmForm);
+        setFormError("");
+        setTestResult(null);
+    }, []);
+
+    return (
+        <div className="ps-llm-list">
+            {formError && <div className="ps-form-error">{formError}</div>}
+            {testResult && (
+                <div className={clsx("ps-test-result", { success: testResult.success })}>
+                    <i
+                        className={makeIconClass(
+                            testResult.success ? "fa-solid fa-circle-check" : "fa-solid fa-circle-xmark",
+                            false
+                        )}
+                    />
+                    <span>{testResult.msg}</span>
+                </div>
+            )}
+
+            {editing && (
+                <div className="ps-llm-form">
+                    <div className="ps-llm-form-title">{editing === "new" ? "Add LLM Provider" : "Edit Provider"}</div>
+                    <label className="ps-llm-form-field">
+                        <span>Name</span>
+                        <input
+                            type="text"
+                            value={form.displayName}
+                            onChange={(e) => setForm((f) => ({ ...f, displayName: e.target.value }))}
+                            placeholder="e.g., OpenAI"
+                            disabled={editing !== "new"}
+                        />
+                    </label>
+                    <label className="ps-llm-form-field">
+                        <span>Base URL</span>
+                        <input
+                            type="text"
+                            value={form.baseUrl}
+                            onChange={(e) => setForm((f) => ({ ...f, baseUrl: e.target.value }))}
+                            placeholder="https://api.openai.com/v1"
+                        />
+                    </label>
+                    <label className="ps-llm-form-field">
+                        <span>API Key</span>
+                        <input
+                            type="password"
+                            value={form.apiKey}
+                            onChange={(e) => setForm((f) => ({ ...f, apiKey: e.target.value }))}
+                            placeholder="sk-..."
+                        />
+                    </label>
+                    <label className="ps-llm-form-field">
+                        <span>Model</span>
+                        <input
+                            type="text"
+                            value={form.model}
+                            onChange={(e) => setForm((f) => ({ ...f, model: e.target.value }))}
+                            placeholder="gpt-4o"
+                        />
+                    </label>
+                    <div className="ps-llm-form-actions">
+                        <button className="ps-llm-btn test" onClick={handleTest} disabled={isTesting}>
+                            {isTesting ? <i className="fa-solid fa-circle-notch fa-spin" /> : "Test"}
+                        </button>
+                        <button className="ps-llm-btn cancel" onClick={handleCancel}>
+                            Cancel
+                        </button>
+                        <button className="ps-llm-btn save" onClick={handleSave}>
+                            {editing === "new" ? "Add" : "Save"}
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {!editing && (
+                <>
+                    {loading && <div className="ps-loading">Loading...</div>}
+                    {!loading && providers.length === 0 && (
+                        <div className="ps-empty">
+                            <i className={makeIconClass("fa-solid fa-cloud", false)} />
+                            <span>No LLM providers</span>
+                            <span className="ps-empty-hint">Add OpenAI, Ollama, or any compatible API</span>
+                        </div>
+                    )}
+                    {providers.map((p) => (
+                        <div key={p.id} className="ps-llm-item">
+                            <div className="ps-llm-item-info">
+                                <span className="ps-llm-item-name">{p.displayName}</span>
+                                <span className="ps-llm-item-model">{p.defaultModel || "—"}</span>
+                            </div>
+                            <div className="ps-llm-item-actions">
+                                <button onClick={() => handleEdit(p)} title="Edit">
+                                    <i className={makeIconClass("fa-solid fa-pen", false)} />
+                                </button>
+                                <button onClick={() => handleDelete(p.id)} title="Delete">
+                                    <i className={makeIconClass("fa-solid fa-trash", false)} />
+                                </button>
+                            </div>
+                        </div>
+                    ))}
+                    {providers.length > 0 && (
+                        <button className="ps-llm-add" onClick={handleAdd}>
+                            <i className={makeIconClass("fa-solid fa-plus", false)} />
+                            <span>Add Provider</span>
+                        </button>
+                    )}
+                    {providers.length === 0 && (
+                        <button className="ps-llm-add" onClick={handleAdd}>
+                            <i className={makeIconClass("fa-solid fa-plus", false)} />
+                            <span>Add LLM Provider</span>
+                        </button>
+                    )}
+                </>
+            )}
+        </div>
+    );
+});
+LlmList.displayName = "LlmList";
+
+const McpGroup = React.memo(() => (
+    <div className="ps-placeholder-group">
+        <i className={makeIconClass("fa-solid fa-diagram-project", false)} />
+        <span>MCP Servers</span>
+        <span className="ps-placeholder-hint">Configure Model Context Protocol servers</span>
+    </div>
+));
+McpGroup.displayName = "McpGroup";
+
+const SkillsGroup = React.memo(() => (
+    <div className="ps-placeholder-group">
+        <i className={makeIconClass("fa-solid fa-wand-magic-sparkles", false)} />
+        <span>Skills</span>
+        <span className="ps-placeholder-hint">Manage AI skills and custom instructions</span>
+    </div>
+));
+SkillsGroup.displayName = "SkillsGroup";

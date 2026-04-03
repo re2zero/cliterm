@@ -44,6 +44,29 @@ func (ps *ProviderService) ListProviders() ([]*wshrpc.ZeroAiProviderInfo, error)
 		providers = append(providers, info)
 	}
 
+	for _, bp := range builtInProviders {
+		alreadyExists := false
+		for _, existing := range providers {
+			if existing.ID == bp.ID {
+				alreadyExists = true
+				break
+			}
+		}
+		if alreadyExists {
+			continue
+		}
+		info := &wshrpc.ZeroAiProviderInfo{
+			ID:          bp.ID,
+			DisplayName: bp.DisplayName,
+			DisplayIcon: bp.DisplayIcon,
+			CliCommand:  bp.CliCommand,
+			IsCustom:    false,
+			IsAvailable: ps.checkProviderAvailable(bp.CliCommand, ""),
+			InstallHint: bp.InstallHint,
+		}
+		providers = append(providers, info)
+	}
+
 	return providers, nil
 }
 
@@ -148,4 +171,36 @@ func (ps *ProviderService) checkProviderAvailable(cliCommand, cliPath string) bo
 	}
 	_, err := exec.LookPath(path)
 	return err == nil
+}
+
+type BuiltInProvider struct {
+	ID          string
+	DisplayName string
+	DisplayIcon string
+	CliCommand  string
+	InstallHint string
+}
+
+var builtInProviders = []BuiltInProvider{
+	{
+		ID:          "claude",
+		DisplayName: "Claude Code",
+		DisplayIcon: "fa-solid fa-brain",
+		CliCommand:  "claude",
+		InstallHint: "Install with: npm install -g @anthropic-ai/claude-code",
+	},
+	{
+		ID:          "opencode",
+		DisplayName: "OpenCode",
+		DisplayIcon: "fa-solid fa-code-branch",
+		CliCommand:  "opencode",
+		InstallHint: "Install from: https://github.com/opencode-ai/opencode",
+	},
+	{
+		ID:          "codex",
+		DisplayName: "Codex CLI",
+		DisplayIcon: "fa-solid fa-code",
+		CliCommand:  "codex",
+		InstallHint: "Install with: npm install -g @openai/codex",
+	},
 }

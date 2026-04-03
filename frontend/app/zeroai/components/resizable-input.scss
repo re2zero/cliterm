@@ -1,76 +1,46 @@
-// ResizableInput component styles
-.resizable-input-container {
+// Copyright 2026, Command Line Inc.
+// SPDX-License-Identifier: Apache-2.0
+
+.resizable-input {
     position: relative;
     display: flex;
     flex-direction: column;
+    width: 100%;
     background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 12px;
-    padding: 12px;
-    transition: all 0.2s ease;
-    resize: both;
-    overflow: visible; // Handle resize manually with custom drag
-    width: auto;
-
-    &:hover {
-        border-color: rgba(255, 255, 255, 0.15);
-        background: rgba(255, 255, 255, 0.05);
-    }
+    padding: 8px 8px 4px;
+    transition: border-color 0.2s ease;
 
     &:focus-within {
-        border-color: rgba(59, 130, 246, 0.5);
-        background: rgba(255, 255, 255, 0.05);
-        box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
-    }
-
-    &.is-resizing {
-        cursor: nwse-resize;
-        border-color: rgba(59, 130, 246, 0.6);
+        border-color: rgba(147, 197, 253, 0.4);
     }
 
     &.is-sending {
         pointer-events: none;
-        opacity: 0.8;
+        opacity: 0.7;
     }
 
     &.isDisabled {
-        opacity: 0.5;
+        opacity: 0.4;
         pointer-events: none;
     }
 }
 
-.resizable-input-content {
-    display: flex;
-    flex-direction: column;
-    flex: 1;
-    gap: 8px;
-}
-
-.input-wrapper {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-}
-
-.text-area-input {
-    flex: 1;
+.resizable-input-textarea {
     width: 100%;
-    min-height: 60px;
-    max-height: 400px;
-    padding: 12px;
+    padding: 8px 10px;
     background: transparent;
-    border: 1px solid rgba(255, 255, 255, 0.05);
-    border-radius: 8px;
+    border: none;
     color: rgba(255, 255, 255, 0.9);
-    font-size: 14px;
-    line-height: 1.6;
+    font-size: 13px;
+    line-height: 1.5;
     resize: none;
     outline: none;
-    transition: border-color 0.2s ease;
     font-family: inherit;
 
     &::placeholder {
-        color: rgba(255, 255, 255, 0.4);
+        color: rgba(255, 255, 255, 0.3);
     }
 
     &:disabled {
@@ -79,118 +49,79 @@
     }
 }
 
-.input-actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 8px;
-    padding-top: 4px;
-}
-
-.send-button {
+.resizable-input-footer {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 8px 16px;
-    background: rgba(59, 130, 246, 0.8);
-    border: none;
-    border-radius: 8px;
-    color: white;
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s ease;
-
-    &:hover:not(.is-disabled) {
-        background: rgba(59, 130, 246, 1);
-        transform: translateY(-1px);
-    }
-
-    &:active:not(.is-disabled) {
-        transform: translateY(0);
-    }
-
-    &.is-disabled {
-        opacity: 0.5;
-        cursor: not-allowed;
-        background: rgba(255, 255, 255, 0.1);
-    }
-
-    .sending-spinner {
-        i {
-            font-size: 14px;
-        }
-    }
-
-    .send-icon {
-        i {
-            font-size: 14px;
-        }
-    }
-
-    .shortcut-hint {
-        font-size: 11px;
-        opacity: 0.7;
-        padding-left: 8px;
-        margin-left: 4px;
-        border-left: 1px solid rgba(255, 255, 255, 0.3);
-    }
+    justify-content: space-between;
+    padding: 2px 4px 0;
 }
 
-.file-hint {
+.resizable-input-hint {
     display: flex;
     align-items: center;
-    gap: 6px;
-    padding: 8px 12px;
-    background: rgba(255, 255, 255, 0.03);
-    border-radius: 6px;
-    font-size: 11px;
-    color: rgba(255, 255, 255, 0.5);
+    gap: 4px;
+    font-size: 10px;
+    color: rgba(255, 255, 255, 0.25);
 
     i {
-        font-size: 12px;
-        opacity: 0.7;
+        font-size: 9px;
     }
 }
 
-.resize-handle {
-    position: absolute;
-    bottom: 4px;
-    right: 4px;
-    width: 16px;
-    height: 16px;
-    cursor: nwse-resize;
-    color: rgba(255, 255, 255, 0.3);
-    opacity: 0.5;
-    transition: all 0.2s ease;
+.resizable-input-send {
+    width: 28px;
+    height: 28px;
     display: flex;
     align-items: center;
     justify-content: center;
-    background: rgba(255, 255, 255, 0.05);
-    border-radius: 4px;
+    border: none;
+    border-radius: 8px;
+    background: rgba(147, 197, 253, 0.8);
+    color: #000;
+    cursor: pointer;
+    font-size: 12px;
+    transition: all 0.15s ease;
 
-    &:hover {
-        opacity: 1;
-        color: rgba(255, 255, 255, 0.6);
-        background: rgba(255, 255, 255, 0.1);
+    &:hover:not(.is-disabled) {
+        background: rgba(147, 197, 253, 1);
     }
 
-    svg {
-        transform: rotate(45deg);
+    &.is-disabled {
+        opacity: 0.3;
+        cursor: not-allowed;
+        background: rgba(255, 255, 255, 0.1);
+        color: rgba(255, 255, 255, 0.3);
     }
 }
 
-// Responsive adjustments
-@media (max-width: 768px) {
-    .resizable-input-container {
-        min-width: 200px !important;
-        max-width: calc(100vw - 32px) !important;
+.resizable-input-handle {
+    position: absolute;
+    top: -6px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 32px;
+    height: 6px;
+    border-radius: 3px;
+    background: rgba(255, 255, 255, 0.08);
+    cursor: ns-resize;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+
+    .resizable-input:hover & {
+        opacity: 1;
     }
 
-    .send-button .shortcut-hint {
-        display: none;
+    &:hover {
+        background: rgba(255, 255, 255, 0.15);
     }
 
-    .file-hint {
-        font-size: 10px;
+    i {
+        font-size: 7px;
+        color: rgba(255, 255, 255, 0.3);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        height: 100%;
     }
 }

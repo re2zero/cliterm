@@ -1,20 +1,34 @@
+// Copyright 2026, Command Line Inc.
+// SPDX-License-Identifier: Apache-2.0
+
 import { useAtomValue } from "jotai";
 import { useEffect, useRef, useState } from "react";
-import { ChatArea, ProviderSettings, ResizableInput, SessionList, StatusBar, ZeroAIHeader } from "./components";
+import { ChatArea, ChatInput, ProviderSettings, SessionList, StatusBar, ZeroAIHeader } from "./components";
 import "./index.scss";
 import { dispatchMessageAction, messagesAtom } from "./models/message-model";
+import { activeModelAtom, activeProviderAtom, activeProviderIdAtom } from "./models/provider-model";
 import { activeSessionIdAtom, dispatchSessionAction, removeSession, sessionsAtom } from "./models/session-model";
-import { inputHeightAtom, inputWidthAtom, setThinking, showProviderSettingsAtom, toggleProviderSettings } from "./models/ui-model";
+import {
+    inputHeightAtom,
+    sessionListCollapsedAtom,
+    setThinking,
+    showProviderSettingsAtom,
+    toggleProviderSettings,
+    toggleSessionListCollapsed,
+} from "./models/ui-model";
 import { ZeroAiClient } from "./store/zeroai-client";
 import type { CreateSessionRequest, ZeroAiAgentInfo, ZeroAiSession, ZeroAiSessionInfo } from "./types";
 
-export function ZeroAIPanel() {
+export function AIPanel(_props: { roundTopLeft?: boolean }) {
     const sessions = useAtomValue(sessionsAtom);
     const activeSessionId = useAtomValue(activeSessionIdAtom);
     const messagesMap = useAtomValue(messagesAtom);
     const inputHeight = useAtomValue(inputHeightAtom);
-    const inputWidth = useAtomValue(inputWidthAtom);
     const showProviderSettings = useAtomValue(showProviderSettingsAtom);
+    const sessionListCollapsed = useAtomValue(sessionListCollapsedAtom);
+    const activeProviderId = useAtomValue(activeProviderIdAtom);
+    const activeModel = useAtomValue(activeModelAtom);
+    const activeProvider = useAtomValue(activeProviderAtom);
 
     const [inputValue, setInputValue] = useState("");
     const [isStreaming, setIsStreaming] = useState(false);
@@ -55,18 +69,21 @@ export function ZeroAIPanel() {
             setIsStreaming(true);
             setThinking(true);
 
+            const backend = (activeProviderId as CreateSessionRequest["backend"]) || "claude";
+            const model = activeModel || "claude-sonnet-4-5";
+
             const request: CreateSessionRequest = {
-                backend: "claude",
-                model: "claude-sonnet-4-5",
-                provider: "anthropic",
+                backend,
+                model,
+                provider: activeProviderId,
             };
 
             const result = await clientRef.current.createSession(request);
 
             const newSession: ZeroAiSessionInfo = {
                 sessionId: result.sessionId,
-                provider: "anthropic",
-                model: "claude-sonnet-4-5",
+                provider: activeProviderId,
+                model,
                 workDir: null,
                 createdAt: Date.now() / 1000,
                 lastMessageAt: Date.now() / 1000,
@@ -124,7 +141,27 @@ export function ZeroAIPanel() {
 
             for await (const event of stream) {
                 if (event.message) {
-                    dispatchMessageAction({ type: "addMessage", sessionId: activeSessionId, message: event.message });
+                    const msg = event.message;
+                    const eventType = msg.eventType || (msg.metadata?.type as string | undefined);
+
+                    if (
+                        eventType === "tool_call" ||
+                        eventType === "tool_started" ||
+                        eventType === "tool_completed" ||
+                        eventType === "tool_failed"
+                    ) {
+                        dispatchMessageAction({ type: "addMessage", sessionId: activeSessionId, message: msg });
+                    } else if (eventType === "permission" || eventType === "permission_request") {
+                        dispatchMessageAction({ type: "addMessage", sessionId: activeSessionId, message: msg });
+                    } else if (eventType === "plan_update" || eventType === "plan") {
+                        dispatchMessageAction({ type: "addMessage", sessionId: activeSessionId, message: msg });
+                    } else if (eventType === "error") {
+                        dispatchMessageAction({ type: "addMessage", sessionId: activeSessionId, message: msg });
+                    } else if (eventType === "end_turn") {
+                        // End of assistant response
+                    } else if (msg.content) {
+                        dispatchMessageAction({ type: "addMessage", sessionId: activeSessionId, message: msg });
+                    }
                 }
             }
         } catch (error) {
@@ -136,7 +173,6 @@ export function ZeroAIPanel() {
     };
 
     const minHeight = typeof inputHeight === "number" ? inputHeight : 100;
-    const minWidth = typeof inputWidth === "number" ? inputWidth : 300;
 
     const agentInfo: ZeroAiAgentInfo | undefined = currentSession
         ? {
@@ -161,7 +197,9 @@ export function ZeroAIPanel() {
             <ZeroAIHeader showSettings={showProviderSettings} onToggleSettings={toggleProviderSettings} />
             <div className="zeroai-content">
                 {showProviderSettings ? (
-                    <ProviderSettings className="provider-settings-full" />
+                    <div className="zeroai-settings-inline">
+                        <ProviderSettings className="zeroai-settings-inline-content" />
+                    </div>
                 ) : (
                     <>
                         <SessionList
@@ -170,18 +208,16 @@ export function ZeroAIPanel() {
                             onSelectSession={handleSelectSession}
                             onCreateSession={handleCreateSession}
                             onDeleteSession={handleDeleteSession}
+                            collapsed={sessionListCollapsed}
+                            onToggleCollapse={toggleSessionListCollapsed}
                         />
                         <div className="chat-area-wrapper">
                             <ChatArea messages={currentMessages} />
-                            <ResizableInput
+                            <ChatInput
                                 value={inputValue}
                                 onChange={setInputValue}
                                 onSend={handleSendMessage}
                                 isSending={isStreaming}
-                                minHeight={minHeight}
-                                maxHeight={400}
-                                minWidth={minWidth}
-                                maxWidth={1200}
                             />
                         </div>
                     </>
