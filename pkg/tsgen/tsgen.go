@@ -169,6 +169,8 @@ func TypeToTSType(t reflect.Type, tsTypesMap map[reflect.Type]string) (string, [
 			return t.Name(), nil
 		}
 		return "any", nil
+	case reflect.Chan:
+		return "any", nil
 	default:
 		return "", nil
 	}

@@ -69,13 +69,13 @@
     {
       "id": "sprint6-rpc",
       "title": "Sprint 6: RPC Layer - WSH RPC Server",
-      "status": "pending",
+      "status": "completed",
       "description": "实现 WSH RPC 服务接口"
     },
     {
       "id": "sprint7-frontend",
       "title": "Sprint 7: Frontend - ZeroAI Panel UI",
-      "status": "pending",
+      "status": "completed",
       "description": "实现前端面板 UI"
     }
   ],
@@ -107,6 +107,8 @@
       "zeroai-sprint4-agent-adapter",
       "zeroai-sprint5-service"
     ],
-    "clawteam_backend": "wsh"
+    "clawteam_backend": "wsh",
+    "sprint6_commit": "27239d81",
+    "sprint7_commit": "27239d81"
   }
 }

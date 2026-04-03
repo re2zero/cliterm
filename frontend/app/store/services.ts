@@ -89,7 +89,7 @@ export class MessageServiceType {
     SendMessage(input: SendMessageInput): Promise<string> {
         return callBackendService(this?.waveEnv, "message", "SendMessage", Array.from(arguments))
     }
-    SendMessageWithStream(arg2: any, arg3: SendMessageInput): Promise<> {
+    SendMessageWithStream(arg2: any, arg3: SendMessageInput): Promise<any> {
         return callBackendService(this?.waveEnv, "message", "SendMessageWithStream", Array.from(arguments))
     }
     SetStore(arg1: any): Promise<void> {
