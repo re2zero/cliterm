@@ -253,16 +253,6 @@ type ZeroAiStreamEnd struct {
 
 // ===== Team Collaboration Types =====
 
-// ZeroAiTeamWrapper wraps Team for RPC transport
-// gotypes: gen
-type ZeroAiTeamWrapper struct {
-	TeamID  string `json:"teamId"`
-	Name    string `json:"name"`
-	Status  string `json:"status"`
-	Created int64  `json:"created"`
-	Updated int64  `json:"updated"`
-}
-
 // ZeroAiTeamInfo represents information about a team
 // gotypes: gen
 type ZeroAiTeamInfo struct {
@@ -275,18 +265,17 @@ type ZeroAiTeamInfo struct {
 // ZeroAiTeamMemberInfo represents information about a team member
 // gotypes: gen
 type ZeroAiTeamMemberInfo struct {
-	MemberID   string `json:"memberId"`
-	AgentID    string `json:"agentId"`
-	Role       string `json:"role"`
-	Status     string `json:"status"`
-	JoinedAt   int64  `json:"joinedAt"`
-	LastActive int64  `json:"lastActive"`
+	AgentID  string `json:"agentId"`
+	Role     string `json:"role"`
+	Status   string `json:"status"`
+	JoinedAt int64  `json:"joinedAt"`
 }
 
 // ZeroAiTaskInfo represents information about a task
 // gotypes: gen
 type ZeroAiTaskInfo struct {
 	TaskID          string `json:"taskId"`
+	TeamID          string `json:"teamId"`
 	AssignedAgentID string `json:"assignedAgentId,omitempty"`
 	Status          string `json:"status"`
 	Description     string `json:"description"`
@@ -296,44 +285,44 @@ type ZeroAiTaskInfo struct {
 
 // ===== Team Management Commands =====
 
-// ZeroAiCreateTeamData is the request data for creating a new team
+// CommandZeroAiCreateTeamData is the request data for creating a new team
 // gotypes: request
 type CommandZeroAiCreateTeamData struct {
-	Name        string `json:"name"`
-	Description string `json:"description,omitempty"`
+	Name     string `json:"name"`
+	LeaderID string `json:"leaderId"`
 }
 
-// ZeroAiCreateTeamRtnData is the response data for creating a team
+// CommandZeroAiCreateTeamRtnData is the response data for creating a team
 // gotypes: gen
 type CommandZeroAiCreateTeamRtnData struct {
 	TeamID string `json:"teamId"`
 }
 
-// ZeroAiGetTeamData is the request data for retrieving a team
+// CommandZeroAiGetTeamData is the request data for retrieving a team
 // gotypes: request
 type CommandZeroAiGetTeamData struct {
 	TeamID string `json:"teamId"`
 }
 
-// ZeroAiGetTeamRtnData is the response data for getting a team
+// CommandZeroAiGetTeamRtnData is the response data for getting a team
 // gotypes: gen
 type CommandZeroAiGetTeamRtnData struct {
-	Team *ZeroAiTeamWrapper `json:"team" tstype:"null | ZeroAiTeamWrapper"`
+	Team *ZeroAiTeamInfo `json:"team" tstype:"null | ZeroAiTeamInfo"`
 }
 
-// ZeroAiListTeamsData is the request data for listing teams
+// CommandZeroAiListTeamsData is the request data for listing teams
 // gotypes: request
 type CommandZeroAiListTeamsData struct {
 	Status string `json:"status,omitempty"`
 }
 
-// ZeroAiListTeamsRtnData is the response data for listing teams
+// CommandZeroAiListTeamsRtnData is the response data for listing teams
 // gotypes: gen
 type CommandZeroAiListTeamsRtnData struct {
 	Teams []*ZeroAiTeamInfo `json:"teams" tstype:"ZeroAiTeamInfo[]"`
 }
 
-// ZeroAiDeleteTeamData is the request data for deleting a team
+// CommandZeroAiDeleteTeamData is the request data for deleting a team
 // gotypes: request
 type CommandZeroAiDeleteTeamData struct {
 	TeamID string `json:"teamId"`
@@ -341,35 +330,34 @@ type CommandZeroAiDeleteTeamData struct {
 
 // ===== Team Member Management Commands =====
 
-// ZeroAiJoinTeamData is the request data for adding an agent to a team
+// CommandZeroAiJoinTeamData is the request data for adding an agent to a team
 // gotypes: request
 type CommandZeroAiJoinTeamData struct {
 	TeamID  string `json:"teamId"`
-	Backend string `json:"backend"`
-	Role    string `json:"role"`
-	CliPath string `json:"cliPath,omitempty"`
+	AgentID string `json:"agentId"`
+	Role    string `json:"role,omitempty"`
 }
 
-// ZeroAiJoinTeamRtnData is the response data for joining a team
+// CommandZeroAiJoinTeamRtnData is the response data for joining a team
 // gotypes: gen
 type CommandZeroAiJoinTeamRtnData struct {
-	MemberID string `json:"memberId"`
+	Success bool `json:"success" tstype:"boolean"`
 }
 
-// ZeroAiLeaveTeamData is the request data for removing an agent from a team
+// CommandZeroAiLeaveTeamData is the request data for removing an agent from a team
 // gotypes: request
 type CommandZeroAiLeaveTeamData struct {
-	TeamID   string `json:"teamId"`
-	MemberID string `json:"memberId"`
+	TeamID  string `json:"teamId"`
+	AgentID string `json:"agentId"`
 }
 
-// ZeroAiListTeamMembersData is the request data for listing team members
+// CommandZeroAiListTeamMembersData is the request data for listing team members
 // gotypes: request
 type CommandZeroAiListTeamMembersData struct {
 	TeamID string `json:"teamId"`
 }
 
-// ZeroAiListTeamMembersRtnData is the response data for listing team members
+// CommandZeroAiListTeamMembersRtnData is the response data for listing team members
 // gotypes: gen
 type CommandZeroAiListTeamMembersRtnData struct {
 	Members []*ZeroAiTeamMemberInfo `json:"members" tstype:"ZeroAiTeamMemberInfo[]"`
@@ -377,74 +365,93 @@ type CommandZeroAiListTeamMembersRtnData struct {
 
 // ===== Task Management Commands =====
 
-// ZeroAiCreateTaskData is the request data for creating a new task
+// CommandZeroAiCreateTaskData is the request data for creating a new task
 // gotypes: request
 type CommandZeroAiCreateTaskData struct {
-	TeamID      string `json:"teamId"`
-	Description string `json:"description"`
+	TeamID          string `json:"teamId"`
+	Description     string `json:"description"`
+	AssignedAgentID string `json:"assignedAgentId,omitempty"`
 }
 
-// ZeroAiCreateTaskRtnData is the response data for creating a task
+// CommandZeroAiCreateTaskRtnData is the response data for creating a task
 // gotypes: gen
 type CommandZeroAiCreateTaskRtnData struct {
 	TaskID string `json:"taskId"`
 }
 
-// ZeroAiAssignTaskData is the request data for assigning a task
+// CommandZeroAiAssignTaskData is the request data for assigning a task
 // gotypes: request
 type CommandZeroAiAssignTaskData struct {
-	TeamID      string `json:"teamId"`
-	AgentID     string `json:"agentId"`
-	Description string `json:"description"`
+	TaskID  string `json:"taskId"`
+	TeamID  string `json:"teamId"`
+	AgentID string `json:"agentId"`
 }
 
-// ZeroAiAssignTaskRtnData is the response data for assigning a task
+// CommandZeroAiAssignTaskRtnData is the response data for assigning a task
 // gotypes: gen
 type CommandZeroAiAssignTaskRtnData struct {
-	TaskID string `json:"taskId"`
+	Success bool `json:"success" tstype:"boolean"`
 }
 
-// ZeroAiListTasksData is the request data for listing tasks
+// CommandZeroAiListTasksData is the request data for listing tasks
 // gotypes: request
 type CommandZeroAiListTasksData struct {
-	TeamID string `json:"teamId"`
+	TeamID          string `json:"teamId"`
+	AssignedAgentID string `json:"assignedAgentId,omitempty"`
+	Status          string `json:"status,omitempty"`
 }
 
-// ZeroAiListTasksRtnData is the response data for listing tasks
+// CommandZeroAiListTasksRtnData is the response data for listing tasks
 // gotypes: gen
 type CommandZeroAiListTasksRtnData struct {
 	Tasks []*ZeroAiTaskInfo `json:"tasks" tstype:"ZeroAiTaskInfo[]"`
 }
 
-// ZeroAiGetTaskStatusData is the request data for getting task status
+// CommandZeroAiGetTaskStatusData is the request data for getting task status
 // gotypes: request
 type CommandZeroAiGetTaskStatusData struct {
 	TaskID string `json:"taskId"`
 }
 
-// ZeroAiGetTaskStatusRtnData is the response data for getting task status
+// CommandZeroAiGetTaskStatusRtnData is the response data for getting task status
 // gotypes: gen
 type CommandZeroAiGetTaskStatusRtnData struct {
-	Status string `json:"status"`
+	Task *ZeroAiTaskInfo `json:"task" tstype:"null | ZeroAiTaskInfo"`
 }
 
 // ===== Message Routing Commands =====
 
-// ZeroAiSendToAgentData is the request data for sending a message to an agent
+// CommandZeroAiSendToAgentData is the request data for sending a message to an agent
 // gotypes: request
 type CommandZeroAiSendToAgentData struct {
-	TeamID      string `json:"teamId"`
-	FromAgentID string `json:"fromAgentId"`
-	ToAgentID   string `json:"toAgentId"`
-	Content     string `json:"content"`
+	TeamID  string                 `json:"teamId"`
+	From    string                 `json:"from"`
+	To      string                 `json:"to"`
+	Type    string                 `json:"type,omitempty"`
+	Content string                 `json:"content"`
+	Payload map[string]interface{} `json:"payload,omitempty" tstype:"null | Record<string, any>"`
 }
 
-// ZeroAiBroadcastData is the request data for broadcasting a message
+// CommandZeroAiSendToAgentRtnData is the response data for sending a message
+// gotypes: gen
+type CommandZeroAiSendToAgentRtnData struct {
+	Success bool `json:"success" tstype:"boolean"`
+}
+
+// CommandZeroAiBroadcastData is the request data for broadcasting a message
 // gotypes: request
 type CommandZeroAiBroadcastData struct {
-	TeamID      string `json:"teamId"`
-	FromAgentID string `json:"fromAgentId"`
-	Content     string `json:"content"`
+	TeamID  string                 `json:"teamId"`
+	From    string                 `json:"from"`
+	Type    string                 `json:"type,omitempty"`
+	Content string                 `json:"content"`
+	Payload map[string]interface{} `json:"payload,omitempty" tstype:"null | Record<string, any>"`
+}
+
+// CommandZeroAiBroadcastRtnData is the response data for broadcasting a message
+// gotypes: gen
+type CommandZeroAiBroadcastRtnData struct {
+	RecipientCount int `json:"recipientCount"`
 }
 
 // ===== Provider Management Commands =====
@@ -467,6 +474,25 @@ type ZeroAiProviderInfo struct {
 	IsAvailable       bool              `json:"isAvailable" tstype:"boolean"`
 }
 
+// ZeroAiTestProviderResult represents the result of testing a provider
+// gotypes: gen
+type ZeroAiTestProviderResult struct {
+	Success   bool   `json:"success" tstype:"boolean"`
+	Error     string `json:"error,omitempty"`
+	Version   string `json:"version,omitempty"`
+	ModelInfo string `json:"modelInfo,omitempty"`
+}
+
+// CommandZeroAiListProvidersData is the request data for listing providers
+// gotypes: request
+type CommandZeroAiListProvidersData struct{}
+
+// CommandZeroAiListProvidersRtnData is the response data for listing providers
+// gotypes: gen
+type CommandZeroAiListProvidersRtnData struct {
+	Providers []*ZeroAiProviderInfo `json:"providers" tstype:"ZeroAiProviderInfo[]"`
+}
+
 // CommandZeroAiSaveProviderData is the request data for saving a provider
 // gotypes: request
 type CommandZeroAiSaveProviderData struct {
@@ -483,29 +509,10 @@ type CommandZeroAiSaveProviderData struct {
 	AuthRequired      bool              `json:"authRequired" tstype:"boolean"`
 }
 
-// ZeroAiTestProviderResult represents the result of testing a provider
-// gotypes: gen
-type ZeroAiTestProviderResult struct {
-	Success   bool   `json:"success" tstype:"boolean"`
-	Error     string `json:"error,omitempty" tstype:"null | string"`
-	Version   string `json:"version,omitempty" tstype:"null | string"`
-	LatencyMs int64  `json:"latencyMs"`
-}
-
 // CommandZeroAiDeleteProviderData is the request data for deleting a provider
 // gotypes: request
 type CommandZeroAiDeleteProviderData struct {
 	ProviderID string `json:"providerId"`
-}
-
-// CommandZeroAiListProvidersData is the request data for listing providers
-// gotypes: request
-type CommandZeroAiListProvidersData struct{}
-
-// CommandZeroAiListProvidersRtnData is the response data for listing providers
-// gotypes: gen
-type CommandZeroAiListProvidersRtnData struct {
-	Providers []*ZeroAiProviderInfo `json:"providers" tstype:"ZeroAiProviderInfo[]"`
 }
 
 // CommandZeroAiTestProviderData is the request data for testing a provider
