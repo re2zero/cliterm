@@ -1,7 +1,7 @@
 // Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { ZeroAIPanel } from "@/app/zeroai/index";
+import { ZeroAIPanel } from "@/app/zeroai/index.tsx";
 import { atom } from "jotai";
 
 export class ZeroAiModel implements ViewModel {
