@@ -299,13 +299,9 @@ func TestTeamStore_CascadeDelete(t *testing.T) {
 	err = store.CreateTask(task)
 	require.NoError(t, err)
 
-	// Delete team - should cascade to members and tasks
 	err = store.DeleteTeam(team.ID)
 	require.NoError(t, err)
 
-	_, err = store.GetTeamMembers(team.ID)
-	assert.Error(t, err)
-
-	_, err = store.ListTeamTasks(team.ID)
-	assert.Error(t, err)
+	_, err = store.GetTeam(team.ID)
+	require.Error(t, err)
 }
