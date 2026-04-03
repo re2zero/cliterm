@@ -1086,6 +1086,18 @@ export class RpcApiType {
         return client.wshRpcCall("wslstatus", null, opts);
     }
 
+    // command "zeroaiassigntask" [call]
+    ZeroAiAssignTaskCommand(client: WshClient, data: CommandZeroAiAssignTaskData, opts?: RpcOpts): Promise<CommandZeroAiAssignTaskRtnData> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "zeroaiassigntask", data, opts);
+        return client.wshRpcCall("zeroaiassigntask", data, opts);
+    }
+
+    // command "zeroaibroadcast" [call]
+    ZeroAiBroadcastCommand(client: WshClient, data: CommandZeroAiBroadcastData, opts?: RpcOpts): Promise<void> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "zeroaibroadcast", data, opts);
+        return client.wshRpcCall("zeroaibroadcast", data, opts);
+    }
+
     // command "zeroaiconfirmpermission" [call]
     ZeroAiConfirmPermissionCommand(client: WshClient, data: CommandZeroAiConfirmPermissionData, opts?: RpcOpts): Promise<void> {
         if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "zeroaiconfirmpermission", data, opts);
@@ -1098,6 +1110,18 @@ export class RpcApiType {
         return client.wshRpcCall("zeroaicreatesession", data, opts);
     }
 
+    // command "zeroaicreatetask" [call]
+    ZeroAiCreateTaskCommand(client: WshClient, data: CommandZeroAiCreateTaskData, opts?: RpcOpts): Promise<CommandZeroAiCreateTaskRtnData> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "zeroaicreatetask", data, opts);
+        return client.wshRpcCall("zeroaicreatetask", data, opts);
+    }
+
+    // command "zeroaicreateteam" [call]
+    ZeroAiCreateTeamCommand(client: WshClient, data: CommandZeroAiCreateTeamData, opts?: RpcOpts): Promise<CommandZeroAiCreateTeamRtnData> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "zeroaicreateteam", data, opts);
+        return client.wshRpcCall("zeroaicreateteam", data, opts);
+    }
+
     // command "zeroaideleteprovider" [call]
     ZeroAiDeleteProviderCommand(client: WshClient, data: CommandZeroAiDeleteProviderData, opts?: RpcOpts): Promise<void> {
         if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "zeroaideleteprovider", data, opts);
@@ -1108,6 +1132,12 @@ export class RpcApiType {
     ZeroAiDeleteSessionCommand(client: WshClient, data: CommandZeroAiDeleteSessionData, opts?: RpcOpts): Promise<void> {
         if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "zeroaideletesession", data, opts);
         return client.wshRpcCall("zeroaideletesession", data, opts);
+    }
+
+    // command "zeroaideleteteam" [call]
+    ZeroAiDeleteTeamCommand(client: WshClient, data: CommandZeroAiDeleteTeamData, opts?: RpcOpts): Promise<void> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "zeroaideleteteam", data, opts);
+        return client.wshRpcCall("zeroaideleteteam", data, opts);
     }
 
     // command "zeroaigetagents" [call]
@@ -1128,6 +1158,30 @@ export class RpcApiType {
         return client.wshRpcCall("zeroaigetsession", data, opts);
     }
 
+    // command "zeroaigettaskstatus" [call]
+    ZeroAiGetTaskStatusCommand(client: WshClient, data: CommandZeroAiGetTaskStatusData, opts?: RpcOpts): Promise<CommandZeroAiGetTaskStatusRtnData> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "zeroaigettaskstatus", data, opts);
+        return client.wshRpcCall("zeroaigettaskstatus", data, opts);
+    }
+
+    // command "zeroaigetteam" [call]
+    ZeroAiGetTeamCommand(client: WshClient, data: CommandZeroAiGetTeamData, opts?: RpcOpts): Promise<CommandZeroAiGetTeamRtnData> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "zeroaigetteam", data, opts);
+        return client.wshRpcCall("zeroaigetteam", data, opts);
+    }
+
+    // command "zeroaijointeam" [call]
+    ZeroAiJoinTeamCommand(client: WshClient, data: CommandZeroAiJoinTeamData, opts?: RpcOpts): Promise<CommandZeroAiJoinTeamRtnData> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "zeroaijointeam", data, opts);
+        return client.wshRpcCall("zeroaijointeam", data, opts);
+    }
+
+    // command "zeroaileaveteam" [call]
+    ZeroAiLeaveTeamCommand(client: WshClient, data: CommandZeroAiLeaveTeamData, opts?: RpcOpts): Promise<void> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "zeroaileaveteam", data, opts);
+        return client.wshRpcCall("zeroaileaveteam", data, opts);
+    }
+
     // command "zeroailistproviders" [call]
     ZeroAiListProvidersCommand(client: WshClient, data: CommandZeroAiListProvidersData, opts?: RpcOpts): Promise<CommandZeroAiListProvidersRtnData> {
         if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "zeroailistproviders", data, opts);
@@ -1138,6 +1192,24 @@ export class RpcApiType {
     ZeroAiListSessionsCommand(client: WshClient, data: CommandZeroAiListSessionsData, opts?: RpcOpts): Promise<CommandZeroAiListSessionsRtnData> {
         if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "zeroailistsessions", data, opts);
         return client.wshRpcCall("zeroailistsessions", data, opts);
+    }
+
+    // command "zeroailisttasks" [call]
+    ZeroAiListTasksCommand(client: WshClient, data: CommandZeroAiListTasksData, opts?: RpcOpts): Promise<CommandZeroAiListTasksRtnData> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "zeroailisttasks", data, opts);
+        return client.wshRpcCall("zeroailisttasks", data, opts);
+    }
+
+    // command "zeroailistteammembers" [call]
+    ZeroAiListTeamMembersCommand(client: WshClient, data: CommandZeroAiListTeamMembersData, opts?: RpcOpts): Promise<CommandZeroAiListTeamMembersRtnData> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "zeroailistteammembers", data, opts);
+        return client.wshRpcCall("zeroailistteammembers", data, opts);
+    }
+
+    // command "zeroailistteams" [call]
+    ZeroAiListTeamsCommand(client: WshClient, data: CommandZeroAiListTeamsData, opts?: RpcOpts): Promise<CommandZeroAiListTeamsRtnData> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "zeroailistteams", data, opts);
+        return client.wshRpcCall("zeroailistteams", data, opts);
     }
 
     // command "zeroaisaveprovider" [call]
@@ -1156,6 +1228,12 @@ export class RpcApiType {
 	ZeroAiSendStreamMessageCommand(client: WshClient, data: CommandZeroAiSendMessageData, opts?: RpcOpts): AsyncGenerator<ZeroAiStreamMessageEvent, void, boolean> {
         if (this.mockClient) return this.mockClient.mockWshRpcStream(client, "zeroaisendstreammessage", data, opts);
         return client.wshRpcStream("zeroaisendstreammessage", data, opts);
+    }
+
+    // command "zeroaisendtoagent" [call]
+    ZeroAiSendToAgentCommand(client: WshClient, data: CommandZeroAiSendToAgentData, opts?: RpcOpts): Promise<void> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "zeroaisendtoagent", data, opts);
+        return client.wshRpcCall("zeroaisendtoagent", data, opts);
     }
 
     // command "zeroaisetworkdir" [call]

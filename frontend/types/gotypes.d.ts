@@ -820,6 +820,25 @@ declare global {
         data64: string;
     };
 
+    // wshrpc.CommandZeroAiAssignTaskData
+    type CommandZeroAiAssignTaskData = {
+        teamId: string;
+        agentId: string;
+        description: string;
+    };
+
+    // wshrpc.CommandZeroAiAssignTaskRtnData
+    type CommandZeroAiAssignTaskRtnData = {
+        taskId: string;
+    };
+
+    // wshrpc.CommandZeroAiBroadcastData
+    type CommandZeroAiBroadcastData = {
+        teamId: string;
+        fromAgentId: string;
+        content: string;
+    };
+
     // wshrpc.CommandZeroAiConfirmPermissionData
     type CommandZeroAiConfirmPermissionData = {
         sessionId: string;
@@ -843,6 +862,28 @@ declare global {
         sessionId: string;
     };
 
+    // wshrpc.CommandZeroAiCreateTaskData
+    type CommandZeroAiCreateTaskData = {
+        teamId: string;
+        description: string;
+    };
+
+    // wshrpc.CommandZeroAiCreateTaskRtnData
+    type CommandZeroAiCreateTaskRtnData = {
+        taskId: string;
+    };
+
+    // wshrpc.CommandZeroAiCreateTeamData
+    type CommandZeroAiCreateTeamData = {
+        name: string;
+        description?: string;
+    };
+
+    // wshrpc.CommandZeroAiCreateTeamRtnData
+    type CommandZeroAiCreateTeamRtnData = {
+        teamId: string;
+    };
+
     // wshrpc.CommandZeroAiDeleteProviderData
     type CommandZeroAiDeleteProviderData = {
         providerId: string;
@@ -851,6 +892,11 @@ declare global {
     // wshrpc.CommandZeroAiDeleteSessionData
     type CommandZeroAiDeleteSessionData = {
         sessionId: string;
+    };
+
+    // wshrpc.CommandZeroAiDeleteTeamData
+    type CommandZeroAiDeleteTeamData = {
+        teamId: string;
     };
 
     // wshrpc.CommandZeroAiGetAgentsData
@@ -875,6 +921,45 @@ declare global {
         sessionId: string;
     };
 
+    // wshrpc.CommandZeroAiGetTaskStatusData
+    type CommandZeroAiGetTaskStatusData = {
+        taskId: string;
+    };
+
+    // wshrpc.CommandZeroAiGetTaskStatusRtnData
+    type CommandZeroAiGetTaskStatusRtnData = {
+        status: string;
+    };
+
+    // wshrpc.CommandZeroAiGetTeamData
+    type CommandZeroAiGetTeamData = {
+        teamId: string;
+    };
+
+    // wshrpc.CommandZeroAiGetTeamRtnData
+    type CommandZeroAiGetTeamRtnData = {
+        team: null | ZeroAiTeamWrapper;
+    };
+
+    // wshrpc.CommandZeroAiJoinTeamData
+    type CommandZeroAiJoinTeamData = {
+        teamId: string;
+        backend: string;
+        role: string;
+        cliPath?: string;
+    };
+
+    // wshrpc.CommandZeroAiJoinTeamRtnData
+    type CommandZeroAiJoinTeamRtnData = {
+        memberId: string;
+    };
+
+    // wshrpc.CommandZeroAiLeaveTeamData
+    type CommandZeroAiLeaveTeamData = {
+        teamId: string;
+        memberId: string;
+    };
+
     // wshrpc.CommandZeroAiListProvidersData
     type CommandZeroAiListProvidersData = object;
 
@@ -893,18 +978,48 @@ declare global {
         sessions: ZeroAiSessionInfo[];
     };
 
+    // wshrpc.CommandZeroAiListTasksData
+    type CommandZeroAiListTasksData = {
+        teamId: string;
+    };
+
+    // wshrpc.CommandZeroAiListTasksRtnData
+    type CommandZeroAiListTasksRtnData = {
+        tasks: ZeroAiTaskInfo[];
+    };
+
+    // wshrpc.CommandZeroAiListTeamMembersData
+    type CommandZeroAiListTeamMembersData = {
+        teamId: string;
+    };
+
+    // wshrpc.CommandZeroAiListTeamMembersRtnData
+    type CommandZeroAiListTeamMembersRtnData = {
+        members: ZeroAiTeamMemberInfo[];
+    };
+
+    // wshrpc.CommandZeroAiListTeamsData
+    type CommandZeroAiListTeamsData = {
+        status?: string;
+    };
+
+    // wshrpc.CommandZeroAiListTeamsRtnData
+    type CommandZeroAiListTeamsRtnData = {
+        teams: ZeroAiTeamInfo[];
+    };
+
     // wshrpc.CommandZeroAiSaveProviderData
     type CommandZeroAiSaveProviderData = {
         providerId: string;
-        displayName: string;
-        displayIcon: string;
+        displayName?: string;
+        displayIcon?: string;
         cliCommand: string;
-        cliPath: string;
-        cliArgs: string[];
-        envVars: {[key: string]: string};
+        cliPath?: string;
+        cliArgs?: string[];
+        envVars?: {[key: string]: string};
         supportsStreaming: boolean;
-        defaultModel: string;
-        availableModels: string[];
+        defaultModel?: string;
+        availableModels?: string[];
         authRequired: boolean;
     };
 
@@ -921,6 +1036,14 @@ declare global {
     type CommandZeroAiSendMessageRtnData = {
         messageId: number;
         streaming: boolean;
+    };
+
+    // wshrpc.CommandZeroAiSendToAgentData
+    type CommandZeroAiSendToAgentData = {
+        teamId: string;
+        fromAgentId: string;
+        toAgentId: string;
+        content: string;
     };
 
     // wshrpc.CommandZeroAiSetWorkDirData
@@ -2449,23 +2572,6 @@ declare global {
         authRequired: boolean;
     };
 
-    // wshrpc.ZeroAiProviderInfo
-    type ZeroAiProviderInfo = {
-        id: string;
-        displayName: string;
-        displayIcon: string;
-        cliCommand: string;
-        cliPath: string;
-        cliArgs: string[];
-        envVars: {[key: string]: string};
-        supportsStreaming: boolean;
-        defaultModel: string;
-        availableModels: string[];
-        authRequired: boolean;
-        isAvailable: boolean;
-        isCustom: boolean;
-    };
-
     // wshrpc.ZeroAiSessionInfo
     type ZeroAiSessionInfo = {
         sessionId: string;
@@ -2494,14 +2600,6 @@ declare global {
     // wshrpc.ZeroAiStreamMessageEvent
     type ZeroAiStreamMessageEvent = {
         message: ZeroAiMessageWrapper;
-    };
-
-    // wshrpc.ZeroAiTestProviderResult
-    type ZeroAiTestProviderResult = {
-        success: boolean;
-        version: string;
-        error?: string;
-        latencyMs: number;
     };
 
 }

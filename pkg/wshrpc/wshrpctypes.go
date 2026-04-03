@@ -119,6 +119,12 @@ type WshRpcInterface interface {
 	ZeroAiSendToAgentCommand(ctx context.Context, data CommandZeroAiSendToAgentData) error
 	ZeroAiBroadcastCommand(ctx context.Context, data CommandZeroAiBroadcastData) error
 
+	// ZeroAI Provider commands
+	ZeroAiListProvidersCommand(ctx context.Context, data CommandZeroAiListProvidersData) (CommandZeroAiListProvidersRtnData, error)
+	ZeroAiSaveProviderCommand(ctx context.Context, data CommandZeroAiSaveProviderData) error
+	ZeroAiDeleteProviderCommand(ctx context.Context, data CommandZeroAiDeleteProviderData) error
+	ZeroAiTestProviderCommand(ctx context.Context, data CommandZeroAiTestProviderData) (CommandZeroAiTestProviderRtnData, error)
+
 	SendTelemetryCommand(ctx context.Context) error
 	FetchSuggestionsCommand(ctx context.Context, data FetchSuggestionsData) (*FetchSuggestionsResponse, error)
 	DisposeSuggestionsCommand(ctx context.Context, widgetId string) error
@@ -1041,17 +1047,17 @@ type CommandZeroAiSetWorkDirData struct {
 
 // CommandZeroAiSendMessageData is the request data for sending a message
 type CommandZeroAiSendMessageData struct {
-	SessionID string                 `json:"sessionId"` // the session ID
-	Role      string                 `json:"role"`      // "user", "assistant", "system"
-	Content   string                 `json:"content"`   // the message content
+	SessionID string                 `json:"sessionId"`           // the session ID
+	Role      string                 `json:"role"`                // "user", "assistant", "system"
+	Content   string                 `json:"content"`             // the message content
 	EventType string                 `json:"eventType,omitempty"` // optional event type
-	Metadata  map[string]interface{} `json:"metadata,omitempty"` // optional metadata
+	Metadata  map[string]interface{} `json:"metadata,omitempty"`  // optional metadata
 }
 
 // CommandZeroAiSendMessageRtnData is the response data for sending a message
 type CommandZeroAiSendMessageRtnData struct {
-	MessageID int64  `json:"messageId"` // the new message ID
-	Streaming bool   `json:"streaming"` // whether the response is streaming
+	MessageID int64 `json:"messageId"` // the new message ID
+	Streaming bool  `json:"streaming"` // whether the response is streaming
 }
 
 // CommandZeroAiGetMessagesData is the request data for retrieving session messages

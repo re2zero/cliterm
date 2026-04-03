@@ -1077,6 +1077,18 @@ func WslStatusCommand(w *wshutil.WshRpc, opts *wshrpc.RpcOpts) ([]wshrpc.ConnSta
 	return resp, err
 }
 
+// command "zeroaiassigntask", wshserver.ZeroAiAssignTaskCommand
+func ZeroAiAssignTaskCommand(w *wshutil.WshRpc, data wshrpc.CommandZeroAiAssignTaskData, opts *wshrpc.RpcOpts) (wshrpc.CommandZeroAiAssignTaskRtnData, error) {
+	resp, err := sendRpcRequestCallHelper[wshrpc.CommandZeroAiAssignTaskRtnData](w, "zeroaiassigntask", data, opts)
+	return resp, err
+}
+
+// command "zeroaibroadcast", wshserver.ZeroAiBroadcastCommand
+func ZeroAiBroadcastCommand(w *wshutil.WshRpc, data wshrpc.CommandZeroAiBroadcastData, opts *wshrpc.RpcOpts) error {
+	_, err := sendRpcRequestCallHelper[any](w, "zeroaibroadcast", data, opts)
+	return err
+}
+
 // command "zeroaiconfirmpermission", wshserver.ZeroAiConfirmPermissionCommand
 func ZeroAiConfirmPermissionCommand(w *wshutil.WshRpc, data wshrpc.CommandZeroAiConfirmPermissionData, opts *wshrpc.RpcOpts) error {
 	_, err := sendRpcRequestCallHelper[any](w, "zeroaiconfirmpermission", data, opts)
@@ -1089,6 +1101,18 @@ func ZeroAiCreateSessionCommand(w *wshutil.WshRpc, data wshrpc.CommandZeroAiCrea
 	return resp, err
 }
 
+// command "zeroaicreatetask", wshserver.ZeroAiCreateTaskCommand
+func ZeroAiCreateTaskCommand(w *wshutil.WshRpc, data wshrpc.CommandZeroAiCreateTaskData, opts *wshrpc.RpcOpts) (wshrpc.CommandZeroAiCreateTaskRtnData, error) {
+	resp, err := sendRpcRequestCallHelper[wshrpc.CommandZeroAiCreateTaskRtnData](w, "zeroaicreatetask", data, opts)
+	return resp, err
+}
+
+// command "zeroaicreateteam", wshserver.ZeroAiCreateTeamCommand
+func ZeroAiCreateTeamCommand(w *wshutil.WshRpc, data wshrpc.CommandZeroAiCreateTeamData, opts *wshrpc.RpcOpts) (wshrpc.CommandZeroAiCreateTeamRtnData, error) {
+	resp, err := sendRpcRequestCallHelper[wshrpc.CommandZeroAiCreateTeamRtnData](w, "zeroaicreateteam", data, opts)
+	return resp, err
+}
+
 // command "zeroaideleteprovider", wshserver.ZeroAiDeleteProviderCommand
 func ZeroAiDeleteProviderCommand(w *wshutil.WshRpc, data wshrpc.CommandZeroAiDeleteProviderData, opts *wshrpc.RpcOpts) error {
 	_, err := sendRpcRequestCallHelper[any](w, "zeroaideleteprovider", data, opts)
@@ -1098,6 +1122,12 @@ func ZeroAiDeleteProviderCommand(w *wshutil.WshRpc, data wshrpc.CommandZeroAiDel
 // command "zeroaideletesession", wshserver.ZeroAiDeleteSessionCommand
 func ZeroAiDeleteSessionCommand(w *wshutil.WshRpc, data wshrpc.CommandZeroAiDeleteSessionData, opts *wshrpc.RpcOpts) error {
 	_, err := sendRpcRequestCallHelper[any](w, "zeroaideletesession", data, opts)
+	return err
+}
+
+// command "zeroaideleteteam", wshserver.ZeroAiDeleteTeamCommand
+func ZeroAiDeleteTeamCommand(w *wshutil.WshRpc, data wshrpc.CommandZeroAiDeleteTeamData, opts *wshrpc.RpcOpts) error {
+	_, err := sendRpcRequestCallHelper[any](w, "zeroaideleteteam", data, opts)
 	return err
 }
 
@@ -1119,6 +1149,30 @@ func ZeroAiGetSessionCommand(w *wshutil.WshRpc, data wshrpc.CommandZeroAiGetSess
 	return resp, err
 }
 
+// command "zeroaigettaskstatus", wshserver.ZeroAiGetTaskStatusCommand
+func ZeroAiGetTaskStatusCommand(w *wshutil.WshRpc, data wshrpc.CommandZeroAiGetTaskStatusData, opts *wshrpc.RpcOpts) (wshrpc.CommandZeroAiGetTaskStatusRtnData, error) {
+	resp, err := sendRpcRequestCallHelper[wshrpc.CommandZeroAiGetTaskStatusRtnData](w, "zeroaigettaskstatus", data, opts)
+	return resp, err
+}
+
+// command "zeroaigetteam", wshserver.ZeroAiGetTeamCommand
+func ZeroAiGetTeamCommand(w *wshutil.WshRpc, data wshrpc.CommandZeroAiGetTeamData, opts *wshrpc.RpcOpts) (wshrpc.CommandZeroAiGetTeamRtnData, error) {
+	resp, err := sendRpcRequestCallHelper[wshrpc.CommandZeroAiGetTeamRtnData](w, "zeroaigetteam", data, opts)
+	return resp, err
+}
+
+// command "zeroaijointeam", wshserver.ZeroAiJoinTeamCommand
+func ZeroAiJoinTeamCommand(w *wshutil.WshRpc, data wshrpc.CommandZeroAiJoinTeamData, opts *wshrpc.RpcOpts) (wshrpc.CommandZeroAiJoinTeamRtnData, error) {
+	resp, err := sendRpcRequestCallHelper[wshrpc.CommandZeroAiJoinTeamRtnData](w, "zeroaijointeam", data, opts)
+	return resp, err
+}
+
+// command "zeroaileaveteam", wshserver.ZeroAiLeaveTeamCommand
+func ZeroAiLeaveTeamCommand(w *wshutil.WshRpc, data wshrpc.CommandZeroAiLeaveTeamData, opts *wshrpc.RpcOpts) error {
+	_, err := sendRpcRequestCallHelper[any](w, "zeroaileaveteam", data, opts)
+	return err
+}
+
 // command "zeroailistproviders", wshserver.ZeroAiListProvidersCommand
 func ZeroAiListProvidersCommand(w *wshutil.WshRpc, data wshrpc.CommandZeroAiListProvidersData, opts *wshrpc.RpcOpts) (wshrpc.CommandZeroAiListProvidersRtnData, error) {
 	resp, err := sendRpcRequestCallHelper[wshrpc.CommandZeroAiListProvidersRtnData](w, "zeroailistproviders", data, opts)
@@ -1128,6 +1182,24 @@ func ZeroAiListProvidersCommand(w *wshutil.WshRpc, data wshrpc.CommandZeroAiList
 // command "zeroailistsessions", wshserver.ZeroAiListSessionsCommand
 func ZeroAiListSessionsCommand(w *wshutil.WshRpc, data wshrpc.CommandZeroAiListSessionsData, opts *wshrpc.RpcOpts) (wshrpc.CommandZeroAiListSessionsRtnData, error) {
 	resp, err := sendRpcRequestCallHelper[wshrpc.CommandZeroAiListSessionsRtnData](w, "zeroailistsessions", data, opts)
+	return resp, err
+}
+
+// command "zeroailisttasks", wshserver.ZeroAiListTasksCommand
+func ZeroAiListTasksCommand(w *wshutil.WshRpc, data wshrpc.CommandZeroAiListTasksData, opts *wshrpc.RpcOpts) (wshrpc.CommandZeroAiListTasksRtnData, error) {
+	resp, err := sendRpcRequestCallHelper[wshrpc.CommandZeroAiListTasksRtnData](w, "zeroailisttasks", data, opts)
+	return resp, err
+}
+
+// command "zeroailistteammembers", wshserver.ZeroAiListTeamMembersCommand
+func ZeroAiListTeamMembersCommand(w *wshutil.WshRpc, data wshrpc.CommandZeroAiListTeamMembersData, opts *wshrpc.RpcOpts) (wshrpc.CommandZeroAiListTeamMembersRtnData, error) {
+	resp, err := sendRpcRequestCallHelper[wshrpc.CommandZeroAiListTeamMembersRtnData](w, "zeroailistteammembers", data, opts)
+	return resp, err
+}
+
+// command "zeroailistteams", wshserver.ZeroAiListTeamsCommand
+func ZeroAiListTeamsCommand(w *wshutil.WshRpc, data wshrpc.CommandZeroAiListTeamsData, opts *wshrpc.RpcOpts) (wshrpc.CommandZeroAiListTeamsRtnData, error) {
+	resp, err := sendRpcRequestCallHelper[wshrpc.CommandZeroAiListTeamsRtnData](w, "zeroailistteams", data, opts)
 	return resp, err
 }
 
@@ -1146,6 +1218,12 @@ func ZeroAiSendMessageCommand(w *wshutil.WshRpc, data wshrpc.CommandZeroAiSendMe
 // command "zeroaisendstreammessage", wshserver.ZeroAiSendStreamMessageCommand
 func ZeroAiSendStreamMessageCommand(w *wshutil.WshRpc, data wshrpc.CommandZeroAiSendMessageData, opts *wshrpc.RpcOpts) chan wshrpc.RespOrErrorUnion[wshrpc.ZeroAiStreamMessageEvent] {
 	return sendRpcRequestResponseStreamHelper[wshrpc.ZeroAiStreamMessageEvent](w, "zeroaisendstreammessage", data, opts)
+}
+
+// command "zeroaisendtoagent", wshserver.ZeroAiSendToAgentCommand
+func ZeroAiSendToAgentCommand(w *wshutil.WshRpc, data wshrpc.CommandZeroAiSendToAgentData, opts *wshrpc.RpcOpts) error {
+	_, err := sendRpcRequestCallHelper[any](w, "zeroaisendtoagent", data, opts)
+	return err
 }
 
 // command "zeroaisetworkdir", wshserver.ZeroAiSetWorkDirCommand
