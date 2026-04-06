@@ -15,8 +15,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"os/exec"
+	"reflect"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -100,8 +102,8 @@ type AcpConnection struct {
 	lastError error
 	lastSeen  atomic.Value // time.Time
 
-	// Channel for signaling shutdown
-	shutdownCh chan struct{}
+	promptDoneCh chan struct{}
+	shutdownCh   chan struct{}
 }
 
 // Connection interface provides the ACP connection contract
@@ -147,6 +149,20 @@ type Connection interface {
 
 	// SetCallbacks registers event callbacks
 	SetCallbacks(callbacks AcpCallbacks)
+
+	// WaitForDone returns a channel that is closed when the current prompt/stream completes
+	WaitForDone() <-chan struct{}
+}
+
+func (c *AcpConnection) WaitForDone() <-chan struct{} {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	if c.promptDoneCh != nil {
+		return c.promptDoneCh
+	}
+	done := make(chan struct{})
+	close(done)
+	return done
 }
 
 // NewAcpConnection creates a new ACP connection
@@ -162,79 +178,74 @@ func NewAcpConnection() *AcpConnection {
 // Initialize starts the connection and the agent process
 func (c *AcpConnection) Initialize(config AcpSessionConfig) error {
 	c.mu.Lock()
-	defer c.mu.Unlock()
 
 	if c.GetState() != ConnectionStateDisconnected {
+		c.mu.Unlock()
 		return fmt.Errorf("connection already initialized")
 	}
 
 	c.config = config
 	c.state.Store(int32(ConnectionStateConnecting))
 
-	// Build command for the backend CLI
 	cliCmd, cliArgs, err := c.buildCommand(config)
 	if err != nil {
+		c.mu.Unlock()
 		return fmt.Errorf("failed to build command: %w", err)
 	}
 
-	// Create command with stdio pipes
 	c.process = exec.Command(cliCmd, cliArgs...)
 
-	// Set up environment variables
 	c.process.Env = os.Environ()
 	for k, v := range config.Env {
 		c.process.Env = append(c.process.Env, fmt.Sprintf("%s=%s", k, v))
 	}
 
-	// Set working directory
 	if config.Cwd != "" {
 		c.process.Dir = config.Cwd
 	}
 
-	// Create stdio pipes
 	stdin, err := c.process.StdinPipe()
 	if err != nil {
+		c.mu.Unlock()
 		return fmt.Errorf("failed to create stdin pipe: %w", err)
 	}
 	c.stdin = stdin
 
 	stdout, err := c.process.StdoutPipe()
 	if err != nil {
+		c.mu.Unlock()
 		return fmt.Errorf("failed to create stdout pipe: %w", err)
 	}
 	c.stdout = stdout
 
 	stderr, err := c.process.StderrPipe()
 	if err != nil {
+		c.mu.Unlock()
 		return fmt.Errorf("failed to create stderr pipe: %w", err)
 	}
 	c.stderr = stderr
 
-	// Start the process
 	if err := c.process.Start(); err != nil {
+		c.mu.Unlock()
 		return fmt.Errorf("failed to start process: %w", err)
 	}
 
 	c.processID = c.process.Process.Pid
 	c.lastSeen.Store(time.Now())
 
-	// Start background reader
 	c.background.Add(1)
 	go c.readOutputLoop()
 
-	// Start stderr reader
 	c.background.Add(1)
 	go c.readStderrLoop()
 
-	// Send JSON-RPC initialize handshake (required by ACP protocol)
-	// Must bypass SendMessage's connected check since we're still connecting
 	initID := int(c.requestID.Add(1))
 	initReq := map[string]interface{}{
 		"jsonrpc": "2.0",
 		"id":      initID,
 		"method":  "initialize",
 		"params": map[string]interface{}{
-			"protocolVersion": "2025-03-26",
+			"protocolVersion": 1,
 			"clientInfo": map[string]string{
 				"name":    "zeroai",
 				"version": "0.1.0",
@@ -245,7 +256,6 @@ func (c *AcpConnection) Initialize(config AcpSessionConfig) error {
 
 	initReqBytes, _ := json.Marshal(initReq)
 
-	// Register pending request before sending
 	respCh := make(chan *AcpResponse, 1)
 	c.reqMu.Lock()
 	c.pendingReq[initID] = &PendingRequest{
@@ -257,12 +267,13 @@ func (c *AcpConnection) Initialize(config AcpSessionConfig) error {
 	}
 	c.reqMu.Unlock()
 
+	c.mu.Unlock()
+
 	if err := c.sendData(initReqBytes); err != nil {
 		c.process.Process.Kill()
 		return fmt.Errorf("failed to send initialize: %w", err)
 	}
 
-	// Wait for initialize response
 	initCtx, initCancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer initCancel()
 
@@ -278,6 +289,16 @@ func (c *AcpConnection) Initialize(config AcpSessionConfig) error {
 	case <-c.shutdownCh:
 		c.process.Process.Kill()
 		return fmt.Errorf("connection closed during initialize")
+	}
+
+	initializedNotif := map[string]interface{}{
+		"jsonrpc": "2.0",
+		"method":  "notifications/initialized",
+	}
+	notifData, _ := json.Marshal(initializedNotif)
+	if err := c.sendData(notifData); err != nil {
+		c.process.Process.Kill()
+		return fmt.Errorf("failed to send initialized notification: %w", err)
 	}
 
 	c.state.Store(int32(ConnectionStateConnected))
@@ -392,16 +413,38 @@ func (c *AcpConnection) GetState() ConnectionState {
 
 // NewSession creates a new session with the agent
 func (c *AcpConnection) NewSession(ctx context.Context) (*SessionNewResult, error) {
+	log.Printf("[DEBUG] NewSession: starting for backend=%s", c.config.Backend)
+
+	backendCfg, _ := GetBackendConfig(c.config.Backend)
+	displayName := string(c.config.Backend)
+	if backendCfg != nil {
+		displayName = backendCfg.Name
+	}
+
+	cwd := c.config.Cwd
+	if cwd == "" {
+		cwd, _ = os.Getwd()
+	}
+
+	log.Printf("[DEBUG] NewSession: sending session/new with displayName=%s, cwd=%s", displayName, cwd)
+
 	resp, err := c.SendMessage(ctx, "session/new", map[string]interface{}{
-		"cwd": c.config.Cwd,
+		"displayName": displayName,
+		"cwd":         cwd,
+		"workspace":   cwd,
+		"mcpServers":  []interface{}{},
 	}, 30*time.Second)
 	if err != nil {
+		log.Printf("[DEBUG] NewSession: SendMessage error: %v", err)
 		return nil, err
 	}
 
 	if resp.Error != nil {
+		log.Printf("[DEBUG] NewSession: response error: %v", resp.Error)
 		return nil, resp.Error
 	}
+
+	log.Printf("[DEBUG] NewSession: response received, result=%v", resp.Result)
 
 	var result SessionNewResult
 	data, err := json.Marshal(resp.Result)
@@ -545,6 +588,8 @@ func (c *AcpConnection) SendNotification(method string, params map[string]interf
 
 // StreamPrompt sends a prompt and receives streaming responses via session/update notifications
 func (c *AcpConnection) StreamPrompt(ctx context.Context, sessionID, prompt string, opts AcpPromptOptions, callback StreamCallback) error {
+	log.Printf("[DEBUG] StreamPrompt: sending session/prompt with params: sessionId=%s, prompt=%s", sessionID, prompt)
+
 	params := map[string]interface{}{
 		"sessionId": sessionID,
 		"prompt": []map[string]interface{}{
@@ -561,11 +606,27 @@ func (c *AcpConnection) StreamPrompt(ctx context.Context, sessionID, prompt stri
 		params["model"] = opts.ModelOverride
 	}
 
-	// Send session/prompt request in a goroutine - don't block waiting for response.
-	// Streaming responses come via session/update notifications handled by readOutputLoop.
-	go func() {
-		_, _ = c.SendMessage(context.Background(), "session/prompt", params, 5*time.Minute)
-	}()
+	// Send session/prompt request - wait for response
+	log.Printf("[DEBUG] StreamPrompt: about to call SendMessage for session/prompt")
+	resp, err := c.SendMessage(ctx, "session/prompt", params, 5*time.Minute)
+	log.Printf("[DEBUG] StreamPrompt: SendMessage returned, err=%v, resp=%v", err, resp)
+
+	if err != nil {
+		log.Printf("[DEBUG] StreamPrompt: SendMessage error: %v", err)
+		return err
+	}
+	if resp == nil {
+		log.Printf("[DEBUG] StreamPrompt: response is nil!")
+		return nil
+	}
+
+	log.Printf("[DEBUG] StreamPrompt: response received successfully, result=%v", resp.Result)
+
+	log.Printf("[DEBUG] StreamPrompt: sent successfully, waiting for notifications")
+
+	c.mu.Lock()
+	c.promptDoneCh = make(chan struct{})
+	c.mu.Unlock()
 
 	return nil
 }
@@ -591,6 +652,8 @@ func (c *AcpConnection) sendData(data []byte) error {
 		}
 	}
 
+	log.Printf("[DEBUG] sendData: sending %d bytes: %s", len(data), string(data))
+
 	// Ensure message ends with newline
 	buf := data
 	if !bytes.HasSuffix(buf, []byte("\n")) {
@@ -599,6 +662,12 @@ func (c *AcpConnection) sendData(data []byte) error {
 
 	if _, err := c.stdin.Write(buf); err != nil {
 		return fmt.Errorf("failed to write to stdin: %w", err)
+	}
+
+	if flusher, ok := c.stdin.(interface{ Flush() error }); ok {
+		if err := flusher.Flush(); err != nil {
+			return fmt.Errorf("failed to flush stdin: %w", err)
+		}
 	}
 
 	c.lastSeen.Store(time.Now())
@@ -635,6 +704,8 @@ func (c *AcpConnection) readOutputLoop() {
 		line := scanner.Bytes()
 		c.lastSeen.Store(time.Now())
 
+		log.Printf("[DEBUG] readOutputLoop: received %d bytes: %s", len(line), string(line))
+
 		// Decode message
 		msg, err := DecodeMessage(line)
 		if err != nil {
@@ -666,24 +737,27 @@ func (c *AcpConnection) readStderrLoop() {
 
 // handleResponse routes a response to the pending request or callbacks
 func (c *AcpConnection) handleResponse(resp *AcpResponse) {
+	log.Printf("[DEBUG] handleResponse: received response for id=%v, hasResult=%v, hasError=%v", resp.ID, resp.Result != nil, resp.Error != nil)
+
 	c.reqMu.RLock()
 	req, exists := c.pendingReq[resp.ID]
 	c.reqMu.RUnlock()
 
 	if exists {
+		log.Printf("[DEBUG] handleResponse: found pending request, sending response")
 		select {
 		case req.Response <- resp:
 		default:
-			// Channel full or closed
+			log.Printf("[DEBUG] handleResponse: channel full or closed")
 		}
 	} else {
-		// Unknown response - might be an async callback
-		// Could forward to OnError callback
+		log.Printf("[DEBUG] handleResponse: no pending request found for id=%v", resp.ID)
 	}
 }
 
 // handleNotification processes incoming notifications
 func (c *AcpConnection) handleNotification(notif *AcpNotification) {
+	log.Printf("[DEBUG] handleNotification: received method=%s", notif.Method)
 	switch notif.Method {
 	case "session/update":
 		c.handleSessionUpdate(notif.Params)
@@ -691,31 +765,73 @@ func (c *AcpConnection) handleNotification(notif *AcpNotification) {
 		c.handlePermissionRequest(notif.Params)
 	case "error":
 		c.handleErrorNotification(notif.Params)
+	case "notifications/initialized":
+		log.Printf("[DEBUG] handleNotification: ignored notifications/initialized")
+	default:
+		log.Printf("[DEBUG] handleNotification: unhandled method=%s", notif.Method)
 	}
 }
 
 // handleSessionUpdate processes session update notifications
 func (c *AcpConnection) handleSessionUpdate(params map[string]interface{}) {
-	var update AcpSessionUpdate
-	data, err := json.Marshal(params)
+	log.Printf("[DEBUG] handleSessionUpdate: params keys = %v", reflect.ValueOf(params).MapKeys())
+
+	updateObj, hasUpdate := params["update"].(map[string]interface{})
+	if !hasUpdate {
+		log.Printf("[DEBUG] handleSessionUpdate: no 'update' key in params")
+		return
+	}
+
+	sessionUpdate, _ := updateObj["sessionUpdate"].(string)
+	log.Printf("[DEBUG] handleSessionUpdate: sessionUpdate type = %s", sessionUpdate)
+
+	data, err := json.Marshal(updateObj)
 	if err != nil {
 		c.logError(fmt.Sprintf("failed to encode session update: %v", err))
 		return
 	}
 
+	log.Printf("[DEBUG] handleSessionUpdate: raw update = %s", string(data))
+
+	var update AcpSessionUpdate
 	if err := json.Unmarshal(data, &update); err != nil {
 		c.logError(fmt.Sprintf("failed to parse session update: %v", err))
 		return
 	}
+
+	update.SessionUpdate = sessionUpdate
+
+	switch v := update.Content.(type) {
+	case string:
+	case map[string]interface{}:
+		if text, ok := v["text"].(string); ok {
+			update.Content = text
+		}
+	}
+
+	log.Printf("[DEBUG] handleSessionUpdate: parsed SessionUpdate=%s, Content=%v", update.SessionUpdate, update.Content)
+
+	if update.SessionUpdate == "end_turn" {
+		c.mu.Lock()
+		if c.promptDoneCh != nil {
+			close(c.promptDoneCh)
+			c.promptDoneCh = nil
+		}
+		c.mu.Unlock()
+	}
+
+	log.Printf("[DEBUG] handleSessionUpdate: update object keys = %v", reflect.ValueOf(updateObj).MapKeys())
 
 	c.mu.RLock()
 	callbacks := c.callbacks
 	c.mu.RUnlock()
 
 	if callbacks.OnSessionUpdate != nil {
+		log.Printf("[DEBUG] handleSessionUpdate: calling OnSessionUpdate callback")
 		if err := callbacks.OnSessionUpdate(&update); err != nil {
 			c.logError(fmt.Sprintf("session update callback error: %v", err))
 		}
+		log.Printf("[DEBUG] handleSessionUpdate: callback returned")
 	}
 }
 
@@ -789,12 +905,18 @@ func (c *AcpConnection) logError(msg string) {
 
 // buildCommand builds the CLI command and arguments based on backend
 func (c *AcpConnection) buildCommand(config AcpSessionConfig) (string, []string, error) {
+	backendCfg, err := GetBackendConfig(config.Backend)
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to get backend config: %w", err)
+	}
+
+	// If backend has an NPX package, use npx to run it
+	if backendCfg.NpxPackage != "" {
+		return "npx", []string{"--yes", backendCfg.NpxPackage}, nil
+	}
+
 	cliPath := config.CliPath
 	if cliPath == "" {
-		backendCfg, err := GetBackendConfig(config.Backend)
-		if err != nil {
-			return "", nil, fmt.Errorf("failed to get backend config: %w", err)
-		}
 		cliPath = backendCfg.DefaultCliPath
 	}
 
@@ -803,10 +925,6 @@ func (c *AcpConnection) buildCommand(config AcpSessionConfig) (string, []string,
 	}
 
 	// Build ACP arguments
-	backendCfg, err := GetBackendConfig(config.Backend)
-	if err != nil {
-		return "", nil, fmt.Errorf("failed to get backend config: %w", err)
-	}
 	args := []string{}
 	args = append(args, backendCfg.AcpArgs...)
 

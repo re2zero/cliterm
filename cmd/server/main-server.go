@@ -414,7 +414,7 @@ func createMainWshClient() {
 		sessionStore,
 	)
 
-	zeroaiServer := zeroairpc.NewWshRpcZeroaiServer(sessionSvc, msgSvc, agentSvc, providerSvc, nil, nil)
+	zeroaiServer := zeroairpc.NewWshRpcZeroaiServer(sessionSvc, msgSvc, agentSvc, providerSvc, nil, nil, nil)
 	zeroaiWsh := wshutil.MakeWshRpc(wshrpc.RpcContext{}, zeroaiServer, "zeroai")
 	wshutil.DefaultRouter.RegisterTrustedLeaf(zeroaiWsh, "zeroai")
 }

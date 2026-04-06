@@ -171,6 +171,14 @@ export class ZeroAiClient {
         }
     }
 
+    async cancelStream(sessionId: string, opts?: ZeroAiClientOpts): Promise<void> {
+        try {
+            await RpcApi.ZeroAiCancelStreamCommand(TabRpcClient, { sessionId }, zeroaiOpts(opts));
+        } catch (error) {
+            throw new ZeroAiClientError(`Failed to cancel stream: ${error}`, "CANCEL_STREAM_ERROR", error);
+        }
+    }
+
     async listProviders(opts?: ZeroAiClientOpts): Promise<ZeroAiProviderInfo[]> {
         const result = await RpcApi.ZeroAiListProvidersCommand(TabRpcClient, {}, zeroaiOpts(opts));
         return result.providers || [];

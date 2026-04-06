@@ -1098,6 +1098,12 @@ export class RpcApiType {
         return client.wshRpcCall("zeroaibroadcast", data, opts);
     }
 
+    // command "zeroaicancelstream" [call]
+    ZeroAiCancelStreamCommand(client: WshClient, data: ZeroAiCancelStreamData, opts?: RpcOpts): Promise<void> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "zeroaicancelstream", data, opts);
+        return client.wshRpcCall("zeroaicancelstream", data, opts);
+    }
+
     // command "zeroaiconfirmpermission" [call]
     ZeroAiConfirmPermissionCommand(client: WshClient, data: CommandZeroAiConfirmPermissionData, opts?: RpcOpts): Promise<void> {
         if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "zeroaiconfirmpermission", data, opts);

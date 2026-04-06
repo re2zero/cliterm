@@ -1,15 +1,18 @@
 // Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+import { globalStore } from "@/app/store/jotaiStore";
 import { useAtomValue } from "jotai";
 import { useEffect, useRef, useState } from "react";
-import { ChatArea, ChatInput, ProviderSettings, SessionList, StatusBar, ZeroAIHeader } from "./components";
+import { AgentList, ChatArea, ChatInput, ProviderSettings, StatusBar, ZeroAIHeader } from "./components";
 import "./index.scss";
+import { activeAgentIdAtom, agentsAtom, setActiveAgent } from "./models/agent-model";
 import { dispatchMessageAction, messagesAtom, streamingMessageAtom } from "./models/message-model";
 import { activeModelAtom, activeProviderAtom, activeProviderIdAtom } from "./models/provider-model";
 import { activeSessionIdAtom, dispatchSessionAction, removeSession, sessionsAtom } from "./models/session-model";
 import {
     inputHeightAtom,
+    isStreamingAtom,
     sessionListCollapsedAtom,
     setThinking,
     showProviderSettingsAtom,
@@ -17,7 +20,7 @@ import {
     toggleSessionListCollapsed,
 } from "./models/ui-model";
 import { ZeroAiClient } from "./store/zeroai-client";
-import type { CreateSessionRequest, ZeroAiAgentInfo, ZeroAiSession, ZeroAiSessionInfo } from "./types";
+import type { CreateSessionRequest, ZeroAiAgentInfo, ZeroAiMessage, ZeroAiSession, ZeroAiSessionInfo } from "./types";
 
 export function AIPanel(_props: { roundTopLeft?: boolean }) {
     const sessions = useAtomValue(sessionsAtom);
@@ -29,9 +32,12 @@ export function AIPanel(_props: { roundTopLeft?: boolean }) {
     const activeProviderId = useAtomValue(activeProviderIdAtom);
     const activeModel = useAtomValue(activeModelAtom);
     const activeProvider = useAtomValue(activeProviderAtom);
+    const agents = useAtomValue(agentsAtom);
+    const activeAgentId = useAtomValue(activeAgentIdAtom);
 
     const [inputValue, setInputValue] = useState("");
-    const [isStreaming, setIsStreaming] = useState(false);
+    const isStreaming = useAtomValue(isStreamingAtom);
+    const cancelRef = useRef<AbortController | null>(null);
 
     const clientRef = useRef<ZeroAiClient | null>(null);
 
@@ -49,10 +55,6 @@ export function AIPanel(_props: { roundTopLeft?: boolean }) {
         };
 
         initializeSessions();
-
-        return () => {
-            setIsStreaming(false);
-        };
     }, []);
 
     const currentMessages = activeSessionId ? messagesMap[activeSessionId] || [] : [];
@@ -70,7 +72,7 @@ export function AIPanel(_props: { roundTopLeft?: boolean }) {
         if (!clientRef.current) return;
 
         try {
-            setIsStreaming(true);
+            globalStore.set(isStreamingAtom, true);
             setThinking(true);
 
             const backend = (activeProviderId as CreateSessionRequest["backend"]) || "claude";
@@ -97,7 +99,7 @@ export function AIPanel(_props: { roundTopLeft?: boolean }) {
         } catch (error) {
             console.error("Failed to create session:", error);
         } finally {
-            setIsStreaming(false);
+            globalStore.set(isStreamingAtom, false);
             setThinking(false);
         }
     };
@@ -106,7 +108,7 @@ export function AIPanel(_props: { roundTopLeft?: boolean }) {
         if (!clientRef.current) return;
 
         try {
-            setIsStreaming(true);
+            globalStore.set(isStreamingAtom, true);
             await clientRef.current.deleteSession(sessionId);
             removeSession(sessionId);
 
@@ -122,7 +124,7 @@ export function AIPanel(_props: { roundTopLeft?: boolean }) {
         } catch (error) {
             console.error("Failed to delete session:", error);
         } finally {
-            setIsStreaming(false);
+            globalStore.set(isStreamingAtom, false);
         }
     };
 
@@ -135,7 +137,7 @@ export function AIPanel(_props: { roundTopLeft?: boolean }) {
         let sessionId = activeSessionId;
         if (!sessionId) {
             try {
-                setIsStreaming(true);
+                globalStore.set(isStreamingAtom, true);
                 setThinking(true);
 
                 const backend = (activeProviderId as CreateSessionRequest["backend"]) || "claude";
@@ -162,7 +164,7 @@ export function AIPanel(_props: { roundTopLeft?: boolean }) {
                 sessionId = result.sessionId;
             } catch (error) {
                 console.error("Failed to create session:", error);
-                setIsStreaming(false);
+                globalStore.set(isStreamingAtom, false);
                 setThinking(false);
                 return;
             }
@@ -170,8 +172,21 @@ export function AIPanel(_props: { roundTopLeft?: boolean }) {
 
         const content = inputValue.trim();
         setInputValue("");
-        setIsStreaming(true);
+
+        const userMsg: ZeroAiMessage = {
+            id: Date.now(),
+            sessionId,
+            role: "user",
+            content,
+            createdAt: Date.now() / 1000,
+        };
+        dispatchMessageAction({ type: "addMessage", sessionId, message: userMsg });
+
+        globalStore.set(isStreamingAtom, true);
         setThinking(true);
+
+        const abortController = new AbortController();
+        cancelRef.current = abortController;
 
         try {
             const stream = clientRef.current.streamMessage({
@@ -183,6 +198,8 @@ export function AIPanel(_props: { roundTopLeft?: boolean }) {
             let streamStarted = false;
 
             for await (const event of stream) {
+                if (abortController.signal.aborted) break;
+
                 if (event.message) {
                     const msg = event.message;
                     const eventType = msg.eventType || (msg.metadata?.type as string | undefined);
@@ -221,12 +238,35 @@ export function AIPanel(_props: { roundTopLeft?: boolean }) {
                     }
                 }
             }
+
+            if (streamStarted) {
+                dispatchMessageAction({ type: "finalizeStream", sessionId });
+            }
         } catch (error) {
             console.error("Failed to send message:", error);
+            dispatchMessageAction({ type: "cancelStream", sessionId });
         } finally {
-            setIsStreaming(false);
+            cancelRef.current = null;
+            globalStore.set(isStreamingAtom, false);
             setThinking(false);
         }
+    };
+
+    const handleStopStreaming = async () => {
+        const sessionId = cancelRef.current ? activeSessionId : null;
+        if (cancelRef.current) {
+            cancelRef.current.abort();
+        }
+        if (sessionId && clientRef.current) {
+            try {
+                await clientRef.current.cancelStream(sessionId);
+            } catch (error) {
+                console.error("Failed to cancel stream:", error);
+            }
+            dispatchMessageAction({ type: "finalizeStream", sessionId });
+        }
+        globalStore.set(isStreamingAtom, false);
+        setThinking(false);
     };
 
     const minHeight = typeof inputHeight === "number" ? inputHeight : 100;
@@ -249,7 +289,6 @@ export function AIPanel(_props: { roundTopLeft?: boolean }) {
                 session={currentSession as unknown as ZeroAiSession}
                 agentInfo={agentInfo}
                 onWorkDirClick={() => console.log("Change work dir")}
-                isStreaming={isStreaming}
             />
             <ZeroAIHeader showSettings={showProviderSettings} onToggleSettings={toggleProviderSettings} />
             <div className="zeroai-content">
@@ -259,21 +298,27 @@ export function AIPanel(_props: { roundTopLeft?: boolean }) {
                     </div>
                 ) : (
                     <>
-                        <SessionList
-                            sessions={sessions as unknown as ZeroAiSession[]}
-                            currentSessionId={activeSessionId || undefined}
-                            onSelectSession={handleSelectSession}
-                            onCreateSession={handleCreateSession}
-                            onDeleteSession={handleDeleteSession}
+                        <AgentList
+                            agents={agents}
+                            activeAgentId={activeAgentId}
+                            onSelectAgent={(agentId) => {
+                                setActiveAgent(agentId);
+                                const agent = agents.find((a) => a.id === agentId);
+                                if (agent) {
+                                    globalStore.set(activeProviderIdAtom, agent.provider);
+                                    globalStore.set(activeModelAtom, agent.model);
+                                }
+                            }}
                             collapsed={sessionListCollapsed}
                             onToggleCollapse={toggleSessionListCollapsed}
                         />
                         <div className="chat-area-wrapper">
-                            <ChatArea messages={displayMessages} />
+                            <ChatArea messages={displayMessages} isStreaming={isStreaming} />
                             <ChatInput
                                 value={inputValue}
                                 onChange={setInputValue}
                                 onSend={handleSendMessage}
+                                onStop={handleStopStreaming}
                                 isSending={isStreaming}
                             />
                         </div>

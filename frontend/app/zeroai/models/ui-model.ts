@@ -2,18 +2,14 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { globalStore } from "@/app/store/jotaiStore";
-import { atom } from "jotai";
+import { atom, type PrimitiveAtom } from "jotai";
 import type { ZeroAiStatusBarInfo } from "../types";
 
-/**
- * Input text height atom (in pixels or auto)
- */
 export const inputHeightAtom = atom<number | "auto">(100);
 
-/**
- * Input width atom (percentage or auto)
- */
 export const inputWidthAtom = atom<number | "auto">("auto");
+
+export const isStreamingAtom: PrimitiveAtom<boolean> = atom<boolean>(false);
 
 /**
  * Status bar information atom

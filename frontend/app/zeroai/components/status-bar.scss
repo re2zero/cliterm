@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
 
-
 .status-bar {
     display: flex;
     align-items: center;
@@ -78,6 +77,31 @@
         font-size: 11px;
         color: rgba(255, 255, 255, 0.6);
     }
+}
+
+.status-bar-backend {
+    .status-bar-item {
+        i {
+            opacity: 0.7;
+        }
+    }
+}
+
+.status-bar-sep {
+    opacity: 0.3;
+    margin: 0 2px;
+    color: rgba(255, 255, 255, 0.4);
+}
+
+.status-bar-model-name {
+    font-size: 11px;
+    font-weight: 400;
+    color: rgba(255, 255, 255, 0.5);
+    font-family: monospace;
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .status-bar-yolo {

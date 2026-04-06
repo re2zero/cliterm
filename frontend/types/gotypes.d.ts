@@ -2543,6 +2543,11 @@ declare global {
         supportedOps: string[];
     };
 
+    // wshrpc.ZeroAiCancelStreamData
+    type ZeroAiCancelStreamData = {
+        sessionId: string;
+    };
+
     // wshrpc.ZeroAiMessageInfo
     type ZeroAiMessageInfo = {
         id: number;

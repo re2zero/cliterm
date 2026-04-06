@@ -103,6 +103,7 @@ type WshRpcInterface interface {
 	ZeroAiGetMessagesCommand(ctx context.Context, data CommandZeroAiGetMessagesData) (CommandZeroAiGetMessagesRtnData, error)
 	ZeroAiGetAgentsCommand(ctx context.Context, data CommandZeroAiGetAgentsData) ([]ZeroAiAgentInfo, error)
 	ZeroAiConfirmPermissionCommand(ctx context.Context, data CommandZeroAiConfirmPermissionData) error
+	ZeroAiCancelStreamCommand(ctx context.Context, data ZeroAiCancelStreamData) error
 
 	// ZeroAI Team collaboration commands
 	ZeroAiCreateTeamCommand(ctx context.Context, data CommandZeroAiCreateTeamData) (CommandZeroAiCreateTeamRtnData, error)

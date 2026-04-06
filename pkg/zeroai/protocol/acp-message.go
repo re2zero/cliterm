@@ -86,18 +86,16 @@ func DecodeNotification(data []byte) (*AcpNotification, error) {
 
 // DecodeMessage decodes any JSON-RPC message (response or notification)
 func DecodeMessage(data []byte) (interface{}, error) {
-	// Check if it has an "id" field to determine if it's a response or notification
-	var raw struct {
-		ID int `json:"id,omitempty"`
-	}
+	var raw map[string]json.RawMessage
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return nil, fmt.Errorf("failed to determine message type: %w", err)
 	}
 
-	if raw.ID == 0 {
-		return DecodeNotification(data)
+	_, hasID := raw["id"]
+	if hasID {
+		return DecodeResponse(data)
 	}
-	return DecodeResponse(data)
+	return DecodeNotification(data)
 }
 
 // EncodeSessionNewRequest encodes a session/new request
@@ -170,8 +168,8 @@ func EncodePermissionConfirmRequest(id int, callID string, optionID string) ([]b
 
 // SessionNewResult represents the result of a session/new request
 type SessionNewResult struct {
-	SessionID string              `json:"sessionId"`
-	Models    *AcpSessionModels   `json:"models,omitempty"`
+	SessionID string                   `json:"sessionId"`
+	Models    *AcpSessionModels        `json:"models,omitempty"`
 	Options   []AcpSessionConfigOption `json:"options,omitempty"`
 }
 

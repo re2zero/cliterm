@@ -27,6 +27,7 @@ type WshRpcZeroaiServer struct {
 	providerService *service.ProviderService
 	teamCoordinator *team.Coordinator
 	messageRouter   *team.MessageRouter
+	blockManager    *team.BlockManager
 	defaultBackend  string
 }
 
@@ -58,6 +59,7 @@ func NewWshRpcZeroaiServer(
 	providerService *service.ProviderService,
 	teamCoordinator *team.Coordinator,
 	messageRouter *team.MessageRouter,
+	blockManager *team.BlockManager,
 ) *WshRpcZeroaiServer {
 	return &WshRpcZeroaiServer{
 		sessionService:  sessionService,
@@ -66,6 +68,7 @@ func NewWshRpcZeroaiServer(
 		providerService: providerService,
 		teamCoordinator: teamCoordinator,
 		messageRouter:   messageRouter,
+		blockManager:    blockManager,
 		defaultBackend:  "claude",
 	}
 }
@@ -322,15 +325,20 @@ func (zs *WshRpcZeroaiServer) ZeroAiSendStreamMessageCommand(ctx context.Context
 		defer close(rtn)
 
 		backend := zs.getBackendForSession(ctx, req.SessionID)
+		log.Printf("[DEBUG] ZeroAiSendStreamMessageCommand: sessionID=%s, backend=%s, content_len=%d", req.SessionID, backend, len(req.Content))
+
 		agentConfig := agent.AgentConfig{
 			Backend: backend,
 		}
 
 		ag, err := zs.agentService.GetAgent(ctx, agentConfig)
 		if err != nil {
+			log.Printf("[DEBUG] ZeroAiSendStreamMessageCommand: GetAgent error: %v", err)
 			sendError(rtn, err)
 			return
 		}
+
+		log.Printf("[DEBUG] ZeroAiSendStreamMessageCommand: agent obtained, running=%v", ag.IsRunning())
 
 		// Prepare send message input
 		input := agent.SendMessageInput{
@@ -466,6 +474,26 @@ func (zs *WshRpcZeroaiServer) ZeroAiConfirmPermissionCommand(ctx context.Context
 	}
 
 	return ag.ConfirmPermission(ctx, req.SessionID, req.CallID, req.OptionID)
+}
+
+// ZeroAiCancelStreamCommand cancels an active streaming message
+func (zs *WshRpcZeroaiServer) ZeroAiCancelStreamCommand(ctx context.Context, req wshrpc.ZeroAiCancelStreamData) error {
+	defer func() {
+		panichandler.PanicHandler("ZeroAiCancelStreamCommand", recover())
+	}()
+
+	backend := zs.getBackendForSession(ctx, req.SessionID)
+	agentConfig := agent.AgentConfig{
+		Backend: backend,
+	}
+
+	ag, err := zs.agentService.GetAgent(ctx, agentConfig)
+	if err != nil {
+		return err
+	}
+
+	ag.CancelPrompt()
+	return nil
 }
 
 // toSessionWrapper converts session to wrapper

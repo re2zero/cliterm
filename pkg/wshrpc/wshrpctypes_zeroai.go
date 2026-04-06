@@ -517,6 +517,12 @@ type CommandZeroAiDeleteProviderData struct {
 	ProviderID string `json:"providerId"`
 }
 
+// ZeroAiCancelStreamData is the request data for canceling a streaming message
+// gotypes: request
+type ZeroAiCancelStreamData struct {
+	SessionID string `json:"sessionId"`
+}
+
 // CommandZeroAiTestProviderData is the request data for testing a provider
 // gotypes: request
 type CommandZeroAiTestProviderData struct {
@@ -527,4 +533,74 @@ type CommandZeroAiTestProviderData struct {
 // gotypes: gen
 type CommandZeroAiTestProviderRtnData struct {
 	Result *ZeroAiTestProviderResult `json:"result" tstype:"ZeroAiTestProviderResult"`
+}
+
+// ===== Block Management Commands =====
+
+// CommandZeroAiSpawnBlockData is the request data for spawning an agent terminal block
+// gotypes: request
+type CommandZeroAiSpawnBlockData struct {
+	TeamID        string `json:"teamId"`
+	AgentID       string `json:"agentId"`
+	AgentName     string `json:"agentName"`
+	Role          string `json:"role,omitempty"`
+	Command       string `json:"command"`
+	WorkDir       string `json:"workDir,omitempty"`
+	TabID         string `json:"tabId"`
+	TargetBlockID string `json:"targetBlockId,omitempty"`
+	TargetAction  string `json:"targetAction,omitempty"`
+	Task          string `json:"task,omitempty"`
+	Prompt        string `json:"prompt,omitempty"`
+}
+
+// CommandZeroAiSpawnBlockRtnData is the response data for spawning a block
+// gotypes: gen
+type CommandZeroAiSpawnBlockRtnData struct {
+	BlockID   string `json:"blockId"`
+	AgentID   string `json:"agentId"`
+	AgentName string `json:"agentName"`
+}
+
+// CommandZeroAiSendBlockInputData is the request data for sending input to an agent's block
+// gotypes: request
+type CommandZeroAiSendBlockInputData struct {
+	AgentID string `json:"agentId"`
+	Input   string `json:"input"`
+}
+
+// CommandZeroAiSendBlockInputRtnData is the response data for sending block input
+// gotypes: gen
+type CommandZeroAiSendBlockInputRtnData struct {
+	Success bool `json:"success" tstype:"boolean"`
+}
+
+// CommandZeroAiDestroyBlockData is the request data for destroying an agent's block
+// gotypes: request
+type CommandZeroAiDestroyBlockData struct {
+	AgentID string `json:"agentId"`
+}
+
+// CommandZeroAiListBlocksData is the request data for listing agent blocks
+// gotypes: request
+type CommandZeroAiListBlocksData struct {
+	TeamID string `json:"teamId,omitempty"`
+}
+
+// ZeroAiAgentBlockInfo represents info about an agent's terminal block
+// gotypes: gen
+type ZeroAiAgentBlockInfo struct {
+	BlockID   string `json:"blockId"`
+	AgentID   string `json:"agentId"`
+	AgentName string `json:"agentName"`
+	TeamID    string `json:"teamId"`
+	Role      string `json:"role"`
+	Command   string `json:"command"`
+	WorkDir   string `json:"workDir"`
+	CreatedAt int64  `json:"createdAt"`
+}
+
+// CommandZeroAiListBlocksRtnData is the response data for listing blocks
+// gotypes: gen
+type CommandZeroAiListBlocksRtnData struct {
+	Blocks []*ZeroAiAgentBlockInfo `json:"blocks" tstype:"ZeroAiAgentBlockInfo[]"`
 }

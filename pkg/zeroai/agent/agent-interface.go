@@ -23,6 +23,7 @@ type Agent interface {
 
 	// Message handling
 	SendMessage(ctx context.Context, sessionID string, message SendMessageInput) (<-chan AgentEvent, error)
+	CancelPrompt()
 	ConfirmPermission(ctx context.Context, sessionID string, callID string, optionID string) error
 
 	// Status queries

@@ -21,6 +21,7 @@ export interface ChatInputProps {
     value: string;
     onChange: (value: string) => void;
     onSend: () => void;
+    onStop?: () => void;
     isSending?: boolean;
     disabled?: boolean;
     placeholder?: string;
@@ -31,6 +32,7 @@ const ChatInput = React.memo(
         value,
         onChange,
         onSend,
+        onStop,
         isSending = false,
         disabled = false,
         placeholder = "Ask ZeroAI...",
@@ -260,15 +262,13 @@ const ChatInput = React.memo(
                         <span className="chat-input-hint">Shift+Enter ↵</span>
                         <button
                             type="button"
-                            onClick={onSend}
-                            disabled={!value.trim() || isSending || disabled}
-                            className={cn("chat-input-send", { "is-disabled": !value.trim() || isSending || disabled })}
+                            onClick={isSending && onStop ? onStop : onSend}
+                            disabled={!isSending && (!value.trim() || disabled)}
+                            className={cn("chat-input-send", {
+                                "is-disabled": !isSending && (!value.trim() || disabled),
+                            })}
                         >
-                            {isSending ? (
-                                <i className="fa-solid fa-circle-notch fa-spin" />
-                            ) : (
-                                <i className="fa-solid fa-arrow-up" />
-                            )}
+                            {isSending ? <i className="fa-solid fa-stop" /> : <i className="fa-solid fa-arrow-up" />}
                         </button>
                     </div>
                 </div>

@@ -1,6 +1,9 @@
 // Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// Deprecated: use pkg/zeroai/protocol instead. This package had a 4-layer bug chain
+// (CLI path overwrote backend name → getNPXCommand mismatch → CLI exit → EPIPE on split writes).
+// The replacement protocol.AcpConnection uses single atomic writes and proper session ID mapping.
 package acpclient
 
 import (

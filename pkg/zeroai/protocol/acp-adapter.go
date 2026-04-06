@@ -278,7 +278,7 @@ func (a *AcpAdapter) ConvertSessionUpdateFromAcp(update *AcpSessionUpdate, sessi
 	case "text":
 		eventType = "text_chunk"
 		interfaceData = types.ZeroAiSessionChunk{
-			Content:  update.Content,
+			Content:  fmt.Sprintf("%v", update.Content),
 			Metadata: update.Metadata,
 		}
 
@@ -301,7 +301,7 @@ func (a *AcpAdapter) ConvertSessionUpdateFromAcp(update *AcpSessionUpdate, sessi
 	default:
 		eventType = update.SessionUpdate
 		interfaceData = types.ZeroAiSessionChunk{
-			Content:  update.Content,
+			Content:  fmt.Sprintf("%v", update.Content),
 			Metadata: update.Metadata,
 		}
 	}

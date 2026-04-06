@@ -1089,6 +1089,12 @@ func ZeroAiBroadcastCommand(w *wshutil.WshRpc, data wshrpc.CommandZeroAiBroadcas
 	return err
 }
 
+// command "zeroaicancelstream", wshserver.ZeroAiCancelStreamCommand
+func ZeroAiCancelStreamCommand(w *wshutil.WshRpc, data wshrpc.ZeroAiCancelStreamData, opts *wshrpc.RpcOpts) error {
+	_, err := sendRpcRequestCallHelper[any](w, "zeroaicancelstream", data, opts)
+	return err
+}
+
 // command "zeroaiconfirmpermission", wshserver.ZeroAiConfirmPermissionCommand
 func ZeroAiConfirmPermissionCommand(w *wshutil.WshRpc, data wshrpc.CommandZeroAiConfirmPermissionData, opts *wshrpc.RpcOpts) error {
 	_, err := sendRpcRequestCallHelper[any](w, "zeroaiconfirmpermission", data, opts)

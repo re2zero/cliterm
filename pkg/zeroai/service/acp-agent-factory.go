@@ -5,6 +5,7 @@ package service
 
 import (
 	"fmt"
+	"log"
 	"sync"
 
 	"github.com/wavetermdev/waveterm/pkg/zeroai/agent"
@@ -26,6 +27,8 @@ func NewAcpAgentFactory() *AcpAgentFactory {
 
 // CreateAgent creates a new agent with the specified configuration
 func (f *AcpAgentFactory) CreateAgent(config agent.AgentConfig) (agent.Agent, error) {
+	log.Printf("[DEBUG] AcpAgentFactory.CreateAgent: backend=%s, cliPath=%s", config.Backend, config.CliPath)
+
 	// If cliPath not specified, auto-detect the CLI path
 	if config.CliPath == "" {
 		backend, err := protocol.GetBackendFromString(config.Backend)
@@ -34,6 +37,7 @@ func (f *AcpAgentFactory) CreateAgent(config agent.AgentConfig) (agent.Agent, er
 		}
 
 		cliInfo := f.detectCLI(backend)
+		log.Printf("[DEBUG] AcpAgentFactory.CreateAgent: detectCLI result: backend=%s, available=%v, path=%s", backend, cliInfo.IsAvailable, cliInfo.Path)
 		if !cliInfo.IsAvailable || cliInfo.Path == "" {
 			return nil, &CliNotFoundError{
 				Backend: config.Backend,
@@ -43,7 +47,13 @@ func (f *AcpAgentFactory) CreateAgent(config agent.AgentConfig) (agent.Agent, er
 		config.CliPath = cliInfo.Path
 	}
 
-	return agent.NewAcpAgent(config)
+	ag, err := agent.NewAcpAgent(config)
+	if err != nil {
+		log.Printf("[DEBUG] AcpAgentFactory.CreateAgent: NewAcpAgent error: %v", err)
+		return nil, err
+	}
+	log.Printf("[DEBUG] AcpAgentFactory.CreateAgent: agent created successfully")
+	return ag, nil
 }
 
 // GetSupportedBackends returns a list of supported backend names

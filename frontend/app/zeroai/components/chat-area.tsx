@@ -51,7 +51,7 @@ const UserMessage = React.memo(({ message }: { message: ZeroAiMessage }) => {
 });
 UserMessage.displayName = "UserMessage";
 
-const AssistantMessage = React.memo(({ message }: { message: ZeroAiMessage }) => {
+const AssistantMessage = React.memo(({ message, isStreaming }: { message: ZeroAiMessage; isStreaming?: boolean }) => {
     const [copied, setCopied] = React.useState(false);
     const [thinkingOpen, setThinkingOpen] = React.useState(false);
 
@@ -67,6 +67,11 @@ const AssistantMessage = React.memo(({ message }: { message: ZeroAiMessage }) =>
         <div className="chat-msg chat-msg-assistant">
             <div className="chat-msg-avatar">
                 <i className="fa-solid fa-robot" />
+                {isStreaming && (
+                    <span className="chat-avatar-streaming">
+                        <span className="chat-avatar-streaming-dot" />
+                    </span>
+                )}
             </div>
             <div className="chat-msg-body">
                 <div className="chat-msg-header">
@@ -242,32 +247,42 @@ const ErrorMessage = React.memo(({ message }: { message: ZeroAiMessage }) => (
 ));
 ErrorMessage.displayName = "ErrorMessage";
 
-const MessageRenderer = React.memo(({ message }: { message: ZeroAiMessage }) => {
-    const eventType = message.eventType || (message.metadata?.type as string | undefined);
+const MessageRenderer = React.memo(
+    ({
+        message,
+        isLastAssistant,
+        isStreaming,
+    }: {
+        message: ZeroAiMessage;
+        isLastAssistant?: boolean;
+        isStreaming?: boolean;
+    }) => {
+        const eventType = message.eventType || (message.metadata?.type as string | undefined);
 
-    if (
-        eventType === "tool_call" ||
-        eventType === "tool_started" ||
-        eventType === "tool_completed" ||
-        eventType === "tool_failed"
-    ) {
-        return <ToolCallMessage message={message} />;
-    }
-    if (eventType === "permission" || eventType === "permission_request") {
-        return <PermissionMessage message={message} />;
-    }
-    if (eventType === "plan_update" || eventType === "plan") {
-        return <PlanUpdateMessage message={message} />;
-    }
-    if (eventType === "error") {
-        return <ErrorMessage message={message} />;
-    }
+        if (
+            eventType === "tool_call" ||
+            eventType === "tool_started" ||
+            eventType === "tool_completed" ||
+            eventType === "tool_failed"
+        ) {
+            return <ToolCallMessage message={message} />;
+        }
+        if (eventType === "permission" || eventType === "permission_request") {
+            return <PermissionMessage message={message} />;
+        }
+        if (eventType === "plan_update" || eventType === "plan") {
+            return <PlanUpdateMessage message={message} />;
+        }
+        if (eventType === "error") {
+            return <ErrorMessage message={message} />;
+        }
 
-    if (message.role === "user") {
-        return <UserMessage message={message} />;
+        if (message.role === "user") {
+            return <UserMessage message={message} />;
+        }
+        return <AssistantMessage message={message} isStreaming={isLastAssistant && isStreaming} />;
     }
-    return <AssistantMessage message={message} />;
-});
+);
 MessageRenderer.displayName = "MessageRenderer";
 
 const SUGGESTED_PROMPTS = [
@@ -277,72 +292,94 @@ const SUGGESTED_PROMPTS = [
     { icon: "fa-solid fa-file-lines", text: "Write documentation", hint: "Generate docs for the code" },
 ];
 
-export const ChatArea = React.memo(({ messages, className }: { messages: ZeroAiMessage[]; className?: string }) => {
-    const scrollRef = React.useRef<HTMLDivElement>(null);
-    const [autoScroll, setAutoScroll] = React.useState(true);
-    const prevContentLen = React.useRef(0);
+export const ChatArea = React.memo(
+    ({
+        messages,
+        isStreaming,
+        className,
+    }: {
+        messages: ZeroAiMessage[];
+        isStreaming?: boolean;
+        className?: string;
+    }) => {
+        const scrollRef = React.useRef<HTMLDivElement>(null);
+        const [autoScroll, setAutoScroll] = React.useState(true);
+        const prevContentLen = React.useRef(0);
 
-    // Calculate total content length for scroll detection
-    const totalContentLen = React.useMemo(() => {
-        return messages.reduce((sum, msg) => sum + (msg.content?.length || 0), 0);
-    }, [messages]);
+        const lastAssistantIdx = React.useMemo(() => {
+            for (let i = messages.length - 1; i >= 0; i--) {
+                if (messages[i].role === "assistant" && !messages[i].eventType) return i;
+            }
+            return -1;
+        }, [messages]);
 
-    const handleScroll = React.useCallback(() => {
-        if (!scrollRef.current) return;
-        const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
-        setAutoScroll(scrollHeight - scrollTop - clientHeight < 50);
-    }, []);
+        // Calculate total content length for scroll detection
+        const totalContentLen = React.useMemo(() => {
+            return messages.reduce((sum, msg) => sum + (msg.content?.length || 0), 0);
+        }, [messages]);
 
-    React.useEffect(() => {
-        if (autoScroll && scrollRef.current && totalContentLen !== prevContentLen.current) {
-            scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-        }
-        prevContentLen.current = totalContentLen;
-    }, [messages, autoScroll, totalContentLen]);
+        const handleScroll = React.useCallback(() => {
+            if (!scrollRef.current) return;
+            const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
+            setAutoScroll(scrollHeight - scrollTop - clientHeight < 50);
+        }, []);
 
-    return (
-        <div className={clsx("chat-area", className)}>
-            <div ref={scrollRef} className="chat-area-content" onScroll={handleScroll}>
-                {messages.length === 0 ? (
-                    <div className="chat-area-empty">
-                        <div className="chat-empty-brand">
-                            <i className="fa-solid fa-robot" />
-                            <h2>ZeroAI</h2>
+        React.useEffect(() => {
+            if (autoScroll && scrollRef.current && totalContentLen !== prevContentLen.current) {
+                scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+            }
+            prevContentLen.current = totalContentLen;
+        }, [messages, autoScroll, totalContentLen]);
+
+        return (
+            <div className={clsx("chat-area", className)}>
+                <div ref={scrollRef} className="chat-area-content" onScroll={handleScroll}>
+                    {messages.length === 0 ? (
+                        <div className="chat-area-empty">
+                            <div className="chat-empty-brand">
+                                <i className="fa-solid fa-robot" />
+                                <h2>ZeroAI</h2>
+                            </div>
+                            <p className="chat-empty-desc">Your AI coding assistant</p>
+                            <div className="chat-empty-prompts">
+                                {SUGGESTED_PROMPTS.map((p) => (
+                                    <button key={p.text} className="chat-empty-prompt">
+                                        <i className={makeIconClass(p.icon, false)} />
+                                        <div>
+                                            <span className="chat-empty-prompt-text">{p.text}</span>
+                                            <span className="chat-empty-prompt-hint">{p.hint}</span>
+                                        </div>
+                                    </button>
+                                ))}
+                            </div>
                         </div>
-                        <p className="chat-empty-desc">Your AI coding assistant</p>
-                        <div className="chat-empty-prompts">
-                            {SUGGESTED_PROMPTS.map((p) => (
-                                <button key={p.text} className="chat-empty-prompt">
-                                    <i className={makeIconClass(p.icon, false)} />
-                                    <div>
-                                        <span className="chat-empty-prompt-text">{p.text}</span>
-                                        <span className="chat-empty-prompt-hint">{p.hint}</span>
-                                    </div>
-                                </button>
+                    ) : (
+                        <div className="chat-messages">
+                            {messages.map((msg, idx) => (
+                                <MessageRenderer
+                                    key={msg.id}
+                                    message={msg}
+                                    isLastAssistant={idx === lastAssistantIdx}
+                                    isStreaming={isStreaming}
+                                />
                             ))}
                         </div>
-                    </div>
-                ) : (
-                    <div className="chat-messages">
-                        {messages.map((msg) => (
-                            <MessageRenderer key={msg.id} message={msg} />
-                        ))}
-                    </div>
+                    )}
+                </div>
+
+                {!autoScroll && messages.length > 0 && (
+                    <button
+                        className="chat-scroll-bottom"
+                        onClick={() => {
+                            scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
+                            setAutoScroll(true);
+                        }}
+                    >
+                        <i className="fa-solid fa-arrow-down" />
+                    </button>
                 )}
             </div>
-
-            {!autoScroll && messages.length > 0 && (
-                <button
-                    className="chat-scroll-bottom"
-                    onClick={() => {
-                        scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
-                        setAutoScroll(true);
-                    }}
-                >
-                    <i className="fa-solid fa-arrow-down" />
-                </button>
-            )}
-        </div>
-    );
-});
+        );
+    }
+);
 ChatArea.displayName = "ChatArea";

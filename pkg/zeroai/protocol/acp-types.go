@@ -10,19 +10,24 @@ import "time"
 type AcpBackend string
 
 const (
-	AcpBackendClaude    AcpBackend = "claude"
-	AcpBackendGemini    AcpBackend = "gemini"
-	AcpBackendQwen      AcpBackend = "qwen"
-	AcpBackendCodex     AcpBackend = "codex"
-	AcpBackendOpenCode  AcpBackend = "opencode"
-	AcpBackendCustom    AcpBackend = "custom"
+	AcpBackendClaude   AcpBackend = "claude"
+	AcpBackendGemini   AcpBackend = "gemini"
+	AcpBackendQwen     AcpBackend = "qwen"
+	AcpBackendCodex    AcpBackend = "codex"
+	AcpBackendOpenCode AcpBackend = "opencode"
+	AcpBackendCustom   AcpBackend = "custom"
+)
+
+const (
+	ClaudeACPBridgeVersion = "0.18.0"
+	CodexACPBridgeVersion  = "0.9.5"
 )
 
 // Session mode constants (yolo/bypass permissions)
 const (
 	ClaudeYoloSessionMode    = "bypassPermissions"
-	QwenYoloSessionMode       = "yolo"
-	CodebuddyYoloSessionMode  = "bypassPermissions"
+	QwenYoloSessionMode      = "yolo"
+	CodebuddyYoloSessionMode = "bypassPermissions"
 	GooseYoloEnvVar          = "GOOSE_MODE"
 	GooseYoloEnvValue        = "auto"
 )
@@ -42,9 +47,9 @@ const (
 
 // AcpError represents an ACP protocol error
 type AcpError struct {
-	Type    AcpErrorType         `json:"type"`
-	Code    int                  `json:"code"`
-	Message string               `json:"message"`
+	Type    AcpErrorType           `json:"type"`
+	Code    int                    `json:"code"`
+	Message string                 `json:"message"`
 	Data    map[string]interface{} `json:"data,omitempty"`
 }
 
@@ -105,11 +110,11 @@ type AcpPermissionRequest struct {
 
 // AcpSessionUpdate represents a session update from the agent
 type AcpSessionUpdate struct {
-	SessionUpdate   string                           `json:"sessionUpdate"`
-	Content         string                           `json:"content,omitempty"`
-	Metadata        map[string]interface{}          `json:"metadata,omitempty"`
-	ToolCall        *AcpToolCall                     `json:"toolCall,omitempty"`
-	Permission      *AcpPermissionRequest            `json:"permission,omitempty"`
+	SessionUpdate string                 `json:"sessionUpdate"`
+	Content       interface{}            `json:"content,omitempty"`
+	Metadata      map[string]interface{} `json:"metadata,omitempty"`
+	ToolCall      *AcpToolCall           `json:"toolCall,omitempty"`
+	Permission    *AcpPermissionRequest  `json:"permission,omitempty"`
 }
 
 // AcpSessionConfigOption represents a configuration option for the session
@@ -129,35 +134,43 @@ type AcpModelInfo struct {
 
 // AcpSessionModels represents the models available in a session
 type AcpSessionModels struct {
-	DefaultModel string        `json:"defaultModel"`
+	DefaultModel string         `json:"defaultModel"`
 	Models       []AcpModelInfo `json:"models"`
 }
 
-// AcpBackendConfig represents configuration for an ACP backend
+type TransportType string
+
+const (
+	TransportAcp          TransportType = "acp"
+	TransportClaudeStream TransportType = "claude-stream"
+)
+
 type AcpBackendConfig struct {
-	ID               AcpBackend        `json:"id"`
-	Name             string            `json:"name"`
-	CliCommand       string            `json:"cliCommand"`
-	DefaultCliPath   string            `json:"defaultCliPath,omitempty"`
-	AuthRequired     bool              `json:"authRequired"`
-	Enabled          bool              `json:"enabled"`
-	SupportsStreaming bool             `json:"supportsStreaming"`
-	AcpArgs          []string          `json:"acpArgs"`
-	Env              map[string]string `json:"env,omitempty"`
+	ID                AcpBackend        `json:"id"`
+	Name              string            `json:"name"`
+	CliCommand        string            `json:"cliCommand"`
+	DefaultCliPath    string            `json:"defaultCliPath,omitempty"`
+	AuthRequired      bool              `json:"authRequired"`
+	Enabled           bool              `json:"enabled"`
+	SupportsStreaming bool              `json:"supportsStreaming"`
+	AcpArgs           []string          `json:"acpArgs"`
+	Env               map[string]string `json:"env,omitempty"`
+	Transport         TransportType     `json:"transport,omitempty"`
+	NpxPackage        string            `json:"npxPackage,omitempty"`
 }
 
 // AcpSessionConfig represents session configuration
 type AcpSessionConfig struct {
-	Backend       AcpBackend             `json:"backend"`
-	CliPath       string                 `json:"cliPath,omitempty"`
-	Cwd           string                 `json:"cwd"`
-	ResumeSession bool                   `json:"resumeSession,omitempty"`
-	SessionID     string                 `json:"sessionId,omitempty"`
-	ForkSession   bool                   `json:"forkSession,omitempty"`
-	YoloMode      bool                   `json:"yoloMode,omitempty"`
-	Model         string                 `json:"model,omitempty"`
-	Env           map[string]string      `json:"env,omitempty"`
-	Timeout       time.Duration          `json:"timeout,omitempty"`
+	Backend       AcpBackend        `json:"backend"`
+	CliPath       string            `json:"cliPath,omitempty"`
+	Cwd           string            `json:"cwd"`
+	ResumeSession bool              `json:"resumeSession,omitempty"`
+	SessionID     string            `json:"sessionId,omitempty"`
+	ForkSession   bool              `json:"forkSession,omitempty"`
+	YoloMode      bool              `json:"yoloMode,omitempty"`
+	Model         string            `json:"model,omitempty"`
+	Env           map[string]string `json:"env,omitempty"`
+	Timeout       time.Duration     `json:"timeout,omitempty"`
 }
 
 // AcpPromptOptions represents options for prompting
@@ -170,5 +183,5 @@ type AcpPromptOptions struct {
 type AcpDisconnectInfo struct {
 	Code   int
 	Signal string
- Reason string
+	Reason string
 }

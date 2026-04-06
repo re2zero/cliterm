@@ -351,3 +351,113 @@ func toTaskWrapper(t *team.Task) *wshrpc.ZeroAiTaskInfo {
 		CompletedAt:     t.CompletedAt,
 	}
 }
+
+// Block Management
+
+func (zs *WshRpcZeroaiServer) ZeroAiSpawnBlockCommand(ctx context.Context, req wshrpc.CommandZeroAiSpawnBlockData) (wshrpc.CommandZeroAiSpawnBlockRtnData, error) {
+	defer func() {
+		panichandler.PanicHandler("ZeroAiSpawnBlockCommand", recover())
+	}()
+
+	if zs.blockManager == nil {
+		return wshrpc.CommandZeroAiSpawnBlockRtnData{}, fmt.Errorf("block manager not initialized")
+	}
+
+	role := team.MemberRole(req.Role)
+	if role == "" {
+		role = team.MemberRoleWorker
+	}
+
+	agentBlock, err := zs.blockManager.SpawnAgentBlock(ctx, team.SpawnBlockOpts{
+		TabID:         req.TabID,
+		AgentID:       req.AgentID,
+		AgentName:     req.AgentName,
+		TeamID:        req.TeamID,
+		Role:          role,
+		Command:       req.Command,
+		WorkDir:       req.WorkDir,
+		TargetBlockID: req.TargetBlockID,
+		TargetAction:  req.TargetAction,
+		Prompt:        req.Prompt,
+	})
+	if err != nil {
+		return wshrpc.CommandZeroAiSpawnBlockRtnData{}, err
+	}
+
+	return wshrpc.CommandZeroAiSpawnBlockRtnData{
+		BlockID:   agentBlock.BlockID,
+		AgentID:   agentBlock.AgentID,
+		AgentName: agentBlock.AgentName,
+	}, nil
+}
+
+func (zs *WshRpcZeroaiServer) ZeroAiSendBlockInputCommand(ctx context.Context, req wshrpc.CommandZeroAiSendBlockInputData) (wshrpc.CommandZeroAiSendBlockInputRtnData, error) {
+	defer func() {
+		panichandler.PanicHandler("ZeroAiSendBlockInputCommand", recover())
+	}()
+
+	if zs.blockManager == nil {
+		return wshrpc.CommandZeroAiSendBlockInputRtnData{}, fmt.Errorf("block manager not initialized")
+	}
+
+	err := zs.blockManager.SendToAgent(req.AgentID, req.Input)
+	if err != nil {
+		return wshrpc.CommandZeroAiSendBlockInputRtnData{}, err
+	}
+
+	return wshrpc.CommandZeroAiSendBlockInputRtnData{Success: true}, nil
+}
+
+func (zs *WshRpcZeroaiServer) ZeroAiDestroyBlockCommand(ctx context.Context, req wshrpc.CommandZeroAiDestroyBlockData) error {
+	defer func() {
+		panichandler.PanicHandler("ZeroAiDestroyBlockCommand", recover())
+	}()
+
+	if zs.blockManager == nil {
+		return fmt.Errorf("block manager not initialized")
+	}
+
+	return zs.blockManager.DestroyAgentBlock(ctx, req.AgentID)
+}
+
+func (zs *WshRpcZeroaiServer) ZeroAiListBlocksCommand(ctx context.Context, req wshrpc.CommandZeroAiListBlocksData) (wshrpc.CommandZeroAiListBlocksRtnData, error) {
+	defer func() {
+		panichandler.PanicHandler("ZeroAiListBlocksCommand", recover())
+	}()
+
+	if zs.blockManager == nil {
+		return wshrpc.CommandZeroAiListBlocksRtnData{}, fmt.Errorf("block manager not initialized")
+	}
+
+	var blocks []*team.AgentBlock
+	if req.TeamID != "" {
+		allBlocks := zs.blockManager.ListBlocks()
+		for _, b := range allBlocks {
+			if b.TeamID == req.TeamID {
+				blocks = append(blocks, b)
+			}
+		}
+	} else {
+		blocks = zs.blockManager.ListBlocks()
+	}
+
+	result := make([]*wshrpc.ZeroAiAgentBlockInfo, len(blocks))
+	for i, b := range blocks {
+		result[i] = toBlockInfoWrapper(b)
+	}
+
+	return wshrpc.CommandZeroAiListBlocksRtnData{Blocks: result}, nil
+}
+
+func toBlockInfoWrapper(b *team.AgentBlock) *wshrpc.ZeroAiAgentBlockInfo {
+	return &wshrpc.ZeroAiAgentBlockInfo{
+		BlockID:   b.BlockID,
+		AgentID:   b.AgentID,
+		AgentName: b.AgentName,
+		TeamID:    b.TeamID,
+		Role:      string(b.Role),
+		Command:   b.Command,
+		WorkDir:   b.WorkDir,
+		CreatedAt: b.CreatedAt,
+	}
+}
