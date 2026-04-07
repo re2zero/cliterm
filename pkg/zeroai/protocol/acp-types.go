@@ -195,6 +195,15 @@ type AcpBackendConfig struct {
 	Env               map[string]string `json:"env,omitempty"`
 	Transport         TransportType     `json:"transport,omitempty"`
 	NpxPackage        string            `json:"npxPackage,omitempty"`
+	PermissionsArg    string            `json:"permissionsArg,omitempty"`
+	OutputFormatArg   string            `json:"outputFormatArg,omitempty"`
+	OutputFormat      string            `json:"outputFormat,omitempty"`
+	PromptArg         string            `json:"promptArg,omitempty"`
+	RunSubcommand     string            `json:"runSubcommand,omitempty"`
+	UseStdinOnWin     bool              `json:"useStdinOnWin,omitempty"`
+	ApprovalModeArg   string            `json:"approvalModeArg,omitempty"`
+	ApprovalModeValue string            `json:"approvalModeValue,omitempty"`
+	EnvOverrides      map[string]string `json:"envOverrides,omitempty"`
 }
 
 // AcpSessionConfig represents session configuration

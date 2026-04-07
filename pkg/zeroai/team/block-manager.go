@@ -6,12 +6,16 @@ package team
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/blockcontroller"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
 	"github.com/wavetermdev/waveterm/pkg/wcore"
+	"github.com/wavetermdev/waveterm/pkg/wshrpc"
+	"github.com/wavetermdev/waveterm/pkg/wshrpc/wshclient"
+	"github.com/wavetermdev/waveterm/pkg/wshutil"
 )
 
 type AgentBlock struct {
@@ -288,4 +292,64 @@ func (bm *BlockManager) forwardMessages(agentID string, stopCh chan struct{}) {
 			fmt.Printf("block-manager: failed to forward message to agent %s: %v\n", agentID, err)
 		}
 	}
+}
+
+// ReadFromBlock reads the last N lines of terminal scrollback from a block.
+// Uses the WSH RPC TermGetScrollbackLinesCommand API.
+// Returns the raw text of the terminal output.
+func (bm *BlockManager) ReadFromBlock(ctx context.Context, blockID string, lines int) (string, error) {
+	if blockID == "" {
+		return "", fmt.Errorf("block ID is required")
+	}
+
+	rpcClient := wshclient.GetBareRpcClient()
+
+	// Get current total lines first
+	totalResult, err := wshclient.TermGetScrollbackLinesCommand(
+		rpcClient,
+		wshrpc.CommandTermGetScrollbackLinesData{
+			LineStart: 0,
+			LineEnd:   1,
+		},
+		&wshrpc.RpcOpts{Route: wshutil.MakeFeBlockRouteId(blockID)},
+	)
+	if err != nil {
+		return "", fmt.Errorf("failed to get scrollback info: %w", err)
+	}
+
+	totalLines := totalResult.TotalLines
+	if totalLines == 0 {
+		return "", nil
+	}
+
+	// Calculate start position for last N lines
+	start := totalLines - lines
+	if start < 0 {
+		start = 0
+	}
+
+	result, err := wshclient.TermGetScrollbackLinesCommand(
+		rpcClient,
+		wshrpc.CommandTermGetScrollbackLinesData{
+			LineStart: start,
+			LineEnd:   totalLines,
+		},
+		&wshrpc.RpcOpts{Route: wshutil.MakeFeBlockRouteId(blockID)},
+	)
+	if err != nil {
+		return "", fmt.Errorf("failed to read scrollback: %w", err)
+	}
+
+	return strings.Join(result.Lines, "\n"), nil
+}
+
+// ReadFromAgent reads the last N lines of terminal output for an agent.
+func (bm *BlockManager) ReadFromAgent(ctx context.Context, agentID string, lines int) (string, error) {
+	bm.blockMu.RLock()
+	block, ok := bm.blocks[agentID]
+	bm.blockMu.RUnlock()
+	if !ok {
+		return "", fmt.Errorf("agent %s has no block", agentID)
+	}
+	return bm.ReadFromBlock(ctx, block.BlockID, lines)
 }

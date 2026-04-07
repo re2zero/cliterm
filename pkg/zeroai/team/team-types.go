@@ -52,12 +52,54 @@ const (
 
 // TeamMember represents an agent that is part of a team
 type TeamMember struct {
-	MemberID string       `json:"memberId" db:"member_id"`
-	AgentID  string       `json:"agentId" db:"agent_id"`
-	Role     MemberRole   `json:"role" db:"role"`
-	Status   MemberStatus `json:"status" db:"status"`
-	JoinedAt int64        `json:"joinedAt" db:"joined_at"` // Unix timestamp
-	LastActive int64       `json:"lastActive" db:"last_active"` // Unix timestamp, 0 if unknown
+	MemberID   string       `json:"memberId" db:"member_id"`
+	AgentID    string       `json:"agentId" db:"agent_id"`
+	Role       MemberRole   `json:"role" db:"role"`
+	Status     MemberStatus `json:"status" db:"status"`
+	JoinedAt   int64        `json:"joinedAt" db:"joined_at"`     // Unix timestamp
+	LastActive int64        `json:"lastActive" db:"last_active"` // Unix timestamp, 0 if unknown
+}
+
+// AgentRole extends TeamMember with agent-specific configuration
+// and prompt templates for characterizing AI agent behavior.
+type AgentRole struct {
+	// Embed the base team member
+	TeamMember
+
+	// Role metadata
+	RoleName    string `json:"roleName" db:"role_name"`      // Human-readable role name (e.g. "Architect", "Implementer")
+	Description string `json:"description" db:"description"` // Role description
+
+	// Prompt templates — these form the agent's "personality" and instructions
+	SystemPrompt string   `json:"systemPrompt,omitempty" db:"system_prompt"` // AGENT.md content — core instructions
+	MemoryPrompt string   `json:"memoryPrompt,omitempty" db:"memory_prompt"` // MEMORY.md content — context memory rules
+	SoulPrompt   string   `json:"soulPrompt,omitempty" db:"soul_prompt"`     // SOUL.md content — behavioral guidelines
+	Skills       []string `json:"skills,omitempty" db:"skills"`              // Selected skill IDs
+	MCPServers   []string `json:"mcpServers,omitempty" db:"mcp_servers"`     // Selected MCP server IDs
+
+	// Backend binding
+	BoundBackend string `json:"boundBackend,omitempty" db:"bound_backend"` // Which CLI backend to use (claude, opencode, etc.)
+	BlockID      string `json:"blockId,omitempty" db:"block_id"`           // Associated terminal block ID
+}
+
+// TaskDependency represents a dependency relationship between tasks
+type TaskDependency struct {
+	TaskID      string `json:"taskId" db:"task_id"`            // The task that has a dependency
+	DependsOnID string `json:"dependsOnId" db:"depends_on_id"` // The task it depends on
+}
+
+// TaskExtended extends the base Task with execution metadata
+type TaskExtended struct {
+	Task
+
+	// Execution metadata
+	Priority      int      `json:"priority" db:"priority"`                      // Task priority (higher = more urgent)
+	Dependencies  []string `json:"dependencies,omitempty" db:"-"`               // Task IDs this task depends on (JSON array in DB)
+	ParallelGroup string   `json:"parallelGroup,omitempty" db:"parallel_group"` // Tasks with same group run in parallel
+	MaxRetries    int      `json:"maxRetries" db:"max_retries"`                 // Max retry attempts (0 = no retry)
+	RetryCount    int      `json:"retryCount" db:"retry_count"`                 // Current retry count
+	LastError     string   `json:"lastError,omitempty" db:"last_error"`         // Last error message
+	Result        string   `json:"result,omitempty" db:"result"`                // Task result/summary
 }
 
 // TaskStatus represents the status of a task

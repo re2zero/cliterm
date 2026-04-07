@@ -6,6 +6,7 @@ package team
 import (
 	"errors"
 	"fmt"
+	"log"
 	"sync"
 	"time"
 
@@ -26,6 +27,11 @@ type Coordinator struct {
 
 	// Task worker loop state
 	workerLoops map[string]*workerLoopState // teamID -> worker loop state
+
+	// Execution configuration
+	blockMgr   *BlockManager
+	router     *MessageRouter
+	maxRetries int
 }
 
 // workerLoopState tracks the state of a team's task worker loop
@@ -46,6 +52,44 @@ func NewCoordinator(store TeamStore) (*Coordinator, error) {
 	}
 
 	return c, nil
+}
+
+// NewCoordinatorWithDeps creates a coordinator with block manager and message router for task execution
+func NewCoordinatorWithDeps(store TeamStore, blockMgr *BlockManager, router *MessageRouter, opts ...CoordinatorOption) (*Coordinator, error) {
+	if store == nil {
+		return nil, errors.New("team store is required")
+	}
+
+	c := &Coordinator{
+		store:       store,
+		workerLoops: make(map[string]*workerLoopState),
+		blockMgr:    blockMgr,
+		router:      router,
+		maxRetries:  3,
+	}
+
+	for _, opt := range opts {
+		opt(c)
+	}
+
+	return c, nil
+}
+
+// CoordinatorOption is a functional option for configuring the coordinator
+type CoordinatorOption func(*Coordinator)
+
+// WithMaxRetries sets the maximum number of retries for failed tasks
+func WithMaxRetries(maxRetries int) CoordinatorOption {
+	return func(c *Coordinator) {
+		c.maxRetries = maxRetries
+	}
+}
+
+// WithBlockManager sets the block manager for task execution
+func WithBlockManager(blockMgr *BlockManager) CoordinatorOption {
+	return func(c *Coordinator) {
+		c.blockMgr = blockMgr
+	}
 }
 
 // CreateTeam creates a new team with the given leader
@@ -328,6 +372,198 @@ func (c *Coordinator) DeleteTeam(teamID string) error {
 	}
 
 	return c.store.DeleteTeam(teamID)
+}
+
+// StartWorkerLoop starts a background goroutine that processes tasks for a team sequentially.
+// It picks up pending tasks, assigns them to available agents, and monitors completion.
+func (c *Coordinator) StartWorkerLoop(teamID string) error {
+	c.mu.Lock()
+	if state, exists := c.workerLoops[teamID]; exists && state.running {
+		c.mu.Unlock()
+		return fmt.Errorf("worker loop already running for team %s", teamID)
+	}
+	stopCh := make(chan struct{})
+	c.workerLoops[teamID] = &workerLoopState{running: true, stopCh: stopCh}
+	c.mu.Unlock()
+
+	go func() {
+		defer func() {
+			c.mu.Lock()
+			if state, exists := c.workerLoops[teamID]; exists {
+				state.running = false
+			}
+			c.mu.Unlock()
+		}()
+
+		ticker := time.NewTicker(5 * time.Second)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-stopCh:
+				return
+			case <-ticker.C:
+				c.processNextTask(teamID)
+			}
+		}
+	}()
+
+	return nil
+}
+
+// processNextTask picks and processes the next pending task for a team
+func (c *Coordinator) processNextTask(teamID string) {
+	if c.blockMgr == nil {
+		return // No block manager, cannot execute tasks
+	}
+
+	task, err := c.GetNextPendingTask(teamID)
+	if err != nil || task == nil {
+		return // No pending tasks
+	}
+
+	// Check dependencies are met
+	if !c.areDependenciesMet(task) {
+		return // Dependencies not ready yet
+	}
+
+	// Find available agent for this task
+	agentID := task.AssignedAgentID
+	if agentID == "" {
+		agentID = c.findAvailableAgent(teamID)
+		if agentID == "" {
+			return // No available agents
+		}
+	}
+
+	// Assign and start task
+	if err := c.AssignTask(task.TaskID, agentID); err != nil {
+		log.Printf("[coordinator] failed to assign task %s: %v", task.TaskID, err)
+		return
+	}
+
+	// Build and send prompt to agent
+	prompt := c.buildTaskPrompt(task, teamID)
+	if prompt != "" {
+		if err := c.blockMgr.SendToAgent(agentID, prompt); err != nil {
+			log.Printf("[coordinator] failed to send prompt to agent %s: %v", agentID, err)
+			_ = c.FailTask(task.TaskID)
+			return
+		}
+	}
+
+	// Monitor task with retry logic
+	c.monitorTaskWithRetry(task.TaskID, agentID)
+}
+
+// areDependenciesMet checks if all task dependencies are completed
+func (c *Coordinator) areDependenciesMet(task *Task) bool {
+	if c.router == nil {
+		return true // No router, assume no dependencies
+	}
+
+	// Check if task has pending dependencies by looking at blocked tasks
+	// In a full implementation, this would query TaskDependency records
+	// For now, we check if the task is not blocked
+	return task.Status != TaskStatusBlocked
+}
+
+// findAvailableAgent finds an active/idle agent in the team
+func (c *Coordinator) findAvailableAgent(teamID string) string {
+	members, err := c.GetMembers(teamID)
+	if err != nil {
+		return ""
+	}
+
+	for _, m := range members {
+		if m.Status == MemberStatusActive || m.Status == MemberStatusIdle {
+			return m.AgentID
+		}
+	}
+	return ""
+}
+
+// buildTaskPrompt creates a prompt for the agent to execute the task
+func (c *Coordinator) buildTaskPrompt(task *Task, teamID string) string {
+	team, err := c.GetTeam(teamID)
+	if err != nil {
+		return task.Description
+	}
+
+	members, err := c.GetMembers(teamID)
+	if err != nil || len(members) == 0 {
+		return task.Description
+	}
+
+	leaderName := ""
+	for _, m := range members {
+		if m.Role == MemberRoleLeader {
+			leaderName = m.AgentID
+			break
+		}
+	}
+
+	prompt := BuildAgentPrompt(PromptBuilderOpts{
+		AgentName:  task.AssignedAgentID,
+		AgentID:    task.AssignedAgentID,
+		TeamName:   team.Name,
+		LeaderName: leaderName,
+		Role:       MemberRoleWorker,
+		Task:       task.Description,
+	})
+
+	return prompt
+}
+
+// monitorTaskWithRetry monitors task completion with retry logic
+func (c *Coordinator) monitorTaskWithRetry(taskID, agentID string) {
+	go func() {
+		teamID := ""
+		retryOpts := DefaultRetryOptions()
+		retryOpts.MaxRetries = c.maxRetries
+		retryOpts.OnRetry = func(attempt int, err error, delay time.Duration) {
+			log.Printf("[coordinator] task %s retry %d/%d after %v: %v", taskID, attempt, c.maxRetries, delay, err)
+		}
+
+		_, err := WithRetry(func() (bool, error) {
+			currentTask, getErr := c.GetTask(taskID)
+			if getErr != nil {
+				return false, getErr
+			}
+			teamID = currentTask.TeamID // Capture for later
+
+			switch currentTask.Status {
+			case TaskStatusCompleted:
+				return true, nil
+			case TaskStatusFailed:
+				return false, fmt.Errorf("task failed")
+			default:
+				return false, nil // Still in progress, will retry
+			}
+		}, retryOpts)
+
+		if err != nil {
+			log.Printf("[coordinator] task %s failed after retries: %v", taskID, err)
+			_ = c.FailTask(taskID)
+		} else {
+			log.Printf("[coordinator] task %s completed", taskID)
+			if teamID != "" {
+				_ = c.UpdateMemberStatus(teamID, agentID, MemberStatusIdle)
+			}
+		}
+	}()
+}
+
+// StopWorkerLoop stops the task worker loop for a team
+func (c *Coordinator) StopWorkerLoop(teamID string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if state, exists := c.workerLoops[teamID]; exists && state.running {
+		close(state.stopCh)
+		state.running = false
+		delete(c.workerLoops, teamID)
+	}
 }
 
 // RemoveMember removes a member from a team

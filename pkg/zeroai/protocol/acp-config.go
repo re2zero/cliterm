@@ -102,6 +102,11 @@ var backendConfigs = map[AcpBackend]AcpBackendConfig{
 		Env: map[string]string{
 			"NO_COLOR": "1",
 		},
+		PermissionsArg:  "--dangerously-skip-permissions",
+		OutputFormatArg: "--output-format",
+		OutputFormat:    "stream-json",
+		PromptArg:       "-p",
+		UseStdinOnWin:   true,
 	},
 	AcpBackendGemini: {
 		ID:                AcpBackendGemini,
@@ -113,6 +118,11 @@ var backendConfigs = map[AcpBackend]AcpBackendConfig{
 		SupportsStreaming: true,
 		AcpArgs:           []string{"acp"},
 		Transport:         TransportAcp,
+		OutputFormatArg:   "--output-format",
+		OutputFormat:      "stream-json",
+		ApprovalModeArg:   "--yolo",
+		PromptArg:         "-p",
+		UseStdinOnWin:     true,
 	},
 	AcpBackendQwen: {
 		ID:                AcpBackendQwen,
@@ -124,6 +134,12 @@ var backendConfigs = map[AcpBackend]AcpBackendConfig{
 		SupportsStreaming: true,
 		AcpArgs:           []string{"--acp"},
 		Transport:         TransportAcp,
+		OutputFormatArg:   "--output-format",
+		OutputFormat:      "stream-json",
+		ApprovalModeArg:   "--approval-mode",
+		ApprovalModeValue: "yolo",
+		PromptArg:         "-p",
+		UseStdinOnWin:     true,
 	},
 	AcpBackendCodex: {
 		ID:                AcpBackendCodex,
@@ -135,6 +151,10 @@ var backendConfigs = map[AcpBackend]AcpBackendConfig{
 		SupportsStreaming: true,
 		AcpArgs:           []string{"mcp-server"},
 		Transport:         TransportAcp,
+		RunSubcommand:     "exec",
+		PermissionsArg:    "--full-auto",
+		OutputFormatArg:   "--json",
+		UseStdinOnWin:     true,
 	},
 	AcpBackendOpenCode: {
 		ID:                AcpBackendOpenCode,
@@ -146,6 +166,11 @@ var backendConfigs = map[AcpBackend]AcpBackendConfig{
 		SupportsStreaming: true,
 		AcpArgs:           []string{"acp"},
 		Transport:         TransportAcp,
+		RunSubcommand:     "run",
+		OutputFormatArg:   "--format",
+		OutputFormat:      "json",
+		EnvOverrides:      map[string]string{"OPENCODE_PERMISSION": `{"*":"allow"}`},
+		UseStdinOnWin:     true,
 	},
 	AcpBackendCustom: {
 		ID:                AcpBackendCustom,
@@ -211,16 +236,56 @@ func ValidateSessionConfig(config *AcpSessionConfig) error {
 	return nil
 }
 
-// BuildCliCommand builds the full CLI command for a backend
+// BuildCliCommand builds the full CLI command for a backend using ACP mode
 func BuildCliCommand(config *AcpBackendConfig, cliPath string, extraArgs []string) []string {
 	command := []string{cliPath}
 
-	// Add ACP args
 	command = append(command, config.AcpArgs...)
 
-	// Add any extra args
 	if len(extraArgs) > 0 {
 		command = append(command, extraArgs...)
+	}
+
+	return command
+}
+
+// BuildCliCommandWithPermissions builds CLI command for non-ACP fallback mode
+func BuildCliCommandWithPermissions(backend AcpBackend, cliPath string, prompt string, extraArgs []string) []string {
+	config, err := GetBackendConfig(backend)
+	if err != nil {
+		return []string{cliPath}
+	}
+
+	command := []string{cliPath}
+
+	if config.RunSubcommand != "" {
+		command = append(command, config.RunSubcommand)
+	}
+
+	if config.PermissionsArg != "" {
+		command = append(command, config.PermissionsArg)
+	}
+
+	if config.OutputFormatArg != "" {
+		command = append(command, config.OutputFormatArg)
+		if config.OutputFormat != "" {
+			command = append(command, config.OutputFormat)
+		}
+	}
+
+	if config.ApprovalModeArg != "" {
+		command = append(command, config.ApprovalModeArg)
+		if config.ApprovalModeValue != "" {
+			command = append(command, config.ApprovalModeValue)
+		}
+	}
+
+	if len(extraArgs) > 0 {
+		command = append(command, extraArgs...)
+	}
+
+	if config.PromptArg != "" && prompt != "" {
+		command = append(command, config.PromptArg, prompt)
 	}
 
 	return command
@@ -256,6 +321,32 @@ func MergeEnvVars(backend AcpBackend, userEnv map[string]string) map[string]stri
 	}
 
 	return merged
+}
+
+// GetBackendEnvWithOverrides returns backend env vars with per-backend overrides applied
+func GetBackendEnvWithOverrides(backend AcpBackend, userEnv map[string]string) map[string]string {
+	config, err := GetBackendConfig(backend)
+	if err != nil {
+		return userEnv
+	}
+
+	result := make(map[string]string)
+
+	for k, v := range config.Env {
+		result[k] = v
+	}
+
+	if config.EnvOverrides != nil {
+		for k, v := range config.EnvOverrides {
+			result[k] = v
+		}
+	}
+
+	for k, v := range userEnv {
+		result[k] = v
+	}
+
+	return result
 }
 
 // IsStreamingSupported checks if a backend supports streaming
