@@ -99,6 +99,7 @@ declare global {
         workDir: string;
         model?: string;
         resumeSession?: boolean;
+        yoloMode?: boolean;
     };
 
     // wshrpc.AiMessageData

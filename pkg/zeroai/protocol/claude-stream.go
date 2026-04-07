@@ -143,6 +143,10 @@ func (c *ClaudeStreamConnection) SetSessionMode(mode string) {
 	c.config.YoloMode = true
 }
 
+func (c *ClaudeStreamConnection) SetSessionModeViaAcp(ctx context.Context, mode string) error {
+	return fmt.Errorf("not supported on ClaudeStreamConnection")
+}
+
 func (c *ClaudeStreamConnection) GetState() ConnectionState {
 	return ConnectionState(c.state.Load())
 }

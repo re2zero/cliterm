@@ -113,6 +113,7 @@ export class ZeroAiClient {
         try {
             const stream = RpcApi.ZeroAiSendStreamMessageCommand(TabRpcClient, request, zeroaiOpts(opts));
             for await (const event of stream) {
+                console.log("[ZeroAI] raw event:", JSON.stringify(event).substring(0, 500));
                 yield event as ZeroAiStreamMessageEvent;
             }
         } catch (error) {

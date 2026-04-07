@@ -104,6 +104,8 @@ func (m *mockAgent) ConfirmPermission(ctx context.Context, sessionID string, cal
 	return nil
 }
 
+func (m *mockAgent) CancelPrompt() {}
+
 func (m *mockAgent) GetStatus() agent.AgentStatus {
 	return agent.AgentStatus{
 		IsConnected: m.running,

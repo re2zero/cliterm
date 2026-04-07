@@ -84,7 +84,7 @@ func DecodeNotification(data []byte) (*AcpNotification, error) {
 	return &notif, nil
 }
 
-// DecodeMessage decodes any JSON-RPC message (response or notification)
+// DecodeMessage decodes any JSON-RPC message (response, request, or notification)
 func DecodeMessage(data []byte) (interface{}, error) {
 	var raw map[string]json.RawMessage
 	if err := json.Unmarshal(data, &raw); err != nil {
@@ -92,10 +92,33 @@ func DecodeMessage(data []byte) (interface{}, error) {
 	}
 
 	_, hasID := raw["id"]
+	_, hasMethod := raw["method"]
+	_, hasResult := raw["result"]
+	_, hasError := raw["error"]
+
+	if hasID && hasMethod && !hasResult && !hasError {
+		return DecodeRequest(data)
+	}
 	if hasID {
 		return DecodeResponse(data)
 	}
 	return DecodeNotification(data)
+}
+
+func DecodeRequest(data []byte) (*AcpRequest, error) {
+	var req AcpRequest
+	if err := json.Unmarshal(data, &req); err != nil {
+		return nil, fmt.Errorf("failed to decode request: %w", err)
+	}
+
+	if req.JSONRPC != jsonrpcVersion {
+		return nil, &AcpError{
+			Type:    ErrorUnknown,
+			Message: fmt.Sprintf("unsupported JSON-RPC version: %s", req.JSONRPC),
+		}
+	}
+
+	return &req, nil
 }
 
 // EncodeSessionNewRequest encodes a session/new request

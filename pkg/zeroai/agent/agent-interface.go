@@ -50,6 +50,7 @@ type AgentSessionOptions struct {
 	WorkDir       string `json:"workDir"`
 	Model         string `json:"model,omitempty"`
 	ResumeSession bool   `json:"resumeSession,omitempty"`
+	YoloMode      bool   `json:"yoloMode,omitempty"`
 }
 
 // SendMessageInput represents input for sending a message
@@ -95,6 +96,7 @@ type AgentConfig struct {
 	CliPath       string                 `json:"cliPath,omitempty"`
 	SessionConfig map[string]interface{} `json:"sessionConfig,omitempty"`
 	Env           map[string]string      `json:"env,omitempty"`
+	YoloMode      bool                   `json:"yoloMode,omitempty"`
 }
 
 // AgentFactory is a factory for creating agents

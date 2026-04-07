@@ -3,11 +3,11 @@
 
 import { globalStore } from "@/app/store/jotaiStore";
 import { useAtomValue } from "jotai";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AgentList, ChatArea, ChatInput, ProviderSettings, StatusBar, ZeroAIHeader } from "./components";
 import "./index.scss";
 import { activeAgentIdAtom, agentsAtom, setActiveAgent } from "./models/agent-model";
-import { dispatchMessageAction, messagesAtom, streamingMessageAtom } from "./models/message-model";
+import { dispatchMessageAction, getNextMsgId, messagesAtom, streamingMessageAtom } from "./models/message-model";
 import { activeModelAtom, activeProviderAtom, activeProviderIdAtom } from "./models/provider-model";
 import { activeSessionIdAtom, dispatchSessionAction, removeSession, sessionsAtom } from "./models/session-model";
 import {
@@ -82,6 +82,7 @@ export function AIPanel(_props: { roundTopLeft?: boolean }) {
                 backend,
                 model,
                 provider: activeProviderId,
+                yoloMode: true,
             };
 
             const result = await clientRef.current.createSession(request);
@@ -133,7 +134,9 @@ export function AIPanel(_props: { roundTopLeft?: boolean }) {
             return;
         }
 
-        // Auto-create session if none exists
+        const content = inputValue.trim();
+        setInputValue("");
+
         let sessionId = activeSessionId;
         if (!sessionId) {
             try {
@@ -147,6 +150,7 @@ export function AIPanel(_props: { roundTopLeft?: boolean }) {
                     backend,
                     model,
                     provider: activeProviderId,
+                    yoloMode: true,
                 };
 
                 const result = await clientRef.current.createSession(request);
@@ -170,11 +174,8 @@ export function AIPanel(_props: { roundTopLeft?: boolean }) {
             }
         }
 
-        const content = inputValue.trim();
-        setInputValue("");
-
         const userMsg: ZeroAiMessage = {
-            id: Date.now(),
+            id: getNextMsgId(),
             sessionId,
             role: "user",
             content,
@@ -185,8 +186,27 @@ export function AIPanel(_props: { roundTopLeft?: boolean }) {
         globalStore.set(isStreamingAtom, true);
         setThinking(true);
 
+        dispatchMessageAction({
+            type: "startStream",
+            sessionId,
+            message: {
+                role: "assistant",
+                content: "",
+                sessionId,
+                createdAt: Date.now() / 1000,
+            },
+        });
+
         const abortController = new AbortController();
         cancelRef.current = abortController;
+
+        const streamTimeout = setTimeout(
+            () => {
+                console.log("[ZeroAI] stream timeout, force stopping after 3min");
+                handleStopStreaming();
+            },
+            3 * 60 * 1000
+        );
 
         try {
             const stream = clientRef.current.streamMessage({
@@ -195,15 +215,22 @@ export function AIPanel(_props: { roundTopLeft?: boolean }) {
                 content,
             });
 
-            let streamStarted = false;
+            console.log("[ZeroAI] stream started, entering for-await loop");
 
             for await (const event of stream) {
-                if (abortController.signal.aborted) break;
+                if (abortController.signal.aborted) {
+                    console.log("[ZeroAI] abort signal, breaking");
+                    break;
+                }
 
                 if (event.message) {
                     const msg = event.message;
                     const eventType = msg.eventType || (msg.metadata?.type as string | undefined);
 
+                    if (eventType === "end_turn") {
+                        console.log("[ZeroAI] received end_turn event");
+                        break;
+                    }
                     if (
                         eventType === "tool_call" ||
                         eventType === "tool_started" ||
@@ -217,46 +244,32 @@ export function AIPanel(_props: { roundTopLeft?: boolean }) {
                         dispatchMessageAction({ type: "addMessage", sessionId, message: msg });
                     } else if (eventType === "error") {
                         dispatchMessageAction({ type: "addMessage", sessionId, message: msg });
-                    } else if (eventType === "end_turn") {
-                        dispatchMessageAction({ type: "finalizeStream", sessionId });
+                        break;
                     } else if (msg.content) {
-                        if (!streamStarted) {
-                            dispatchMessageAction({
-                                type: "startStream",
-                                sessionId,
-                                message: {
-                                    role: msg.role,
-                                    content: msg.content,
-                                    sessionId,
-                                    createdAt: Date.now() / 1000,
-                                },
-                            });
-                            streamStarted = true;
-                        } else {
-                            dispatchMessageAction({ type: "appendChunk", sessionId, chunk: msg });
-                        }
+                        dispatchMessageAction({ type: "appendChunk", sessionId, chunk: msg });
                     }
                 }
             }
 
-            if (streamStarted) {
-                dispatchMessageAction({ type: "finalizeStream", sessionId });
-            }
+            console.log("[ZeroAI] for-await loop exited normally");
         } catch (error) {
-            console.error("Failed to send message:", error);
-            dispatchMessageAction({ type: "cancelStream", sessionId });
+            console.error("[ZeroAI] Failed to send message:", error);
         } finally {
+            clearTimeout(streamTimeout);
+            console.log("[ZeroAI] finally block executing, finalizing stream, setting isStreaming=false");
             cancelRef.current = null;
+            dispatchMessageAction({ type: "finalizeStream", sessionId });
             globalStore.set(isStreamingAtom, false);
             setThinking(false);
         }
     };
 
     const handleStopStreaming = async () => {
-        const sessionId = cancelRef.current ? activeSessionId : null;
         if (cancelRef.current) {
             cancelRef.current.abort();
+            cancelRef.current = null;
         }
+        const sessionId = activeSessionId;
         if (sessionId && clientRef.current) {
             try {
                 await clientRef.current.cancelStream(sessionId);
@@ -268,6 +281,18 @@ export function AIPanel(_props: { roundTopLeft?: boolean }) {
         globalStore.set(isStreamingAtom, false);
         setThinking(false);
     };
+
+    const handlePermissionConfirm = useCallback(
+        async (sessionId: string, callId: string, optionId: string, confirmAll: boolean) => {
+            if (!clientRef.current) return;
+            try {
+                await clientRef.current.confirmPermission(sessionId, callId, optionId, confirmAll);
+            } catch (error) {
+                console.error("Failed to confirm permission:", error);
+            }
+        },
+        []
+    );
 
     const minHeight = typeof inputHeight === "number" ? inputHeight : 100;
 
@@ -313,7 +338,11 @@ export function AIPanel(_props: { roundTopLeft?: boolean }) {
                             onToggleCollapse={toggleSessionListCollapsed}
                         />
                         <div className="chat-area-wrapper">
-                            <ChatArea messages={displayMessages} isStreaming={isStreaming} />
+                            <ChatArea
+                                messages={displayMessages}
+                                isStreaming={isStreaming}
+                                onConfirm={handlePermissionConfirm}
+                            />
                             <ChatInput
                                 value={inputValue}
                                 onChange={setInputValue}

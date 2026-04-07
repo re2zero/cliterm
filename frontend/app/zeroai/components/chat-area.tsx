@@ -14,9 +14,9 @@ const formatTimestamp = (timestamp: number): string => {
     const now = new Date();
     const diffMinutes = Math.floor((now.getTime() - date.getTime()) / 60000);
 
-    if (diffMinutes < 1) return "Just now";
-    if (diffMinutes < 60) return `${diffMinutes}m ago`;
-    if (diffMinutes < 1440) return `${Math.floor(diffMinutes / 60)}h ago`;
+    if (diffMinutes < 1) return "now";
+    if (diffMinutes < 60) return `${diffMinutes}m`;
+    if (diffMinutes < 1440) return `${Math.floor(diffMinutes / 60)}h`;
     return date.toLocaleDateString([], { month: "short", day: "numeric" });
 };
 
@@ -35,12 +35,14 @@ const UserMessage = React.memo(({ message }: { message: ZeroAiMessage }) => {
                 <i className="fa-solid fa-user" />
             </div>
             <div className="chat-msg-body">
-                <div className="chat-msg-header">
-                    <span className="chat-msg-role">You</span>
+                <div className="chat-msg-meta">
                     <span className="chat-msg-time">{formatTimestamp(message.createdAt)}</span>
+                    <span className="chat-msg-role">You</span>
                 </div>
-                <div className="chat-msg-text">{message.content}</div>
-                <div className="chat-msg-actions">
+                <div className="chat-msg-bubble">
+                    <div className="chat-msg-text">{message.content}</div>
+                </div>
+                <div className="chat-msg-actions" style={{ justifyContent: "flex-end" }}>
                     <button onClick={handleCopy} title="Copy">
                         <i className={makeIconClass(copied ? "fa-solid fa-check" : "fa-regular fa-copy", false)} />
                     </button>
@@ -74,12 +76,13 @@ const AssistantMessage = React.memo(({ message, isStreaming }: { message: ZeroAi
                 )}
             </div>
             <div className="chat-msg-body">
-                <div className="chat-msg-header">
+                <div className="chat-msg-meta">
                     <span className="chat-msg-role">Assistant</span>
+                    {isStreaming && <span className="chat-msg-status-streaming">typing</span>}
                     {thinking && (
                         <button className="chat-thinking-toggle" onClick={() => setThinkingOpen(!thinkingOpen)}>
                             <i className={makeIconClass("fa-solid fa-brain", false)} />
-                            <span>Thinking</span>
+                            <span>Think</span>
                             <i
                                 className={clsx(
                                     makeIconClass("fa-solid fa-chevron-down", false),
@@ -98,11 +101,13 @@ const AssistantMessage = React.memo(({ message, isStreaming }: { message: ZeroAi
                     </div>
                 )}
 
-                {content && (
-                    <div className="chat-msg-markdown">
-                        <WaveStreamdown text={content} parseIncompleteMarkdown={false} />
-                    </div>
-                )}
+                <div className="chat-msg-bubble">
+                    {content && (
+                        <div className="chat-msg-markdown">
+                            <WaveStreamdown text={content} parseIncompleteMarkdown={false} />
+                        </div>
+                    )}
+                </div>
 
                 <div className="chat-msg-actions">
                     <button onClick={handleCopy} title="Copy">
@@ -118,10 +123,13 @@ AssistantMessage.displayName = "AssistantMessage";
 const ToolCallMessage = React.memo(({ message }: { message: ZeroAiMessage }) => {
     const [expanded, setExpanded] = React.useState(false);
     const toolData = message.metadata as Record<string, unknown> | undefined;
-    const toolName = (toolData?.toolName as string) || (toolData?.name as string) || "tool";
-    const toolInput = toolData?.input ? JSON.stringify(toolData.input, null, 2) : "";
-    const toolOutput = toolData?.output ? JSON.stringify(toolData.output, null, 2) : "";
+    const toolName =
+        (toolData?.toolName as string) || (toolData?.title as string) || (toolData?.kind as string) || "tool";
+    const rawInput = toolData?.rawInput as Record<string, unknown> | undefined;
+    const command = (rawInput?.command as string) || "";
+    const description = (rawInput?.description as string) || (toolData?.title as string) || "";
     const status = (toolData?.status as string) || "running";
+    const sessionUpdate = (toolData?.sessionUpdate as string) || "";
 
     const statusIcon =
         status === "completed"
@@ -130,12 +138,14 @@ const ToolCallMessage = React.memo(({ message }: { message: ZeroAiMessage }) => 
               ? "fa-solid fa-times-circle"
               : "fa-solid fa-spinner fa-spin";
 
+    const isUpdate = sessionUpdate === "tool_call_update";
+
     return (
-        <div className={clsx("chat-tool", `status-${status}`)}>
+        <div className={clsx("chat-tool", `status-${status}`, { "chat-tool-update": isUpdate })}>
             <button className="chat-tool-header" onClick={() => setExpanded(!expanded)}>
                 <i className={makeIconClass("fa-solid fa-wrench", false)} />
                 <span className="chat-tool-name">{toolName}</span>
-                <i className={makeIconClass(statusIcon, false)} />
+                {!isUpdate && <i className={makeIconClass(statusIcon, false)} />}
                 <i
                     className={clsx(makeIconClass("fa-solid fa-chevron-down", false), "chat-tool-chevron", {
                         expanded,
@@ -144,16 +154,16 @@ const ToolCallMessage = React.memo(({ message }: { message: ZeroAiMessage }) => 
             </button>
             {expanded && (
                 <div className="chat-tool-body">
-                    {toolInput && (
+                    {command && (
                         <div className="chat-tool-section">
-                            <span className="chat-tool-section-label">Input</span>
-                            <pre className="chat-tool-code">{toolInput}</pre>
+                            <span className="chat-tool-section-label">Command</span>
+                            <pre className="chat-tool-code">{command}</pre>
                         </div>
                     )}
-                    {toolOutput && (
+                    {description && (
                         <div className="chat-tool-section">
-                            <span className="chat-tool-section-label">Output</span>
-                            <pre className="chat-tool-code">{toolOutput}</pre>
+                            <span className="chat-tool-section-label">Description</span>
+                            <pre className="chat-tool-code">{description}</pre>
                         </div>
                     )}
                 </div>
@@ -163,60 +173,82 @@ const ToolCallMessage = React.memo(({ message }: { message: ZeroAiMessage }) => 
 });
 ToolCallMessage.displayName = "ToolCallMessage";
 
-const PermissionMessage = React.memo(({ message }: { message: ZeroAiMessage }) => {
-    const permData = message.metadata as Record<string, unknown> | undefined;
-    const toolName = (permData?.toolName as string) || "unknown tool";
-    const description = (permData?.description as string) || "";
-    const options = (permData?.options as ZeroAiPermissionRequest["options"]) || [];
-    const callId = (permData?.callId as string) || "";
-    const sessionId = message.sessionId;
+const PermissionMessage = React.memo(
+    ({
+        message,
+        onConfirm,
+    }: {
+        message: ZeroAiMessage;
+        onConfirm?: (sessionId: string, callId: string, optionId: string, confirmAll: boolean) => void;
+    }) => {
+        const toolData = message.metadata as Record<string, unknown> | undefined;
+        const rawInput = (toolData?.rawInput as Record<string, unknown>) || undefined;
+        const toolName =
+            (toolData?.toolName as string) ||
+            (rawInput?.command as string) ||
+            (toolData?.title as string) ||
+            "unknown tool";
+        const description = (rawInput?.description as string) || (toolData?.title as string) || "";
+        const callId = (toolData?.toolCallId as string) || (message.metadata?.callId as string) || "";
+        const sessionId = message.sessionId;
 
-    const handleConfirm = React.useCallback(
-        async (optionId: string, confirmAll: boolean) => {
-            // TODO: wire to zeroAiClient.confirmPermission
-            console.log("Confirm permission:", { sessionId, callId, optionId, confirmAll });
-        },
-        [sessionId, callId]
-    );
+        const rawOptions = (message.metadata?.options as ZeroAiPermissionRequest["options"]) || [];
+        const options =
+            rawOptions.length > 0
+                ? rawOptions
+                : [
+                      { id: "allow", label: "Allow", description: "" },
+                      { id: "reject", label: "Reject", description: "" },
+                  ];
 
-    return (
-        <div className="chat-permission">
-            <div className="chat-permission-header">
-                <i className={makeIconClass("fa-solid fa-shield-halved", false)} />
-                <span>Permission Required</span>
-            </div>
-            <div className="chat-permission-body">
-                <p>
-                    <strong>{toolName}</strong>
-                </p>
-                {description && <p className="chat-permission-desc">{description}</p>}
-            </div>
-            {options.length > 0 && (
-                <div className="chat-permission-actions">
-                    {options.map((opt) => (
-                        <button
-                            key={opt.id}
-                            className={clsx(
-                                "chat-perm-btn",
-                                opt.id === "allow" && "allow",
-                                opt.id === "deny" && "deny"
-                            )}
-                            onClick={() => handleConfirm(opt.id, false)}
-                        >
-                            {opt.label}
-                        </button>
-                    ))}
+        const handleConfirm = React.useCallback(
+            async (optionId: string, confirmAll: boolean) => {
+                if (onConfirm && sessionId && callId) {
+                    onConfirm(sessionId, callId, optionId, confirmAll);
+                } else {
+                    console.log("Confirm permission (no handler):", { sessionId, callId, optionId, confirmAll });
+                }
+            },
+            [sessionId, callId, onConfirm]
+        );
+
+        return (
+            <div className="chat-permission">
+                <div className="chat-permission-header">
+                    <i className={makeIconClass("fa-solid fa-shield-halved", false)} />
+                    <span>Permission Required</span>
                 </div>
-            )}
-        </div>
-    );
-});
+                <div className="chat-permission-body">
+                    <p>
+                        <strong>{toolName}</strong>
+                    </p>
+                    {description && <p className="chat-permission-desc">{description}</p>}
+                </div>
+                {options.length > 0 && (
+                    <div className="chat-permission-actions">
+                        {options.map((opt) => (
+                            <button
+                                key={opt.id}
+                                className={clsx(
+                                    "chat-perm-btn",
+                                    opt.id === "allow" && "allow",
+                                    opt.id === "deny" && "deny"
+                                )}
+                                onClick={() => handleConfirm(opt.id, false)}
+                            >
+                                {opt.label}
+                            </button>
+                        ))}
+                    </div>
+                )}
+            </div>
+        );
+    }
+);
 PermissionMessage.displayName = "PermissionMessage";
 
 const PlanUpdateMessage = React.memo(({ message }: { message: ZeroAiMessage }) => {
     const [expanded, setExpanded] = React.useState(false);
-    const planData = message.metadata as Record<string, unknown> | undefined;
-    const planContent = message.content;
 
     return (
         <div className="chat-plan">
@@ -231,7 +263,7 @@ const PlanUpdateMessage = React.memo(({ message }: { message: ZeroAiMessage }) =
             </button>
             {expanded && (
                 <div className="chat-plan-body">
-                    <WaveStreamdown text={planContent} parseIncompleteMarkdown={false} />
+                    <WaveStreamdown text={message.content} parseIncompleteMarkdown={false} />
                 </div>
             )}
         </div>
@@ -252,10 +284,12 @@ const MessageRenderer = React.memo(
         message,
         isLastAssistant,
         isStreaming,
+        onConfirm,
     }: {
         message: ZeroAiMessage;
         isLastAssistant?: boolean;
         isStreaming?: boolean;
+        onConfirm?: (sessionId: string, callId: string, optionId: string, confirmAll: boolean) => void;
     }) => {
         const eventType = message.eventType || (message.metadata?.type as string | undefined);
 
@@ -268,7 +302,7 @@ const MessageRenderer = React.memo(
             return <ToolCallMessage message={message} />;
         }
         if (eventType === "permission" || eventType === "permission_request") {
-            return <PermissionMessage message={message} />;
+            return <PermissionMessage message={message} onConfirm={onConfirm} />;
         }
         if (eventType === "plan_update" || eventType === "plan") {
             return <PlanUpdateMessage message={message} />;
@@ -297,10 +331,12 @@ export const ChatArea = React.memo(
         messages,
         isStreaming,
         className,
+        onConfirm,
     }: {
         messages: ZeroAiMessage[];
         isStreaming?: boolean;
         className?: string;
+        onConfirm?: (sessionId: string, callId: string, optionId: string, confirmAll: boolean) => void;
     }) => {
         const scrollRef = React.useRef<HTMLDivElement>(null);
         const [autoScroll, setAutoScroll] = React.useState(true);
@@ -313,7 +349,6 @@ export const ChatArea = React.memo(
             return -1;
         }, [messages]);
 
-        // Calculate total content length for scroll detection
         const totalContentLen = React.useMemo(() => {
             return messages.reduce((sum, msg) => sum + (msg.content?.length || 0), 0);
         }, [messages]);
@@ -336,22 +371,34 @@ export const ChatArea = React.memo(
                 <div ref={scrollRef} className="chat-area-content" onScroll={handleScroll}>
                     {messages.length === 0 ? (
                         <div className="chat-area-empty">
-                            <div className="chat-empty-brand">
-                                <i className="fa-solid fa-robot" />
-                                <h2>ZeroAI</h2>
-                            </div>
-                            <p className="chat-empty-desc">Your AI coding assistant</p>
-                            <div className="chat-empty-prompts">
-                                {SUGGESTED_PROMPTS.map((p) => (
-                                    <button key={p.text} className="chat-empty-prompt">
-                                        <i className={makeIconClass(p.icon, false)} />
-                                        <div>
-                                            <span className="chat-empty-prompt-text">{p.text}</span>
-                                            <span className="chat-empty-prompt-hint">{p.hint}</span>
-                                        </div>
-                                    </button>
-                                ))}
-                            </div>
+                            {isStreaming ? (
+                                <>
+                                    <div className="chat-empty-brand">
+                                        <i className="fa-solid fa-spinner fa-spin" />
+                                        <h2>Connecting...</h2>
+                                    </div>
+                                    <p className="chat-empty-desc">Starting agent, please wait</p>
+                                </>
+                            ) : (
+                                <>
+                                    <div className="chat-empty-brand">
+                                        <i className="fa-solid fa-robot" />
+                                        <h2>ZeroAI</h2>
+                                    </div>
+                                    <p className="chat-empty-desc">Your AI coding assistant</p>
+                                    <div className="chat-empty-prompts">
+                                        {SUGGESTED_PROMPTS.map((p) => (
+                                            <button key={p.text} className="chat-empty-prompt">
+                                                <i className={makeIconClass(p.icon, false)} />
+                                                <div>
+                                                    <span className="chat-empty-prompt-text">{p.text}</span>
+                                                    <span className="chat-empty-prompt-hint">{p.hint}</span>
+                                                </div>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </>
+                            )}
                         </div>
                     ) : (
                         <div className="chat-messages">
@@ -361,6 +408,7 @@ export const ChatArea = React.memo(
                                     message={msg}
                                     isLastAssistant={idx === lastAssistantIdx}
                                     isStreaming={isStreaming}
+                                    onConfirm={onConfirm}
                                 />
                             ))}
                         </div>

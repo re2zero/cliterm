@@ -104,6 +104,9 @@ type AcpConnection struct {
 
 	promptDoneCh chan struct{}
 	shutdownCh   chan struct{}
+
+	// Incoming request handler
+	onRequest func(*AcpRequest)
 }
 
 // Connection interface provides the ACP connection contract
@@ -125,6 +128,9 @@ type Connection interface {
 
 	// SetSessionMode sets the session mode before creating a session
 	SetSessionMode(mode string)
+
+	// SetSessionModeViaAcp sends session/set_mode via ACP protocol
+	SetSessionModeViaAcp(ctx context.Context, mode string) error
 
 	// NewSession creates a new session with the agent
 	NewSession(ctx context.Context) (*SessionNewResult, error)
@@ -382,6 +388,28 @@ func (c *AcpConnection) SetSessionMode(mode string) {
 	c.config.YoloMode = true
 }
 
+// SetSessionModeViaAcp sends session/set_mode via ACP protocol to bypass permissions
+func (c *AcpConnection) SetSessionModeViaAcp(ctx context.Context, mode string) error {
+	c.mu.RLock()
+	sid := c.sessionID
+	c.mu.RUnlock()
+	if sid == "" {
+		return fmt.Errorf("no active session")
+	}
+	log.Printf("[DEBUG] SetSessionModeViaAcp: sessionId=%s, mode=%s", sid, mode)
+	params := map[string]interface{}{
+		"sessionId": sid,
+		"modeId":    mode,
+	}
+	resp, err := c.SendMessage(ctx, "session/set_mode", params, 10*time.Second)
+	if err != nil {
+		log.Printf("[DEBUG] SetSessionModeViaAcp: failed: %v", err)
+		return fmt.Errorf("failed to set session mode: %w", err)
+	}
+	log.Printf("[DEBUG] SetSessionModeViaAcp: response=%+v", resp)
+	return nil
+}
+
 // GetStatus returns current connection status
 func (c *AcpConnection) GetStatus() ConnectionStatus {
 	c.mu.RLock()
@@ -404,6 +432,12 @@ func (c *AcpConnection) SetCallbacks(callbacks AcpCallbacks) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.callbacks = callbacks
+}
+
+func (c *AcpConnection) SetOnRequest(handler func(*AcpRequest)) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.onRequest = handler
 }
 
 // GetState returns the current connection state
@@ -606,27 +640,31 @@ func (c *AcpConnection) StreamPrompt(ctx context.Context, sessionID, prompt stri
 		params["model"] = opts.ModelOverride
 	}
 
-	// Send session/prompt request - wait for response
-	log.Printf("[DEBUG] StreamPrompt: about to call SendMessage for session/prompt")
-	resp, err := c.SendMessage(ctx, "session/prompt", params, 5*time.Minute)
-	log.Printf("[DEBUG] StreamPrompt: SendMessage returned, err=%v, resp=%v", err, resp)
-
-	if err != nil {
-		log.Printf("[DEBUG] StreamPrompt: SendMessage error: %v", err)
-		return err
-	}
-	if resp == nil {
-		log.Printf("[DEBUG] StreamPrompt: response is nil!")
-		return nil
-	}
-
-	log.Printf("[DEBUG] StreamPrompt: response received successfully, result=%v", resp.Result)
-
-	log.Printf("[DEBUG] StreamPrompt: sent successfully, waiting for notifications")
-
 	c.mu.Lock()
 	c.promptDoneCh = make(chan struct{})
 	c.mu.Unlock()
+
+	_, err := c.SendMessage(ctx, "session/prompt", params, 5*time.Minute)
+	log.Printf("[DEBUG] StreamPrompt: SendMessage returned, err=%v", err)
+
+	if err != nil {
+		c.mu.Lock()
+		if c.promptDoneCh != nil {
+			close(c.promptDoneCh)
+			c.promptDoneCh = nil
+		}
+		c.mu.Unlock()
+		log.Printf("[DEBUG] StreamPrompt: SendMessage error: %v", err)
+		return err
+	}
+
+	c.mu.Lock()
+	if c.promptDoneCh != nil {
+		close(c.promptDoneCh)
+		c.promptDoneCh = nil
+	}
+	c.mu.Unlock()
+	log.Printf("[DEBUG] StreamPrompt: promptDoneCh closed (RPC response received)")
 
 	return nil
 }
@@ -719,6 +757,8 @@ func (c *AcpConnection) readOutputLoop() {
 			c.handleResponse(m)
 		case *AcpNotification:
 			c.handleNotification(m)
+		case *AcpRequest:
+			c.handleIncomingRequest(m)
 		}
 	}
 }
@@ -772,6 +812,67 @@ func (c *AcpConnection) handleNotification(notif *AcpNotification) {
 	}
 }
 
+func (c *AcpConnection) handleIncomingRequest(req *AcpRequest) {
+	switch req.Method {
+	case "session/request_permission":
+		c.handlePermissionRequestAsRequest(req.Params, req.ID)
+	default:
+		log.Printf("[DEBUG] handleIncomingRequest: unhandled method=%s", req.Method)
+	}
+}
+
+func (c *AcpConnection) handlePermissionRequestAsRequest(params map[string]interface{}, reqID int) {
+	var permReq AcpPermissionRequest
+	data, err := json.Marshal(params)
+	if err != nil {
+		c.logError(fmt.Sprintf("failed to encode permission request: %v", err))
+		return
+	}
+	if err := json.Unmarshal(data, &permReq); err != nil {
+		c.logError(fmt.Sprintf("failed to parse permission request: %v", err))
+		return
+	}
+
+	c.mu.RLock()
+	callbacks := c.callbacks
+	c.mu.RUnlock()
+
+	if callbacks.OnPermission != nil {
+		if err := callbacks.OnPermission(&permReq); err != nil {
+			c.logError(fmt.Sprintf("permission callback error: %v", err))
+		}
+	}
+
+	// Extract toolCallId from params and include it in the response
+	toolCallID := ""
+	if toolCall, ok := params["toolCall"].(map[string]interface{}); ok {
+		if tcID, ok := toolCall["toolCallId"].(string); ok {
+			toolCallID = tcID
+		}
+	}
+
+	c.sendResponse(reqID, map[string]interface{}{
+		"optionId":   "allow_always",
+		"toolCallId": toolCallID,
+	})
+}
+
+func (c *AcpConnection) sendResponse(id int, result interface{}) {
+	resp := map[string]interface{}{
+		"jsonrpc": "2.0",
+		"id":      id,
+		"result":  result,
+	}
+	data, err := json.Marshal(resp)
+	if err != nil {
+		c.logError(fmt.Sprintf("failed to encode response: %v", err))
+		return
+	}
+	if err := c.sendData(data); err != nil {
+		c.logError(fmt.Sprintf("failed to send response: %v", err))
+	}
+}
+
 // handleSessionUpdate processes session update notifications
 func (c *AcpConnection) handleSessionUpdate(params map[string]interface{}) {
 	log.Printf("[DEBUG] handleSessionUpdate: params keys = %v", reflect.ValueOf(params).MapKeys())
@@ -806,6 +907,21 @@ func (c *AcpConnection) handleSessionUpdate(params map[string]interface{}) {
 	case map[string]interface{}:
 		if text, ok := v["text"].(string); ok {
 			update.Content = text
+		}
+	case []interface{}:
+		for _, block := range v {
+			if b, ok := block.(map[string]interface{}); ok {
+				if ct, ok := b["content"].(map[string]interface{}); ok {
+					if text, ok := ct["text"].(string); ok {
+						update.Content = text
+						break
+					}
+				}
+				if text, ok := b["text"].(string); ok {
+					update.Content = text
+					break
+				}
+			}
 		}
 	}
 

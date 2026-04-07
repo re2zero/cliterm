@@ -157,6 +157,15 @@ func (a *AcpAgent) CreateSession(ctx context.Context, opts AgentSessionOptions) 
 		return nil, fmt.Errorf("failed to create session: %w", err)
 	}
 
+	if opts.YoloMode {
+		log.Printf("[DEBUG] AcpAgent.CreateSession: enabling bypassPermissions mode via ACP")
+		if setErr := a.conn.SetSessionModeViaAcp(ctx, "bypassPermissions"); setErr != nil {
+			log.Printf("[DEBUG] AcpAgent.CreateSession: SetSessionModeViaAcp failed: %v", setErr)
+			return nil, fmt.Errorf("failed to set bypassPermissions mode: %w", setErr)
+		}
+		log.Printf("[DEBUG] AcpAgent.CreateSession: bypassPermissions mode set successfully")
+	}
+
 	a.mu.Lock()
 	a.acpSessionID = result.SessionID
 	a.mu.Unlock()
@@ -300,27 +309,33 @@ func (a *AcpAgent) SendMessage(ctx context.Context, sessionID string, message Se
 	if err != nil {
 		promptCancel()
 		a.status.IsStreaming = false
-		log.Printf("[DEBUG] AcpAgent.SendMessage: StreamPrompt failed: %v", err)
+		a.mu.Lock()
+		if ch := a.eventChs[sessionID]; ch != nil {
+			close(ch)
+			delete(a.eventChs, sessionID)
+		}
+		a.mu.Unlock()
 		return nil, fmt.Errorf("failed to stream prompt: %w", err)
 	}
-
-	log.Printf("[DEBUG] AcpAgent.SendMessage: StreamPrompt returned nil, starting done watcher")
 
 	go func() {
 		defer func() {
 			a.mu.Lock()
 			a.status.IsStreaming = false
+			ch := a.eventChs[sessionID]
+			delete(a.eventChs, sessionID)
 			a.mu.Unlock()
 			promptCancel()
+			if ch != nil {
+				close(ch)
+			}
 		}()
 
 		doneCh := a.conn.WaitForDone()
 
 		select {
 		case <-promptCtx.Done():
-			log.Printf("[DEBUG] AcpAgent.SendMessage: promptCtx done")
 		case <-doneCh:
-			log.Printf("[DEBUG] AcpAgent.SendMessage: doneCh closed")
 		}
 
 		a.sendEvent(sessionID, AgentEvent{
@@ -403,19 +418,24 @@ func (a *AcpAgent) handlePermissionRequest(req *protocol.AcpPermissionRequest) e
 	return nil
 }
 
-func (a *AcpAgent) sendEvent(sessionID string, event AgentEvent) {
+func (a *AcpAgent) sendEvent(sessionID string, event AgentEvent) bool {
 	a.mu.Lock()
 	ch, exists := a.eventChs[sessionID]
 	a.mu.Unlock()
 
 	if !exists {
-		return
+		return false
 	}
+
+	defer func() {
+		recover()
+	}()
 
 	select {
 	case ch <- event:
+		return true
 	case <-time.After(100 * time.Millisecond):
-	default:
+		return false
 	}
 }
 

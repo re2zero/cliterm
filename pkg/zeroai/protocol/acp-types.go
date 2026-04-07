@@ -115,6 +115,44 @@ type AcpSessionUpdate struct {
 	Metadata      map[string]interface{} `json:"metadata,omitempty"`
 	ToolCall      *AcpToolCall           `json:"toolCall,omitempty"`
 	Permission    *AcpPermissionRequest  `json:"permission,omitempty"`
+	ToolCallID    string                 `json:"toolCallId,omitempty"`
+	RawInput      map[string]interface{} `json:"rawInput,omitempty"`
+	Title         string                 `json:"title,omitempty"`
+	Status        string                 `json:"status,omitempty"`
+	Kind          string                 `json:"kind,omitempty"`
+	Meta          map[string]interface{} `json:"_meta,omitempty"`
+}
+
+func (u *AcpSessionUpdate) AsMetadata() map[string]interface{} {
+	m := map[string]interface{}{
+		"sessionUpdate": u.SessionUpdate,
+		"status":        u.Status,
+		"kind":          u.Kind,
+		"title":         u.Title,
+		"toolCallId":    u.ToolCallID,
+	}
+	if u.RawInput != nil {
+		m["rawInput"] = u.RawInput
+	}
+	if u.Content != nil {
+		m["content"] = u.Content
+	}
+	if u.Meta != nil {
+		m["_meta"] = u.Meta
+	}
+	if u.Metadata != nil {
+		for k, v := range u.Metadata {
+			m[k] = v
+		}
+	}
+	if u.Meta != nil {
+		if cc, ok := u.Meta["claudeCode"].(map[string]interface{}); ok {
+			if tn, ok := cc["toolName"].(string); ok {
+				m["toolName"] = tn
+			}
+		}
+	}
+	return m
 }
 
 // AcpSessionConfigOption represents a configuration option for the session
