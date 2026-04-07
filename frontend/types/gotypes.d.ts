@@ -1290,6 +1290,7 @@ declare global {
         bookmarks: {[key: string]: WebBookmark};
         waveai: {[key: string]: AIModeConfigType};
         zeroai: {[key: string]: ZeroAiProviderConfigType};
+        "zeroai:control": ZeroAiControlConfigType;
         configerrors: ConfigError[];
     };
 
@@ -2547,6 +2548,16 @@ declare global {
     // wshrpc.ZeroAiCancelStreamData
     type ZeroAiCancelStreamData = {
         sessionId: string;
+    };
+
+    // wconfig.ZeroAiControlConfigType
+    type ZeroAiControlConfigType = {
+        enabled: boolean;
+        replaceWaveAI: boolean;
+        defaultAgent: string;
+        maxSessionDuration: number;
+        heartbeatInterval: number;
+        staleThreshold: number;
     };
 
     // wshrpc.ZeroAiMessageInfo

@@ -39,6 +39,12 @@ type WshRpcZeroAIInterface interface {
 
 	// ZeroAiConfirmPermission confirms a tool permission request
 	ZeroAiConfirmPermissionCommand(ctx context.Context, data ZeroAiConfirmPermissionData) error
+
+	// ZeroAiSpawnAgentBlock spawns a terminal block for an agent
+	ZeroAiSpawnAgentBlockCommand(ctx context.Context, data ZeroAiSpawnAgentBlockData) (*ZeroAiSpawnAgentBlockRtnData, error)
+
+	// ZeroAiCreateAgentRole creates an agent role via AI tool
+	ZeroAiCreateAgentRoleCommand(ctx context.Context, data ZeroAiCreateAgentRoleData) (*ZeroAiCreateAgentRoleRtnData, error)
 }
 
 // ZeroAiCreateSessionData is the request data for creating a new session
@@ -131,11 +137,11 @@ type ZeroAiPlanUpdate struct {
 
 // ZeroAiPermissionRequest represents a permission request event
 type ZeroAiPermissionRequest struct {
-	CallID       string                 `json:"callId"`
-	ToolName     string                 `json:"toolName"`
-	Description  string                 `json:"description"`
-	Options      []ZeroAiPermissionOption `json:"options"`
-	SessionID    string                 `json:"sessionId"`
+	CallID      string                   `json:"callId"`
+	ToolName    string                   `json:"toolName"`
+	Description string                   `json:"description"`
+	Options     []ZeroAiPermissionOption `json:"options"`
+	SessionID   string                   `json:"sessionId"`
 }
 
 // ZeroAiPermissionOption represents a permission option
@@ -156,4 +162,39 @@ type ZeroAiStreamEnd struct {
 	StreamID     string `json:"streamId"`
 	FinishReason string `json:"finishReason,omitempty"`
 	Error        string `json:"error,omitempty"`
+}
+
+// ZeroAiSpawnAgentBlockData is the request data for spawning an agent terminal block
+type ZeroAiSpawnAgentBlockData struct {
+	AgentID   string `json:"agentId"`
+	AgentName string `json:"agentName"`
+	TeamID    string `json:"teamId"`
+	Role      string `json:"role"` // leader, worker, coordinator
+	Prompt    string `json:"prompt,omitempty"`
+	WorkDir   string `json:"workDir,omitempty"`
+	TabID     string `json:"tabId"`
+}
+
+// ZeroAiSpawnAgentBlockRtnData is the response from spawning an agent block
+type ZeroAiSpawnAgentBlockRtnData struct {
+	BlockID string `json:"blockId"`
+	AgentID string `json:"agentId"`
+}
+
+// ZeroAiCreateAgentRoleData is the request data for AI-created agent roles
+type ZeroAiCreateAgentRoleData struct {
+	Name        string   `json:"name"`
+	Role        string   `json:"role"`
+	Description string   `json:"description"`
+	Backend     string   `json:"backend"`
+	Model       string   `json:"model,omitempty"`
+	AgentMd     string   `json:"agentMd,omitempty"`
+	Soul        string   `json:"soul,omitempty"`
+	Skills      []string `json:"skills,omitempty"`
+	MCPServers  []string `json:"mcpServers,omitempty"`
+}
+
+// ZeroAiCreateAgentRoleRtnData is the response from creating an agent role
+type ZeroAiCreateAgentRoleRtnData struct {
+	AgentID string `json:"agentId"`
 }

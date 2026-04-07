@@ -569,3 +569,63 @@ func (zs *WshRpcZeroaiServer) ZeroAiTestProviderCommand(ctx context.Context, req
 		Result: result,
 	}, nil
 }
+
+func (zs *WshRpcZeroaiServer) ZeroAiSpawnAgentBlockCommand(ctx context.Context, req ZeroAiSpawnAgentBlockData) (*ZeroAiSpawnAgentBlockRtnData, error) {
+	defer func() {
+		panichandler.PanicHandler("ZeroAiSpawnAgentBlockCommand", recover())
+	}()
+
+	if req.AgentID == "" {
+		return nil, fmt.Errorf("agent ID is required")
+	}
+	if req.TabID == "" {
+		return nil, fmt.Errorf("tab ID is required")
+	}
+
+	if zs.blockManager == nil {
+		return nil, fmt.Errorf("block manager not initialized")
+	}
+
+	opts := team.SpawnBlockOpts{
+		TabID:     req.TabID,
+		AgentID:   req.AgentID,
+		AgentName: req.AgentName,
+		TeamID:    req.TeamID,
+		Role:      team.MemberRole(req.Role),
+		Prompt:    req.Prompt,
+		WorkDir:   req.WorkDir,
+	}
+
+	block, err := zs.blockManager.SpawnAgentBlock(ctx, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	return &ZeroAiSpawnAgentBlockRtnData{
+		BlockID: block.BlockID,
+		AgentID: block.AgentID,
+	}, nil
+}
+
+func (zs *WshRpcZeroaiServer) ZeroAiCreateAgentRoleCommand(ctx context.Context, req ZeroAiCreateAgentRoleData) (*ZeroAiCreateAgentRoleRtnData, error) {
+	defer func() {
+		panichandler.PanicHandler("ZeroAiCreateAgentRoleCommand", recover())
+	}()
+
+	if req.Name == "" {
+		return nil, fmt.Errorf("agent name is required")
+	}
+	if req.Backend == "" {
+		return nil, fmt.Errorf("backend is required")
+	}
+
+	agentID := fmt.Sprintf("agent-%s-%d", req.Name, time.Now().UnixMilli())
+
+	// For now, we validate and return success
+	// The actual persistence will be handled by the frontend model
+	// TODO: Store the role definition when backend persistence is ready
+
+	return &ZeroAiCreateAgentRoleRtnData{
+		AgentID: agentID,
+	}, nil
+}

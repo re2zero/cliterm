@@ -378,6 +378,15 @@ type ZeroAiProviderConfigType struct {
 	AuthRequired      bool              `json:"authRequired"`
 }
 
+type ZeroAiControlConfigType struct {
+	Enabled            bool   `json:"enabled"`
+	ReplaceWaveAI      bool   `json:"replaceWaveAI"`
+	DefaultAgent       string `json:"defaultAgent"`
+	MaxSessionDuration int64  `json:"maxSessionDuration"`
+	HeartbeatInterval  int64  `json:"heartbeatInterval"`
+	StaleThreshold     int64  `json:"staleThreshold"`
+}
+
 type FullConfigType struct {
 	Settings        SettingsType                        `json:"settings" merge:"meta"`
 	MimeTypes       map[string]MimeTypeConfigType       `json:"mimetypes"`
@@ -390,6 +399,7 @@ type FullConfigType struct {
 	Bookmarks       map[string]WebBookmark              `json:"bookmarks"`
 	WaveAIModes     map[string]AIModeConfigType         `json:"waveai"`
 	ZeroAiProviders map[string]ZeroAiProviderConfigType `json:"zeroai"`
+	ZeroAiControl   ZeroAiControlConfigType             `json:"zeroai:control"`
 	ConfigErrors    []ConfigError                       `json:"configerrors" configfile:"-"`
 }
 

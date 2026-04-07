@@ -57,6 +57,7 @@ class WorkspaceLayoutModel {
     private debouncedPersistAIWidth: () => void;
     private debouncedPersistVTabWidth: () => void;
     widgetsSidebarVisibleAtom: jotai.Atom<boolean>;
+    showZeroAIAtom: jotai.Atom<boolean>;
 
     private constructor() {
         this.aiPanelRef = null;
@@ -77,6 +78,13 @@ class WorkspaceLayoutModel {
                 get(getOrefMetaKeyAtom(WOS.makeORef("workspace", this.getWorkspaceId()), "layout:widgetsvisible")) ??
                 true
         );
+        this.showZeroAIAtom = jotai.atom((get) => {
+            // Default to ZeroAI; only fall back to WaveAI if explicitly configured
+            const preferWaveAI = get(getSettingsKeyAtom("zeroai:control.replaceWaveAI" as any)) === false;
+            const waveaiPanelOpen =
+                get(getOrefMetaKeyAtom(WOS.makeORef("tab", this.getTabId()), "waveai:panelopen" as any)) ?? false;
+            return !(preferWaveAI && waveaiPanelOpen);
+        });
         this.initializeFromMeta();
 
         this.handleWindowResize = this.handleWindowResize.bind(this);

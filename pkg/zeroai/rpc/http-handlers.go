@@ -11,10 +11,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/wavetermdev/waveterm/pkg/web/sse"
 	"github.com/wavetermdev/waveterm/pkg/zeroai/agent"
 	"github.com/wavetermdev/waveterm/pkg/zeroai/service"
 	"github.com/wavetermdev/waveterm/pkg/zeroai/store"
-	"github.com/wavetermdev/waveterm/pkg/web/sse"
 )
 
 const (
@@ -38,7 +38,7 @@ type SSEMessage struct {
 
 // HTTPHandler provides HTTP/SSE endpoints for ZeroAI
 type HTTPHandler struct {
-	agentService  *service.AgentService
+	agentService   *service.AgentService
 	messageService *service.MessageService
 	sessionStore   store.SessionStore
 
@@ -53,7 +53,7 @@ func NewHTTPHandler(
 	sessionStore store.SessionStore,
 ) *HTTPHandler {
 	return &HTTPHandler{
-		agentService:  agentService,
+		agentService:   agentService,
 		messageService: messageService,
 		sessionStore:   sessionStore,
 	}
@@ -62,12 +62,13 @@ func NewHTTPHandler(
 // SendMessageHandler handles POST requests to send a message and stream responses
 // Endpoint: /zeroai/stream-message
 // Request body:
-//   {
-//     "sessionId": "session-id",
-//     "backend": "claude",
-//     "message": "user query",
-//     "files": ["file1.txt", "file2.txt"]
-//   }
+//
+//	{
+//	  "sessionId": "session-id",
+//	  "backend": "claude",
+//	  "message": "user query",
+//	  "files": ["file1.txt", "file2.txt"]
+//	}
 func (h *HTTPHandler) SendMessageHandler(w http.ResponseWriter, r *http.Request) {
 	// Only allow POST method
 	if r.Method != http.MethodPost {
@@ -283,12 +284,12 @@ func (h *HTTPHandler) StreamSessionMessagesHandler(w http.ResponseWriter, r *htt
 					Type:      ZeroAiMsgContent,
 					SessionID: msg.SessionID,
 					Data: map[string]interface{}{
-						"id":         msg.ID,
-						"role":       msg.Role,
-						"content":    msg.Content,
-						"eventType":  msg.EventType,
-						"metadata":   msg.Metadata,
-						"createdAt":  msg.CreatedAt,
+						"id":        msg.ID,
+						"role":      msg.Role,
+						"content":   msg.Content,
+						"eventType": msg.EventType,
+						"metadata":  msg.Metadata,
+						"createdAt": msg.CreatedAt,
 					},
 				})
 			}
@@ -379,12 +380,12 @@ func (h *HTTPHandler) GetActiveStreamHandler(sessionID string) (*sse.SSEHandlerC
 
 // SendMessageRequest represents the request body for sending a message
 type SendMessageRequest struct {
-	SessionID      string                 `json:"sessionId"`
-	Backend        string                 `json:"backend"`
-	Message        string                 `json:"message"`
-	Files          []string               `json:"files,omitempty"`
-	Model          string                 `json:"model,omitempty"`
-	CliPath        string                 `json:"cliPath,omitempty"`
-	SessionConfig  map[string]interface{} `json:"sessionConfig,omitempty"`
-	Env            map[string]string      `json:"env,omitempty"`
+	SessionID     string                 `json:"sessionId"`
+	Backend       string                 `json:"backend"`
+	Message       string                 `json:"message"`
+	Files         []string               `json:"files,omitempty"`
+	Model         string                 `json:"model,omitempty"`
+	CliPath       string                 `json:"cliPath,omitempty"`
+	SessionConfig map[string]interface{} `json:"sessionConfig,omitempty"`
+	Env           map[string]string      `json:"env,omitempty"`
 }
