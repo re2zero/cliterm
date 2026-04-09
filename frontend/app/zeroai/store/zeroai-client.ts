@@ -111,9 +111,9 @@ export class ZeroAiClient {
         opts?: ZeroAiClientOpts
     ): AsyncGenerator<ZeroAiStreamMessageEvent, void, unknown> {
         try {
-            const stream = RpcApi.ZeroAiSendStreamMessageCommand(TabRpcClient, request, zeroaiOpts(opts));
+            const streamOpts = zeroaiOpts({ ...opts, timeout: 600000 });
+            const stream = RpcApi.ZeroAiSendStreamMessageCommand(TabRpcClient, request, streamOpts);
             for await (const event of stream) {
-                console.log("[ZeroAI] raw event:", JSON.stringify(event).substring(0, 500));
                 yield event as ZeroAiStreamMessageEvent;
             }
         } catch (error) {

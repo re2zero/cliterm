@@ -279,7 +279,7 @@ func (zs *WshRpcZeroaiServer) ZeroAiSendStreamMessageCommand(ctx context.Context
 		panichandler.PanicHandler("ZeroAiSendStreamMessageCommand", recover())
 	}()
 
-	rtn := make(chan wshrpc.RespOrErrorUnion[wshrpc.ZeroAiStreamMessageEvent])
+	rtn := make(chan wshrpc.RespOrErrorUnion[wshrpc.ZeroAiStreamMessageEvent], 128)
 
 	go func() {
 		defer close(rtn)
@@ -344,6 +344,10 @@ func (zs *WshRpcZeroaiServer) ZeroAiSendStreamMessageCommand(ctx context.Context
 
 				if event.Type == agent.EventTypeEndTurn {
 					return
+				}
+
+				if len(eventCh) > 0 {
+					time.Sleep(16 * time.Millisecond)
 				}
 			}
 		}

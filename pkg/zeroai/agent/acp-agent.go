@@ -419,7 +419,8 @@ func (a *AcpAgent) sendEvent(sessionID string, event AgentEvent) bool {
 	select {
 	case ch <- event:
 		return true
-	case <-time.After(100 * time.Millisecond):
+	case <-time.After(500 * time.Millisecond):
+		log.Printf("[WARN] AcpAgent.sendEvent: timed out sending event, sessionID=%s, type=%s", sessionID, event.Type)
 		return false
 	}
 }
