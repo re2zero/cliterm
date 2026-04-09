@@ -493,6 +493,20 @@
     overflow-y: auto;
 }
 
+.chat-tool-output {
+    background: rgba(0, 0, 0, 0.35) !important;
+    color: rgba(255, 255, 255, 0.7) !important;
+
+    &.status-failed {
+        color: rgba(255, 100, 100, 0.8) !important;
+        border-left: 2px solid rgba(239, 68, 68, 0.4) !important;
+    }
+
+    &.status-completed {
+        color: rgba(100, 255, 100, 0.8) !important;
+    }
+}
+
 // Permission
 .chat-permission {
     border: 1px solid rgba(251, 191, 36, 0.15);

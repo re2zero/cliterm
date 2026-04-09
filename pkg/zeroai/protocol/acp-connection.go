@@ -925,7 +925,21 @@ func (c *AcpConnection) handleSessionUpdate(params map[string]interface{}) {
 		}
 	}
 
-	log.Printf("[DEBUG] handleSessionUpdate: parsed SessionUpdate=%s, Content=%v", update.SessionUpdate, update.Content)
+	if rawOutput, ok := updateObj["rawOutput"].(string); ok && rawOutput != "" {
+		if update.Metadata == nil {
+			update.Metadata = make(map[string]interface{})
+		}
+		update.Metadata["rawOutput"] = rawOutput
+	}
+
+	if status, ok := updateObj["status"].(string); ok && status != "" {
+		if update.Metadata == nil {
+			update.Metadata = make(map[string]interface{})
+		}
+		update.Metadata["status"] = status
+	}
+
+	log.Printf("[DEBUG] handleSessionUpdate: parsed SessionUpdate=%s, Content=%v, Metadata=%v", update.SessionUpdate, update.Content, update.Metadata)
 
 	if update.SessionUpdate == "end_turn" {
 		c.mu.Lock()

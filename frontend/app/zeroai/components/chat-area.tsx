@@ -130,6 +130,7 @@ const ToolCallMessage = React.memo(({ message }: { message: ZeroAiMessage }) => 
     const description = (rawInput?.description as string) || (toolData?.title as string) || "";
     const status = (toolData?.status as string) || "running";
     const sessionUpdate = (toolData?.sessionUpdate as string) || "";
+    const rawOutput = (toolData?.rawOutput as string) || "";
 
     const statusIcon =
         status === "completed"
@@ -164,6 +165,16 @@ const ToolCallMessage = React.memo(({ message }: { message: ZeroAiMessage }) => 
                         <div className="chat-tool-section">
                             <span className="chat-tool-section-label">Description</span>
                             <pre className="chat-tool-code">{description}</pre>
+                        </div>
+                    )}
+                    {rawOutput && (
+                        <div className="chat-tool-section">
+                            <span className="chat-tool-section-label">Output</span>
+                            <pre
+                                className={`chat-tool-code chat-tool-output ${status === "failed" ? "status-failed" : status === "completed" ? "status-completed" : ""}`}
+                            >
+                                {rawOutput}
+                            </pre>
                         </div>
                     )}
                 </div>

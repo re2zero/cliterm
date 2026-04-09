@@ -445,7 +445,7 @@ func (a *AcpAgent) convertUpdateToEvent(sessionID string, update *protocol.AcpSe
 		return &AgentEvent{
 			Type:    EventTypeToolCall,
 			Session: sessionID,
-			Data:    update,
+			Data:    update.AsMetadata(),
 			Created: now,
 		}
 
@@ -453,7 +453,7 @@ func (a *AcpAgent) convertUpdateToEvent(sessionID string, update *protocol.AcpSe
 		return &AgentEvent{
 			Type:    EventTypeToolCall,
 			Session: sessionID,
-			Data:    update,
+			Data:    update.AsMetadata(),
 			Created: now,
 		}
 
