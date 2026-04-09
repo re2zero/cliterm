@@ -298,26 +298,6 @@ func (a *AcpAgent) SendMessage(ctx context.Context, sessionID string, message Se
 	a.cancelCtx = promptCancel
 	a.mu.Unlock()
 
-	err := a.conn.StreamPrompt(promptCtx, acpSID, message.Content, promptOpts, func(update *protocol.AcpSessionUpdate) error {
-		event := a.convertUpdateToEvent(sessionID, update)
-		if event != nil {
-			a.sendEvent(sessionID, *event)
-		}
-		return nil
-	})
-
-	if err != nil {
-		promptCancel()
-		a.status.IsStreaming = false
-		a.mu.Lock()
-		if ch := a.eventChs[sessionID]; ch != nil {
-			close(ch)
-			delete(a.eventChs, sessionID)
-		}
-		a.mu.Unlock()
-		return nil, fmt.Errorf("failed to stream prompt: %w", err)
-	}
-
 	go func() {
 		defer func() {
 			a.mu.Lock()
@@ -331,18 +311,23 @@ func (a *AcpAgent) SendMessage(ctx context.Context, sessionID string, message Se
 			}
 		}()
 
-		doneCh := a.conn.WaitForDone()
-
-		select {
-		case <-promptCtx.Done():
-		case <-doneCh:
-		}
-
-		a.sendEvent(sessionID, AgentEvent{
-			Type:    EventTypeEndTurn,
-			Session: sessionID,
-			Created: time.Now().Unix(),
+		err := a.conn.StreamPrompt(promptCtx, acpSID, message.Content, promptOpts, func(update *protocol.AcpSessionUpdate) error {
+			event := a.convertUpdateToEvent(sessionID, update)
+			if event != nil {
+				a.sendEvent(sessionID, *event)
+			}
+			return nil
 		})
+
+		if err != nil {
+			log.Printf("[DEBUG] AcpAgent.SendMessage goroutine: StreamPrompt error: %v", err)
+			a.sendEvent(sessionID, AgentEvent{
+				Type:    EventTypeError,
+				Session: sessionID,
+				Data:    fmt.Sprintf("Stream error: %v", err),
+				Created: time.Now().Unix(),
+			})
+		}
 	}()
 
 	return eventCh, nil

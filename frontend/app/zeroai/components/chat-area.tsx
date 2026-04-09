@@ -340,7 +340,7 @@ export const ChatArea = React.memo(
     }) => {
         const scrollRef = React.useRef<HTMLDivElement>(null);
         const [autoScroll, setAutoScroll] = React.useState(true);
-        const prevContentLen = React.useRef(0);
+        const rafIdRef = React.useRef<number>(0);
 
         const lastAssistantIdx = React.useMemo(() => {
             for (let i = messages.length - 1; i >= 0; i--) {
@@ -349,22 +349,31 @@ export const ChatArea = React.memo(
             return -1;
         }, [messages]);
 
-        const totalContentLen = React.useMemo(() => {
-            return messages.reduce((sum, msg) => sum + (msg.content?.length || 0), 0);
+        const contentFingerprint = React.useMemo(() => {
+            const last = messages[messages.length - 1];
+            if (!last) return "";
+            return `${last.role}:${last.content?.length ?? 0}:${last.eventType ?? ""}`;
         }, [messages]);
 
         const handleScroll = React.useCallback(() => {
             if (!scrollRef.current) return;
             const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
-            setAutoScroll(scrollHeight - scrollTop - clientHeight < 50);
+            setAutoScroll(scrollHeight - scrollTop - clientHeight < 80);
         }, []);
 
         React.useEffect(() => {
-            if (autoScroll && scrollRef.current && totalContentLen !== prevContentLen.current) {
-                scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-            }
-            prevContentLen.current = totalContentLen;
-        }, [messages, autoScroll, totalContentLen]);
+            if (!autoScroll || !scrollRef.current) return;
+            cancelAnimationFrame(rafIdRef.current);
+            rafIdRef.current = requestAnimationFrame(() => {
+                if (scrollRef.current) {
+                    scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+                }
+            });
+        }, [contentFingerprint, messages.length, autoScroll]);
+
+        React.useEffect(() => {
+            return () => cancelAnimationFrame(rafIdRef.current);
+        }, []);
 
         return (
             <div className={clsx("chat-area", className)}>

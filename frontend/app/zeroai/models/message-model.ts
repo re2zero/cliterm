@@ -113,17 +113,12 @@ export function appendStreamChunk(sessionId: string, chunk: ZeroAiMessage): void
         const newContent = chunk.content || "";
         if (!newContent) return prev;
 
-        const seenLen = (current as any)._seenLen || 0;
-        const toAppend = newContent.length > seenLen ? newContent.slice(seenLen) : newContent;
-        if (!toAppend) return prev;
-
         return {
             ...prev,
             [sessionId]: {
                 ...current,
-                content: current.content + toAppend,
-                _seenLen: newContent.length,
-            } as ZeroAiMessage,
+                content: current.content + newContent,
+            },
         };
     });
 }

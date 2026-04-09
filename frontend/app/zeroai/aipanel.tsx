@@ -7,7 +7,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { AgentList, ChatArea, ChatInput, ProviderSettings, StatusBar, ZeroAIHeader } from "./components";
 import "./index.scss";
 import { activeAgentIdAtom, agentsAtom, setActiveAgent } from "./models/agent-model";
-import { dispatchMessageAction, getNextMsgId, messagesAtom, streamingMessageAtom } from "./models/message-model";
+import {
+    dispatchMessageAction,
+    getNextMsgId,
+    getStreamingMessage,
+    messagesAtom,
+    streamingMessageAtom,
+} from "./models/message-model";
 import { activeModelAtom, activeProviderAtom, activeProviderIdAtom } from "./models/provider-model";
 import { activeSessionIdAtom, dispatchSessionAction, removeSession, sessionsAtom } from "./models/session-model";
 import {
@@ -167,7 +173,7 @@ export function AIPanel(_props: { roundTopLeft?: boolean }) {
                 dispatchSessionAction({ type: "addSession", session: newSession, setActive: true });
                 sessionId = result.sessionId;
             } catch (error) {
-                console.error("Failed to create session:", error);
+                console.error("[ZeroAI] Failed to create session:", error);
                 globalStore.set(isStreamingAtom, false);
                 setThinking(false);
                 return;
@@ -200,13 +206,13 @@ export function AIPanel(_props: { roundTopLeft?: boolean }) {
         const abortController = new AbortController();
         cancelRef.current = abortController;
 
-        const streamTimeout = setTimeout(
-            () => {
-                console.log("[ZeroAI] stream timeout, force stopping after 3min");
-                handleStopStreaming();
-            },
-            3 * 60 * 1000
-        );
+        const abortPromise = new Promise<IteratorResult<ZeroAiStreamMessageEvent>>((resolve) => {
+            abortController.signal.addEventListener("abort", () => resolve({ value: undefined, done: true }), {
+                once: true,
+            });
+        });
+
+        let streamFinished = false;
 
         try {
             const stream = clientRef.current.streamMessage({
@@ -215,20 +221,15 @@ export function AIPanel(_props: { roundTopLeft?: boolean }) {
                 content,
             });
 
-            console.log("[ZeroAI] stream started, entering for-await loop");
-
-            for await (const event of stream) {
-                if (abortController.signal.aborted) {
-                    console.log("[ZeroAI] abort signal, breaking");
-                    break;
-                }
-
-                if (event.message) {
+            let iterResult = await stream.next();
+            while (!iterResult.done && !abortController.signal.aborted) {
+                const event = iterResult.value as ZeroAiStreamMessageEvent | undefined;
+                if (event?.message) {
                     const msg = event.message;
                     const eventType = msg.eventType || (msg.metadata?.type as string | undefined);
 
                     if (eventType === "end_turn") {
-                        console.log("[ZeroAI] received end_turn event");
+                        streamFinished = true;
                         break;
                     }
                     if (
@@ -249,37 +250,51 @@ export function AIPanel(_props: { roundTopLeft?: boolean }) {
                         dispatchMessageAction({ type: "appendChunk", sessionId, chunk: msg });
                     }
                 }
+
+                iterResult = await Promise.race([stream.next(), abortPromise]);
             }
 
-            console.log("[ZeroAI] for-await loop exited normally");
+            if (!abortController.signal.aborted) {
+                streamFinished = true;
+            }
         } catch (error) {
-            console.error("[ZeroAI] Failed to send message:", error);
+            console.error("[ZeroAI] Stream error:", error);
         } finally {
-            clearTimeout(streamTimeout);
-            console.log("[ZeroAI] finally block executing, finalizing stream, setting isStreaming=false");
             cancelRef.current = null;
-            dispatchMessageAction({ type: "finalizeStream", sessionId });
+
+            if (abortController.signal.aborted) {
+                dispatchMessageAction({ type: "cancelStream", sessionId });
+            } else if (streamFinished) {
+                dispatchMessageAction({ type: "finalizeStream", sessionId });
+            } else {
+                const streaming = getStreamingMessage(sessionId);
+                if (streaming && streaming.content) {
+                    dispatchMessageAction({ type: "finalizeStream", sessionId });
+                } else {
+                    dispatchMessageAction({ type: "cancelStream", sessionId });
+                }
+            }
+
             globalStore.set(isStreamingAtom, false);
             setThinking(false);
         }
     };
 
-    const handleStopStreaming = async () => {
+    const handleStopStreaming = () => {
+        globalStore.set(isStreamingAtom, false);
+        setThinking(false);
+
         if (cancelRef.current) {
             cancelRef.current.abort();
             cancelRef.current = null;
         }
+
         const sessionId = activeSessionId;
         if (sessionId && clientRef.current) {
-            try {
-                await clientRef.current.cancelStream(sessionId);
-            } catch (error) {
-                console.error("Failed to cancel stream:", error);
-            }
-            dispatchMessageAction({ type: "finalizeStream", sessionId });
+            clientRef.current.cancelStream(sessionId).catch((err) => {
+                console.error("[ZeroAI] cancelStream error:", err);
+            });
         }
-        globalStore.set(isStreamingAtom, false);
-        setThinking(false);
     };
 
     const handlePermissionConfirm = useCallback(
