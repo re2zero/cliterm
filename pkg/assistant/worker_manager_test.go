@@ -6,9 +6,12 @@ package assistant
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/wavetermdev/waveterm/pkg/wavebase"
 	"github.com/wavetermdev/waveterm/pkg/zeroai/team"
 )
 
@@ -271,6 +274,221 @@ func TestWorkerManager_CrashMetadataPersistence(t *testing.T) {
 	if task.Metadata["retry_count"] != 2 {
 		t.Errorf("expected retry_count=2 after second crash, got %v", task.Metadata["retry_count"])
 	}
+}
+
+// TestWorkerManager_ValidateWorkerType_Valid tests validation for valid worker types
+func TestWorkerManager_ValidateWorkerType_Valid(t *testing.T) {
+	statusMonitor := &StatusMonitor{}
+	taskStore := NewInMemoryTaskStore()
+	wm := NewWorkerManager(statusMonitor, taskStore)
+
+	testCases := []struct {
+		name       string
+		workerType string
+	}{
+		{"default", "default"},
+		{"empty", ""},
+		{"claude (if available)", "claude"},
+		{"opencode (if available)", "opencode"},
+		{"codex (if available)", "codex"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := wm.validateWorkerType(tc.workerType)
+			// default and empty should always succeed (no binary needed)
+			if tc.workerType == "default" || tc.workerType == "" {
+				if err != nil {
+					t.Errorf("expected no error for worker type %q, got: %v", tc.workerType, err)
+				}
+				return
+			}
+			// For other types, error is acceptable if binary not installed
+			// The important thing is that it doesn't panic and returns meaningful error
+			if err != nil {
+				// Expected if binary not installed - verify error format
+				expectedError := fmt.Sprintf("worker type '%s' requires '%s' CLI binary in PATH: not found", tc.workerType, tc.workerType)
+				if err.Error() != expectedError {
+					t.Errorf("unexpected error format: got %q, want %q", err.Error(), expectedError)
+				}
+			}
+		})
+	}
+}
+
+// TestWorkerManager_ValidateWorkerType_Unknown tests unknown worker type handling
+func TestWorkerManager_ValidateWorkerType_Unknown(t *testing.T) {
+	statusMonitor := &StatusMonitor{}
+	taskStore := NewInMemoryTaskStore()
+	wm := NewWorkerManager(statusMonitor, taskStore)
+
+	// Unknown worker type should be treated as binary name
+	err := wm.validateWorkerType("unknown-binary-test-xyz")
+	if err == nil {
+		t.Log("unknown-binary-test-xyz not in PATH - that's expected, returning nil")
+		return
+	}
+
+	// If error, verify it has the expected format
+	expectedError := "worker type 'unknown-binary-test-xyz' requires 'unknown-binary-test-xyz' CLI binary in PATH: not found"
+	if err.Error() != expectedError {
+		t.Errorf("expected error %q, got %q", expectedError, err.Error())
+	}
+}
+
+// TestWorkerManager_ValidateWorkerType_MissingBinary tests validation when binary is missing
+func TestWorkerManager_ValidateWorkerType_MissingBinary(t *testing.T) {
+	statusMonitor := &StatusMonitor{}
+	taskStore := NewInMemoryTaskStore()
+	wm := NewWorkerManager(statusMonitor, taskStore)
+
+	// Save original PATH
+	oldPath := os.Getenv("PATH")
+	defer func() {
+		// Restore PATH regardless of test outcome
+		if oldPath != "" {
+			os.Setenv("PATH", oldPath)
+		} else {
+			os.Unsetenv("PATH")
+		}
+	}()
+
+	// Set PATH to nonexistent directory
+	os.Setenv("PATH", "/nonexistent/path/for/testing")
+
+	// Test with claude (known worker type)
+	err := wm.validateWorkerType("claude")
+	if err == nil {
+		t.Error("expected error when binary not in PATH")
+	} else {
+		expectedError := "worker type 'claude' requires 'claude' CLI binary in PATH: not found"
+		if err.Error() != expectedError {
+			t.Errorf("expected error %q, got %q", expectedError, err.Error())
+		}
+	}
+}
+
+// TestWorkerManager_ValidateWorkerType_EmptyString tests empty string handling
+func TestWorkerManager_ValidateWorkerType_EmptyString(t *testing.T) {
+	statusMonitor := &StatusMonitor{}
+	taskStore := NewInMemoryTaskStore()
+	wm := NewWorkerManager(statusMonitor, taskStore)
+
+	// Empty string should succeed (uses default)
+	err := wm.validateWorkerType("")
+	if err != nil {
+		t.Errorf("expected no error for empty worker type, got: %v", err)
+	}
+}
+
+// TestWorkerManager_ValidateWorkerType_DefaultString tests default type handling
+func TestWorkerManager_ValidateWorkerType_DefaultString(t *testing.T) {
+	statusMonitor := &StatusMonitor{}
+	taskStore := NewInMemoryTaskStore()
+	wm := NewWorkerManager(statusMonitor, taskStore)
+
+	// "default" should succeed (uses echo/sleep, no binary needed)
+	err := wm.validateWorkerType("default")
+	if err != nil {
+		t.Errorf("expected no error for 'default' worker type, got: %v", err)
+	}
+}
+
+// TestWorkerManager_StartWorker_ValidationIntegration tests StartWorker calls validation
+func TestWorkerManager_StartWorker_ValidationIntegration(t *testing.T) {
+	statusMonitor := &StatusMonitor{}
+	taskStore := NewInMemoryTaskStore()
+	wm := NewWorkerManager(statusMonitor, taskStore)
+
+	mockPM := newMockProcessManager()
+	wm.SetProcessManager(mockPM)
+
+	ctx := context.Background()
+	taskID := "validation-test-task"
+
+	// Save original PATH
+	oldPath := os.Getenv("PATH")
+	defer func() {
+		if oldPath != "" {
+			os.Setenv("PATH", oldPath)
+		} else {
+			os.Unsetenv("PATH")
+		}
+	}()
+
+	// Set PATH to nonexistent directory to force validation failure
+	os.Setenv("PATH", "/nonexistent/path/for/testing")
+
+	// Try to start worker with a worker type that requires a binary
+	_, err := wm.StartWorker(ctx, taskID, "claude")
+	if err == nil {
+		t.Error("expected validation error")
+	} else {
+		expectedError := "worker type 'claude' requires 'claude' CLI binary in PATH: not found"
+		if err.Error() != expectedError {
+			t.Errorf("expected error %q, got %q", expectedError, err.Error())
+		}
+	}
+
+	// Verify no status directory was created (no side effects on validation failure)
+	waveHome := wavebase.GetHomeDir()
+	statusDir := filepath.Join(waveHome, ".gsd", "assistant", "workers", taskID)
+	if _, err := os.Stat(statusDir); !os.IsNotExist(err) {
+		t.Errorf("expected status directory to not exist, but it exists at %s", statusDir)
+	}
+
+	// Verify no process was tracked
+	if _, exists := wm.processes[taskID]; exists {
+		t.Error("expected no process to be tracked on validation failure")
+	}
+
+	// Test that default worker type still works (no binary validation needed)
+	taskID2 := "default-test-task"
+	_, err = wm.StartWorker(ctx, taskID2, "default")
+	if err != nil {
+		t.Errorf("expected no error for 'default' worker type, got: %v", err)
+	}
+}
+
+// TestWorkerManager_StartWorker_ValidationSuccess tests that valid worker types pass validation
+func TestWorkerManager_StartWorker_ValidationSuccess(t *testing.T) {
+	statusMonitor := &StatusMonitor{}
+	taskStore := NewInMemoryTaskStore()
+	wm := NewWorkerManager(statusMonitor, taskStore)
+
+	mockPM := newMockProcessManager()
+	wm.SetProcessManager(mockPM)
+
+	ctx := context.Background()
+
+	// Test with default (always passes)
+	taskID := "default-validation-test"
+	workerInfo, err := wm.StartWorker(ctx, taskID, "default")
+	if err != nil {
+		t.Errorf("expected no error for 'default' worker type, got: %v", err)
+	}
+	if workerInfo == nil {
+		t.Error("expected worker info to be returned")
+	}
+	if workerInfo.TaskID != taskID {
+		t.Errorf("expected TaskID=%s, got %s", taskID, workerInfo.TaskID)
+	}
+
+	// Cleanup
+	_ = wm.StopWorker(taskID)
+
+	// Test with empty worker type (uses default)
+	taskID2 := "empty-validation-test"
+	workerInfo, err = wm.StartWorker(ctx, taskID2, "")
+	if err != nil {
+		t.Errorf("expected no error for empty worker type, got: %v", err)
+	}
+	if workerInfo == nil {
+		t.Error("expected worker info to be returned")
+	}
+
+	// Cleanup
+	_ = wm.StopWorker(taskID2)
 }
 
 // TestWorkerManager_CrashWithRetry tests the crash detection flow

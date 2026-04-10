@@ -592,3 +592,122 @@ func TestE2E_MetricsAndObservability(t *testing.T) {
 	assertLogContains(t, loggerBuf, "started")
 	assertLogContains(t, loggerBuf, "stopped")
 }
+
+// TestE2E_WorkerTypeValidationFailure tests that worker type validation fails with descriptive errors
+func TestE2E_WorkerTypeValidationFailure(t *testing.T) {
+	assistant, _, loggerBuf := makeTestAssistant(t)
+	defer cleanupTestAssistant(t, assistant)
+
+	// Save original PATH
+	oldPath := os.Getenv("PATH")
+	defer func() {
+		if oldPath != "" {
+			os.Setenv("PATH", oldPath)
+		} else {
+			os.Unsetenv("PATH")
+		}
+	}()
+
+	// Set PATH to nonexistent directory to force validation failure
+	os.Setenv("PATH", "/nonexistent/path/for/testing/testing123")
+
+	// Add task
+	task, err := assistant.taskStore.AddTaskWithMetadata("validation failure test", map[string]interface{}{
+		"worker_type": "claude",
+	})
+	if err != nil {
+		t.Fatalf("AddTaskWithMetadata failed: %v", err)
+	}
+
+	taskID := task.TaskID
+
+	// Try to start worker directly - should fail validation
+	ctx := context.Background()
+	_, err = assistant.workerManager.StartWorker(ctx, taskID, "claude")
+	if err == nil {
+		t.Fatal("expected validation error when binary not in PATH")
+	}
+
+	expectedError := "worker type 'claude' requires 'claude' CLI binary in PATH: not found"
+	if err.Error() != expectedError {
+		t.Errorf("expected error %q, got %q", expectedError, err.Error())
+	}
+
+	// Verify validation failure was logged
+	assertLogContains(t, loggerBuf, "validation failed")
+
+	// Verify no status directory was created
+	waveHome := wavebase.GetHomeDir()
+	statusDir := filepath.Join(waveHome, ".gsd", "assistant", "workers", taskID)
+	if _, err := os.Stat(statusDir); !os.IsNotExist(err) {
+		t.Errorf("expected status directory to not exist on validation failure, found at %s", statusDir)
+	}
+
+	// Verify no process was spawned
+	workers := assistant.workerManager.ListWorkers()
+	if len(workers) != 0 {
+		t.Errorf("expected 0 workers on validation failure, got %d", len(workers))
+	}
+}
+
+// TestE2E_WorkerTypeValidationSuccess tests that valid worker types pass validation
+func TestE2E_WorkerTypeValidationSuccess(t *testing.T) {
+	assistant, mockPM, loggerBuf := makeTestAssistant(t)
+	defer cleanupTestAssistant(t, assistant)
+
+	// Configure mock to not crash
+	mockPM.configCrash(0, "")
+
+	// Add task with default worker type (always passes validation)
+	task, err := assistant.taskStore.AddTaskWithMetadata("validation success test", map[string]interface{}{
+		"worker_type": "default",
+	})
+	if err != nil {
+		t.Fatalf("AddTaskWithMetadata failed: %v", err)
+	}
+
+	taskID := task.TaskID
+
+	// Start worker - should pass validation
+	ctx := context.Background()
+	workerInfo, err := assistant.workerManager.StartWorker(ctx, taskID, "default")
+	if err != nil {
+		t.Fatalf("StartWorker failed: %v", err)
+	}
+
+	if workerInfo == nil {
+		t.Fatal("expected worker info to be returned")
+	}
+
+	if workerInfo.TaskID != taskID {
+		t.Errorf("expected TaskID=%s, got %s", taskID, workerInfo.TaskID)
+	}
+
+	// Verify validation was logged
+	assertLogContains(t, loggerBuf, "worker type 'default' validated")
+
+	// Verify worker is running
+	workers := assistant.workerManager.ListWorkers()
+	if len(workers) != 1 {
+		t.Errorf("expected 1 worker, got %d", len(workers))
+	}
+
+	// Verify status directory was created
+	waveHome := wavebase.GetHomeDir()
+	statusDir := filepath.Join(waveHome, ".gsd", "assistant", "workers", taskID)
+	if _, err := os.Stat(statusDir); os.IsNotExist(err) {
+		t.Errorf("expected status directory to exist at %s", statusDir)
+	}
+
+	// Cleanup
+	err = assistant.workerManager.StopWorker(taskID)
+	if err != nil {
+		t.Errorf("StopWorker failed: %v", err)
+	}
+
+	// Verify cleanup succeeded
+	workers = assistant.workerManager.ListWorkers()
+	if len(workers) != 0 {
+		t.Errorf("expected 0 workers after stop, got %d", len(workers))
+	}
+}

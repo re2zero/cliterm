@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -141,6 +142,11 @@ func (wm *WorkerManager) StartWorker(ctx context.Context, taskID string, workerT
 	// Check concurrency limit
 	if len(wm.processes) >= wm.maxConcurrentWorkers {
 		return nil, fmt.Errorf("concurrent worker limit reached (%d)", wm.maxConcurrentWorkers)
+	}
+
+	// Validate worker type - fail fast if binary not available
+	if err := wm.validateWorkerType(workerType); err != nil {
+		return nil, err
 	}
 
 	// Get worker command
@@ -364,6 +370,42 @@ func (wm *WorkerManager) SetMaxConcurrentWorkers(max int) {
 	wm.mu.Lock()
 	defer wm.mu.Unlock()
 	wm.maxConcurrentWorkers = max
+}
+
+// validateWorkerType checks if the CLI binary required for the worker type is available in PATH
+func (wm *WorkerManager) validateWorkerType(workerType string) error {
+	// Map worker types to CLI binary names (must match getWorkerCommand)
+	workerTypeToBinary := map[string]string{
+		"claude":   "claude",
+		"opencode": "opencode",
+		"codex":    "codex",
+		"default":  "", // Default uses echo/sleep, no binary needed
+		"":         "", // Empty type also uses default
+	}
+
+	// Look up binary name from worker type
+	binary, ok := workerTypeToBinary[workerType]
+	if ok && binary == "" {
+		// Default or empty worker type - no binary validation needed
+		log.Printf("[worker-manager] worker type '%s' validated: default worker (no binary required)", workerType)
+		return nil
+	}
+
+	// Unknown worker type - treat workerType as binary name
+	if !ok {
+		binary = workerType
+	}
+
+	// Check if binary exists in PATH
+	binaryPath, err := exec.LookPath(binary)
+	if err != nil {
+		log.Printf("[worker-manager] worker type '%s' validation failed: '%s' CLI binary not found in PATH", workerType, binary)
+		return fmt.Errorf("worker type '%s' requires '%s' CLI binary in PATH: not found", workerType, binary)
+	}
+
+	// Binary found, log success
+	log.Printf("[worker-manager] worker type '%s' validated: '%s' CLI found at %s", workerType, binary, binaryPath)
+	return nil
 }
 
 // startWorkerMonitor starts the crash detection monitor (idempotent)
