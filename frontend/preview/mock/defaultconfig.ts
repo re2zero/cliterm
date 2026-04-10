@@ -21,6 +21,13 @@ export const DefaultFullConfig: FullConfigType = {
     bookmarks: {},
     waveai: waveaiJson as unknown as { [key: string]: AIModeConfigType },
     zeroai: zeroaiJson as unknown as { [key: string]: ZeroAiProviderConfigType },
+    "zeroai:control": {
+        enabled: true,
+        replaceWaveAI: false,
+        defaultAgent: "role-2",
+        maxSessionDuration: 3600,
+        heartbeatInterval: 30,
+    } as unknown as ZeroAiControlConfigType,
     backgrounds: backgroundsJson as { [key: string]: BackgroundConfigType },
     configerrors: [],
 };
