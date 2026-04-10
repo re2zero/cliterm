@@ -30,6 +30,36 @@ export class RpcApiType {
         return client.wshRpcCall("aisendmessage", data, opts);
     }
 
+    // command "assistantaddtask" [call]
+    AssistantAddTaskCommand(client: WshClient, data: CommandAssistantAddTaskData, opts?: RpcOpts): Promise<CommandAssistantAddTaskRtnData> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "assistantaddtask", data, opts);
+        return client.wshRpcCall("assistantaddtask", data, opts);
+    }
+
+    // command "assistantlisttasks" [call]
+    AssistantListTasksCommand(client: WshClient, data: CommandAssistantListTasksData, opts?: RpcOpts): Promise<CommandAssistantListTasksRtnData> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "assistantlisttasks", data, opts);
+        return client.wshRpcCall("assistantlisttasks", data, opts);
+    }
+
+    // command "assistantstart" [call]
+    AssistantStartCommand(client: WshClient, data: CommandAssistantStartData, opts?: RpcOpts): Promise<CommandAssistantStartRtnData> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "assistantstart", data, opts);
+        return client.wshRpcCall("assistantstart", data, opts);
+    }
+
+    // command "assistantstatus" [call]
+    AssistantStatusCommand(client: WshClient, data: CommandAssistantStatusData, opts?: RpcOpts): Promise<CommandAssistantStatusRtnData> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "assistantstatus", data, opts);
+        return client.wshRpcCall("assistantstatus", data, opts);
+    }
+
+    // command "assistantstop" [call]
+    AssistantStopCommand(client: WshClient, data: CommandAssistantStopData, opts?: RpcOpts): Promise<void> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "assistantstop", data, opts);
+        return client.wshRpcCall("assistantstop", data, opts);
+    }
+
     // command "authenticate" [call]
     AuthenticateCommand(client: WshClient, data: string, opts?: RpcOpts): Promise<CommandAuthenticateRtnData> {
         if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "authenticate", data, opts);

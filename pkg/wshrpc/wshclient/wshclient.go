@@ -29,6 +29,36 @@ func AiSendMessageCommand(w *wshutil.WshRpc, data wshrpc.AiMessageData, opts *ws
 	return err
 }
 
+// command "assistantaddtask", wshserver.AssistantAddTaskCommand
+func AssistantAddTaskCommand(w *wshutil.WshRpc, data wshrpc.CommandAssistantAddTaskData, opts *wshrpc.RpcOpts) (wshrpc.CommandAssistantAddTaskRtnData, error) {
+	resp, err := sendRpcRequestCallHelper[wshrpc.CommandAssistantAddTaskRtnData](w, "assistantaddtask", data, opts)
+	return resp, err
+}
+
+// command "assistantlisttasks", wshserver.AssistantListTasksCommand
+func AssistantListTasksCommand(w *wshutil.WshRpc, data wshrpc.CommandAssistantListTasksData, opts *wshrpc.RpcOpts) (wshrpc.CommandAssistantListTasksRtnData, error) {
+	resp, err := sendRpcRequestCallHelper[wshrpc.CommandAssistantListTasksRtnData](w, "assistantlisttasks", data, opts)
+	return resp, err
+}
+
+// command "assistantstart", wshserver.AssistantStartCommand
+func AssistantStartCommand(w *wshutil.WshRpc, data wshrpc.CommandAssistantStartData, opts *wshrpc.RpcOpts) (wshrpc.CommandAssistantStartRtnData, error) {
+	resp, err := sendRpcRequestCallHelper[wshrpc.CommandAssistantStartRtnData](w, "assistantstart", data, opts)
+	return resp, err
+}
+
+// command "assistantstatus", wshserver.AssistantStatusCommand
+func AssistantStatusCommand(w *wshutil.WshRpc, data wshrpc.CommandAssistantStatusData, opts *wshrpc.RpcOpts) (wshrpc.CommandAssistantStatusRtnData, error) {
+	resp, err := sendRpcRequestCallHelper[wshrpc.CommandAssistantStatusRtnData](w, "assistantstatus", data, opts)
+	return resp, err
+}
+
+// command "assistantstop", wshserver.AssistantStopCommand
+func AssistantStopCommand(w *wshutil.WshRpc, data wshrpc.CommandAssistantStopData, opts *wshrpc.RpcOpts) error {
+	_, err := sendRpcRequestCallHelper[any](w, "assistantstop", data, opts)
+	return err
+}
+
 // command "authenticate", wshserver.AuthenticateCommand
 func AuthenticateCommand(w *wshutil.WshRpc, data string, opts *wshrpc.RpcOpts) (wshrpc.CommandAuthenticateRtnData, error) {
 	resp, err := sendRpcRequestCallHelper[wshrpc.CommandAuthenticateRtnData](w, "authenticate", data, opts)

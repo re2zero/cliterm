@@ -120,6 +120,13 @@ type WshRpcInterface interface {
 	ZeroAiSendToAgentCommand(ctx context.Context, data CommandZeroAiSendToAgentData) error
 	ZeroAiBroadcastCommand(ctx context.Context, data CommandZeroAiBroadcastData) error
 
+	// Assistant commands
+	AssistantStartCommand(ctx context.Context, data CommandAssistantStartData) (CommandAssistantStartRtnData, error)
+	AssistantStopCommand(ctx context.Context, data CommandAssistantStopData) error
+	AssistantStatusCommand(ctx context.Context, data CommandAssistantStatusData) (CommandAssistantStatusRtnData, error)
+	AssistantAddTaskCommand(ctx context.Context, data CommandAssistantAddTaskData) (CommandAssistantAddTaskRtnData, error)
+	AssistantListTasksCommand(ctx context.Context, data CommandAssistantListTasksData) (CommandAssistantListTasksRtnData, error)
+
 	// ZeroAI Provider commands
 	ZeroAiListProvidersCommand(ctx context.Context, data CommandZeroAiListProvidersData) (CommandZeroAiListProvidersRtnData, error)
 	ZeroAiSaveProviderCommand(ctx context.Context, data CommandZeroAiSaveProviderData) error
@@ -1086,7 +1093,7 @@ type CommandZeroAiConfirmPermissionData struct {
 	ConfirmAll bool   `json:"confirmAll"` // whether to apply to all future permissions
 }
 
-// ZeroAiSessionInfo represents information about a ZeroAI session
+// ZeroAiMessageInfo represents information about a ZeroAI message
 type ZeroAiSessionInfo struct {
 	SessionID     string `json:"sessionId"`     // the internal session ID
 	Provider      string `json:"provider"`      // the backend provider
@@ -1108,4 +1115,44 @@ type ZeroAiMessageInfo struct {
 // ZeroAiStreamMessageEvent represents a streamed message event
 type ZeroAiStreamMessageEvent struct {
 	Message *ZeroAiMessageWrapper `json:"message"`
+}
+
+// Assistant RPC request/response types
+
+type CommandAssistantStartData struct{}
+
+type CommandAssistantStartRtnData struct {
+	Running bool `json:"running"`
+}
+
+type CommandAssistantStopData struct{}
+
+type CommandAssistantStatusData struct{}
+
+type CommandAssistantStatusRtnData struct {
+	Running    bool `json:"running"`
+	TaskCount  int  `json:"taskCount"`
+}
+
+type CommandAssistantAddTaskData struct {
+	Description string `json:"description"`
+}
+
+type CommandAssistantAddTaskRtnData struct {
+	TaskID string `json:"taskId"`
+	Status string `json:"status"`
+}
+
+type CommandAssistantListTasksData struct{}
+
+type CommandAssistantListTasksRtnData struct {
+	Tasks []AssistantTaskInfo `json:"tasks"`
+}
+
+type AssistantTaskInfo struct {
+	TaskID          string `json:"taskId"`
+	Description     string `json:"description"`
+	Status          string `json:"status"`
+	AssignedAgentID string `json:"assignedAgentId,omitempty"`
+	CreatedAt       int64  `json:"createdAt"`
 }

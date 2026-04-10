@@ -130,6 +130,15 @@ declare global {
         iconcolor: string;
     };
 
+    // wshrpc.AssistantTaskInfo
+    type AssistantTaskInfo = {
+        taskId: string;
+        description: string;
+        status: string;
+        assignedAgentId?: string;
+        createdAt: number;
+    };
+
     // wconfig.BackgroundConfigType
     type BackgroundConfigType = {
         bg?: string;
@@ -247,6 +256,45 @@ declare global {
         closewindow?: boolean;
         newactivetabid?: string;
     };
+
+    // wshrpc.CommandAssistantAddTaskData
+    type CommandAssistantAddTaskData = {
+        description: string;
+    };
+
+    // wshrpc.CommandAssistantAddTaskRtnData
+    type CommandAssistantAddTaskRtnData = {
+        taskId: string;
+        status: string;
+    };
+
+    // wshrpc.CommandAssistantListTasksData
+    type CommandAssistantListTasksData = object;
+
+    // wshrpc.CommandAssistantListTasksRtnData
+    type CommandAssistantListTasksRtnData = {
+        tasks: AssistantTaskInfo[];
+    };
+
+    // wshrpc.CommandAssistantStartData
+    type CommandAssistantStartData = object;
+
+    // wshrpc.CommandAssistantStartRtnData
+    type CommandAssistantStartRtnData = {
+        running: boolean;
+    };
+
+    // wshrpc.CommandAssistantStatusData
+    type CommandAssistantStatusData = object;
+
+    // wshrpc.CommandAssistantStatusRtnData
+    type CommandAssistantStatusRtnData = {
+        running: boolean;
+        taskCount: number;
+    };
+
+    // wshrpc.CommandAssistantStopData
+    type CommandAssistantStopData = object;
 
     // wshrpc.CommandAuthenticateJobManagerData
     type CommandAuthenticateJobManagerData = {

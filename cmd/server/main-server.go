@@ -46,6 +46,8 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/wshutil"
 	"github.com/wavetermdev/waveterm/pkg/wslconn"
 	"github.com/wavetermdev/waveterm/pkg/wstore"
+	"github.com/wavetermdev/waveterm/pkg/assistant"
+	assistantrpc "github.com/wavetermdev/waveterm/pkg/assistant/rpc"
 	"github.com/wavetermdev/waveterm/pkg/zeroai/agent"
 	zeroairpc "github.com/wavetermdev/waveterm/pkg/zeroai/rpc"
 	zeroaiservice "github.com/wavetermdev/waveterm/pkg/zeroai/service"
@@ -417,6 +419,12 @@ func createMainWshClient() {
 	zeroaiServer := zeroairpc.NewWshRpcZeroaiServer(sessionSvc, msgSvc, agentSvc, providerSvc, nil, nil, nil)
 	zeroaiWsh := wshutil.MakeWshRpc(wshrpc.RpcContext{}, zeroaiServer, "zeroai")
 	wshutil.DefaultRouter.RegisterTrustedLeaf(zeroaiWsh, "zeroai")
+
+	// Initialize Assistant service
+	assistantInstance := assistant.NewAssistant(agentSvc)
+	assistantServer := assistantrpc.NewWshRpcAssistantServer(assistantInstance)
+	assistantWsh := wshutil.MakeWshRpc(wshrpc.RpcContext{}, assistantServer, "assistant")
+	wshutil.DefaultRouter.RegisterTrustedLeaf(assistantWsh, "assistant")
 }
 
 func grabAndRemoveEnvVars() error {
