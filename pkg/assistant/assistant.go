@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"gopkg.in/yaml.v3"
 	"github.com/wavetermdev/waveterm/pkg/zeroai/service"
 	"github.com/wavetermdev/waveterm/pkg/zeroai/team"
 )
@@ -133,6 +134,48 @@ func (a *Assistant) AddTask(description string) (*team.Task, error) {
 	return task, nil
 }
 
+// TaskYAML represents the YAML format for task definition
+type TaskYAML struct {
+	TaskID    string                 `yaml:"task_id,omitempty"`
+	Description string                `yaml:"description"`
+	Metadata  map[string]interface{} `yaml:"metadata,omitempty"`
+}
+
+// AddTaskFromYAML adds a task from YAML format
+func (a *Assistant) AddTaskFromYAML(yamlData string) (*team.Task, error) {
+	if yamlData == "" {
+		return nil, fmt.Errorf("YAML data cannot be empty")
+	}
+
+	var taskYAML TaskYAML
+	err := yaml.Unmarshal([]byte(yamlData), &taskYAML)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse YAML: %w", err)
+	}
+
+	if taskYAML.Description == "" {
+		return nil, fmt.Errorf("task description is required in YAML")
+	}
+
+	// Allow task_id override? For now, ignore and let store generate
+	task, err := a.taskStore.AddTaskWithMetadata(taskYAML.Description, taskYAML.Metadata)
+	if err != nil {
+		return nil, fmt.Errorf("failed to add task from YAML: %w", err)
+	}
+
+	workerType := ""
+	if taskYAML.Metadata != nil {
+		if wt, ok := taskYAML.Metadata["worker_type"].(string); ok {
+			workerType = wt
+		}
+	}
+
+	log.Printf("[assistant] task added from YAML: %s - %s (worker_type: %s)",
+		task.TaskID, taskYAML.Description, workerType)
+
+	return task, nil
+}
+
 // ListTasks returns all tasks
 func (a *Assistant) ListTasks() ([]*team.Task, error) {
 	return a.taskStore.GetTasks()
@@ -223,8 +266,19 @@ func (a *Assistant) processPendingTasks(ctx context.Context) {
 
 		processedCount++
 
-		// For S01, assign to placeholder agent
+		// For S02, still assign to placeholder agent
+		// In S03, worker_type matching will be implemented
 		agentID := DefaultPlaceholderAgentID
+
+		// Check for worker_type in metadata for future S03 integration
+		workerType := ""
+		if task.Metadata != nil {
+			if wt, ok := task.Metadata["worker_type"].(string); ok {
+				workerType = wt
+				log.Printf("[assistant] task %s has worker_type: %s (matching will be implemented in S03)",
+					task.TaskID, workerType)
+			}
+		}
 
 		err := a.taskStore.AssignTask(task.TaskID, agentID)
 		if err != nil {

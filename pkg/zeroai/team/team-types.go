@@ -120,11 +120,12 @@ const (
 
 // Task represents a work unit assigned to an agent within a team
 type Task struct {
-	TaskID          string     `json:"taskId" db:"task_id"`
-	TeamID          string     `json:"teamId" db:"team_id"`
-	AssignedAgentID string     `json:"assignedAgentId" db:"assigned_agent_id"`
-	Status          TaskStatus `json:"status" db:"status"`
-	Description     string     `json:"description" db:"description"`
-	CreatedAt       int64      `json:"createdAt" db:"created_at"`     // Unix timestamp
-	CompletedAt     int64      `json:"completedAt" db:"completed_at"` // Unix timestamp, 0 if not completed
+	TaskID          string                 `json:"taskId" db:"task_id"`
+	TeamID          string                 `json:"teamId" db:"team_id"`
+	AssignedAgentID string                 `json:"assignedAgentId" db:"assigned_agent_id"`
+	Status          TaskStatus             `json:"status" db:"status"`
+	Description     string                 `json:"description" db:"description"`
+	CreatedAt       int64                  `json:"createdAt" db:"created_at"`     // Unix timestamp
+	CompletedAt     int64                  `json:"completedAt" db:"completed_at"` // Unix timestamp, 0 if not completed
+	Metadata        map[string]interface{} `json:"metadata,omitempty" db:"metadata"`
 }
