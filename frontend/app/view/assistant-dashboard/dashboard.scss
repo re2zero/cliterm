@@ -1,0 +1,163 @@
+// Copyright 2026, Command Line Inc.
+// SPDX-License-Identifier: Apache-2.0
+
+.dashboard-section {
+    // Layout
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+
+    // Spacing
+    & + .dashboard-section {
+        border-top: 1px solid var(--border-color);
+    }
+
+    // Headers
+    h2 {
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--main-text-color);
+        margin: 0;
+    }
+
+    // Status badges
+    .status-badge {
+        font-size: 11px;
+        font-weight: 600;
+        padding: 2px 8px;
+        border-radius: 4px;
+        text-transform: capitalize;
+
+        &.running {
+            background-color: rgba(34, 197, 94, 0.2);
+            color: var(--success-color);
+        }
+
+        &.completed {
+            background-color: rgba(34, 197, 94, 0.2);
+            color: var(--success-color);
+        }
+
+        &.failed {
+            background-color: rgba(239, 68, 68, 0.2);
+            color: var(--error-color);
+        }
+
+        &.in-progress,
+        &.pending {
+            background-color: rgba(251, 191, 36, 0.2);
+            color: var(--warning-color);
+        }
+    }
+
+    // Task cards
+    .task-card {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        padding: 12px;
+        background-color: var(--secondary-bg);
+        border-radius: 6px;
+        transition: background-color 0.2s ease;
+
+        &:hover {
+            background-color: var(--secondary-bg-hover);
+        }
+    }
+
+    // Worker cards
+    .worker-card {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 12px;
+        background-color: var(--secondary-bg);
+        border-radius: 6px;
+    }
+
+    // Grid layouts
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 16px;
+
+        &.stats-grid-2 {
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
+
+    // Auto-refresh toggle
+    .auto-refresh-toggle {
+        position: relative;
+        width: 40px;
+        height: 20px;
+        border-radius: 10px;
+        cursor: pointer;
+        transition: background-color 0.2s ease;
+
+        &.enabled {
+            background-color: var(--accent-color);
+        }
+
+        &.disabled {
+            background-color: var(--button-grey-bg);
+        }
+
+        .toggle-indicator {
+            position: absolute;
+            top: 2px;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background-color: white;
+            transition: transform 0.2s ease;
+
+            .auto-refresh-toggle.enabled & {
+                transform: translateX(20px);
+            }
+
+            .auto-refresh-toggle.disabled & {
+                transform: translateX(2px);
+            }
+        }
+    }
+
+    // Loading and error states
+    .loading-state,
+    .error-state {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 13px;
+
+        &.error-state {
+            color: var(--error-color);
+        }
+
+        &.loading-state {
+            color: var(--secondary-text-color);
+        }
+    }
+
+    // Truncate text utility
+    .truncate-single {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    // Responsive adjustments
+    @media (max-width: 768px) {
+        .stats-grid {
+            grid-template-columns: 1fr;
+            gap: 12px;
+        }
+
+        .task-card,
+        .worker-card {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 8px;
+        }
+    }
+}
