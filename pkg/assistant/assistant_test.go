@@ -1139,7 +1139,7 @@ func TestWorkerManager_StartWorker(t *testing.T) {
 	ctx := context.Background()
 	store := NewInMemoryTaskStore()
 	statusMonitor := NewStatusMonitor(store)
-	manager := NewWorkerManager(statusMonitor)
+	manager := NewWorkerManager(statusMonitor, store)
 
 	// Set mock process manager
 	mockPM := newMockProcessManager()
@@ -1203,7 +1203,7 @@ func TestWorkerManager_StartWorkerAlreadyExists(t *testing.T) {
 	ctx := context.Background()
 	store := NewInMemoryTaskStore()
 	statusMonitor := NewStatusMonitor(store)
-	manager := NewWorkerManager(statusMonitor)
+	manager := NewWorkerManager(statusMonitor, store)
 
 	mockPM := newMockProcessManager()
 	manager.SetProcessManager(mockPM)
@@ -1237,7 +1237,7 @@ func TestWorkerManager_StopWorker(t *testing.T) {
 	ctx := context.Background()
 	store := NewInMemoryTaskStore()
 	statusMonitor := NewStatusMonitor(store)
-	manager := NewWorkerManager(statusMonitor)
+	manager := NewWorkerManager(statusMonitor, store)
 
 	mockPM := newMockProcessManager()
 	manager.SetProcessManager(mockPM)
@@ -1277,7 +1277,7 @@ func TestWorkerManager_StopWorker(t *testing.T) {
 func TestWorkerManager_StopWorkerNotFound(t *testing.T) {
 	store := NewInMemoryTaskStore()
 	statusMonitor := NewStatusMonitor(store)
-	manager := NewWorkerManager(statusMonitor)
+	manager := NewWorkerManager(statusMonitor, store)
 
 	mockPM := newMockProcessManager()
 	manager.SetProcessManager(mockPM)
@@ -1293,7 +1293,7 @@ func TestWorkerManager_ConcurrencyLimit(t *testing.T) {
 	ctx := context.Background()
 	store := NewInMemoryTaskStore()
 	statusMonitor := NewStatusMonitor(store)
-	manager := NewWorkerManager(statusMonitor)
+	manager := NewWorkerManager(statusMonitor, store)
 
 	mockPM := newMockProcessManager()
 	manager.SetProcessManager(mockPM)
@@ -1338,7 +1338,7 @@ func TestWorkerManager_GetWorkerInfo(t *testing.T) {
 	ctx := context.Background()
 	store := NewInMemoryTaskStore()
 	statusMonitor := NewStatusMonitor(store)
-	manager := NewWorkerManager(statusMonitor)
+	manager := NewWorkerManager(statusMonitor, store)
 
 	mockPM := newMockProcessManager()
 	manager.SetProcessManager(mockPM)
@@ -1383,7 +1383,7 @@ func TestWorkerManager_GetWorkerInfo(t *testing.T) {
 func TestWorkerManager_GetWorkerInfoNotFound(t *testing.T) {
 	store := NewInMemoryTaskStore()
 	statusMonitor := NewStatusMonitor(store)
-	manager := NewWorkerManager(statusMonitor)
+	manager := NewWorkerManager(statusMonitor, store)
 
 	// Get info for non-existent worker
 	_, err := manager.GetWorkerInfo("non-existent")
@@ -1396,7 +1396,7 @@ func TestWorkerManager_ListWorkers(t *testing.T) {
 	ctx := context.Background()
 	store := NewInMemoryTaskStore()
 	statusMonitor := NewStatusMonitor(store)
-	manager := NewWorkerManager(statusMonitor)
+	manager := NewWorkerManager(statusMonitor, store)
 
 	mockPM := newMockProcessManager()
 	manager.SetProcessManager(mockPM)
@@ -1441,7 +1441,7 @@ func TestWorkerManager_ListWorkers(t *testing.T) {
 func TestWorkerManager_ListWorkersEmpty(t *testing.T) {
 	store := NewInMemoryTaskStore()
 	statusMonitor := NewStatusMonitor(store)
-	manager := NewWorkerManager(statusMonitor)
+	manager := NewWorkerManager(statusMonitor, store)
 
 	// List workers when none exist
 	workers := manager.ListWorkers()
@@ -1455,7 +1455,7 @@ func TestWorkerManager_SetBlockID(t *testing.T) {
 	ctx := context.Background()
 	store := NewInMemoryTaskStore()
 	statusMonitor := NewStatusMonitor(store)
-	manager := NewWorkerManager(statusMonitor)
+	manager := NewWorkerManager(statusMonitor, store)
 
 	mockPM := newMockProcessManager()
 	manager.SetProcessManager(mockPM)
@@ -1483,7 +1483,7 @@ func TestWorkerManager_DifferentWorkerTypes(t *testing.T) {
 	ctx := context.Background()
 	store := NewInMemoryTaskStore()
 	statusMonitor := NewStatusMonitor(store)
-	manager := NewWorkerManager(statusMonitor)
+	manager := NewWorkerManager(statusMonitor, store)
 
 	mockPM := newMockProcessManager()
 	manager.SetProcessManager(mockPM)

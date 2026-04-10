@@ -39,7 +39,7 @@ type Assistant struct {
 func NewAssistant(agentSvc *service.AgentService) *Assistant {
 	taskStore := NewInMemoryTaskStore()
 	statusMonitor := NewStatusMonitor(taskStore)
-	workerManager := NewWorkerManager(statusMonitor)
+	workerManager := NewWorkerManager(statusMonitor, taskStore)
 
 	return &Assistant{
 		taskStore:     taskStore,
