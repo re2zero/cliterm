@@ -28,6 +28,8 @@ type Assistant struct {
 	running       bool
 	taskStore     TaskStore
 	agentService  *service.AgentService
+	workerManager *WorkerManager
+	statusMonitor *StatusMonitor
 	stopCh        chan struct{}
 	ticker        *time.Ticker
 	tickerStopped chan struct{}
@@ -35,9 +37,15 @@ type Assistant struct {
 
 // NewAssistant creates a new Assistant instance
 func NewAssistant(agentSvc *service.AgentService) *Assistant {
+	taskStore := NewInMemoryTaskStore()
+	statusMonitor := NewStatusMonitor(taskStore)
+	workerManager := NewWorkerManager(statusMonitor)
+
 	return &Assistant{
-		taskStore:     NewInMemoryTaskStore(),
+		taskStore:     taskStore,
 		agentService:  agentSvc,
+		workerManager: workerManager,
+		statusMonitor: statusMonitor,
 		stopCh:        nil, // Created on Start
 		ticker:        nil, // Created on Start
 		tickerStopped: nil, // Created on Start
@@ -57,6 +65,11 @@ func (a *Assistant) Start(ctx context.Context) error {
 	a.stopCh = make(chan struct{})
 	a.tickerStopped = make(chan struct{})
 	a.running = true
+
+	// Start status monitor for polling worker status files
+	if err := a.statusMonitor.Start(ctx); err != nil {
+		log.Printf("[assistant] warning: failed to start status monitor: %v", err)
+	}
 
 	// Start ticker goroutine
 	a.ticker = time.NewTicker(TickerInterval)
@@ -84,6 +97,14 @@ func (a *Assistant) Stop() error {
 	}
 
 	a.running = false
+
+	// Stop status monitor
+	if err := a.statusMonitor.Stop(); err != nil {
+		log.Printf("[assistant] warning: failed to stop status monitor: %v", err)
+	}
+
+	// Stop all active workers
+	a.stopAllWorkers()
 
 	// Capture references before unlocking
 	tickerStopped := a.tickerStopped
@@ -117,6 +138,26 @@ func (a *Assistant) IsRunning() bool {
 	defer a.mu.RUnlock()
 
 	return a.running
+}
+
+// StartMonitor starts the status monitor (can be called externally)
+func (a *Assistant) StartMonitor(ctx context.Context) error {
+	return a.statusMonitor.Start(ctx)
+}
+
+// StopMonitor stops the status monitor (can be called externally)
+func (a *Assistant) StopMonitor() error {
+	return a.statusMonitor.Stop()
+}
+
+// stopAllWorkers stops all active workers
+func (a *Assistant) stopAllWorkers() {
+	workers := a.workerManager.ListWorkers()
+	for _, worker := range workers {
+		if err := a.workerManager.StopWorker(worker.TaskID); err != nil {
+			log.Printf("[assistant] warning: failed to stop worker %s: %v", worker.TaskID, err)
+		}
+	}
 }
 
 // AddTask adds a new task to the assistant
@@ -266,28 +307,60 @@ func (a *Assistant) processPendingTasks(ctx context.Context) {
 
 		processedCount++
 
-		// For S02, still assign to placeholder agent
-		// In S03, worker_type matching will be implemented
-		agentID := DefaultPlaceholderAgentID
-
-		// Check for worker_type in metadata for future S03 integration
+		// Check for worker_type in metadata
 		workerType := ""
+		taskHasWorkerType := false
 		if task.Metadata != nil {
-			if wt, ok := task.Metadata["worker_type"].(string); ok {
+			if wt, ok := task.Metadata["worker_type"].(string); ok && wt != "" {
 				workerType = wt
-				log.Printf("[assistant] task %s has worker_type: %s (matching will be implemented in S03)",
+				taskHasWorkerType = true
+				log.Printf("[assistant] task %s has worker_type: %s, starting worker",
 					task.TaskID, workerType)
 			}
 		}
 
-		err := a.taskStore.AssignTask(task.TaskID, agentID)
-		if err != nil {
-			log.Printf("[assistant] failed to assign task %s: %v", task.TaskID, err)
-			continue
-		}
+		var err error
 
-		assignedCount++
-		log.Printf("[assistant] task assigned: %s -> %s", task.TaskID, agentID)
+		if taskHasWorkerType {
+			// Use WorkerManager to spawn a worker
+			workerInfo, err := a.workerManager.StartWorker(ctx, task.TaskID, workerType)
+			if err != nil {
+				log.Printf("[assistant] failed to start worker for task %s: %v", task.TaskID, err)
+				continue
+			}
+
+			// Update task status to in_progress
+			if err := a.taskStore.UpdateTaskStatus(task.TaskID, team.TaskStatusInProgress); err != nil {
+				log.Printf("[assistant] failed to update task %s status: %v", task.TaskID, err)
+				continue
+			}
+
+			// Store worker ID in task metadata
+			if task.Metadata == nil {
+				task.Metadata = make(map[string]interface{})
+			}
+			task.Metadata["worker_id"] = workerInfo.TaskID
+
+			if workerInfo.BlockID != "" {
+				task.Metadata["block_id"] = workerInfo.BlockID
+			}
+
+			assignedCount++
+			log.Printf("[assistant] task %s worker started (pid: %d)",
+				task.TaskID, workerInfo.PID)
+		} else {
+			// Fall back to placeholder agent assignment (backward compatibility)
+			agentID := DefaultPlaceholderAgentID
+			err = a.taskStore.AssignTask(task.TaskID, agentID)
+
+			if err != nil {
+				log.Printf("[assistant] failed to assign task %s: %v", task.TaskID, err)
+				continue
+			}
+
+			assignedCount++
+			log.Printf("[assistant] task assigned: %s -> %s (placeholder)", task.TaskID, agentID)
+		}
 	}
 
 	if processedCount > 0 {
