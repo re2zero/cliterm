@@ -194,8 +194,13 @@ func (wm *WorkerManager) StartWorker(ctx context.Context, taskID string, workerT
 
 	// Note: We skip block spawning in S03 to keep it simple
 	// Blocks will be spawned in future slices when Dashboard is implemented
-	log.Printf("[worker-manager] worker started for task %s (worker_type: %s, pid: %d)",
-		taskID, workerType, agentProc.Command.Process.Pid)
+	if agentProc.Command != nil && agentProc.Command.Process != nil {
+		log.Printf("[worker-manager] worker started for task %s (worker_type: %s, pid: %d)",
+			taskID, workerType, agentProc.Command.Process.Pid)
+	} else {
+		log.Printf("[worker-manager] worker started for task %s (worker_type: %s)",
+			taskID, workerType)
+	}
 
 	// Create worker info
 	processInfo := wm.processManager.GetProcessInfo(agentProc)
@@ -229,8 +234,19 @@ func (wm *WorkerManager) StopWorker(workerID string) error {
 		log.Printf("[worker-manager] warning: failed to kill worker %s: %v", workerID, err)
 	}
 
-	// Wait for process to finish
-	_ = agentProc.Wait()
+	// Wait for process to finish (with timeout for safety)
+	done := make(chan error, 1)
+	go func() {
+		done <- agentProc.Wait()
+	}()
+	select {
+	case <-time.After(1 * time.Second):
+		log.Printf("[worker-manager] warning: timeout waiting for worker %s to exit", workerID)
+	case err := <-done:
+		if err != nil {
+			log.Printf("[worker-manager] worker %s exited with error: %v", workerID, err)
+		}
+	}
 
 	// Destroy agent block if exists
 	if metadata != nil && metadata.BlockID != "" && wm.blockManager != nil {

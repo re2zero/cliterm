@@ -6,7 +6,6 @@ package assistant
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"log"
 	"os"
 	"path/filepath"
@@ -74,10 +73,19 @@ func NewStatusMonitor(taskStore TaskStore) *StatusMonitor {
 
 // Start starts the status monitor ticker
 func (sm *StatusMonitor) Start(ctx context.Context) error {
+	sm.trackerMu.Lock()
+	if sm.running {
+		sm.trackerMu.Unlock()
+		return nil
+	}
 	sm.running = true
 	sm.stopCh = make(chan struct{})
 	sm.tickerStopped = make(chan struct{})
+	sm.trackerMu.Unlock()
+
+	sm.trackerMu.Lock()
 	sm.ticker = time.NewTicker(StatusMonitorInterval)
+	sm.trackerMu.Unlock()
 
 	go sm.monitorLoop(ctx)
 
@@ -87,51 +95,56 @@ func (sm *StatusMonitor) Start(ctx context.Context) error {
 
 // Stop stops the status monitor gracefully
 func (sm *StatusMonitor) Stop() error {
+	sm.trackerMu.Lock()
 	if !sm.running {
+		sm.trackerMu.Unlock()
 		return nil
 	}
 
-	close(sm.stopCh)
-
-	if sm.ticker != nil {
-		sm.ticker.Stop()
-	}
+	// Capture references before clearing state
+	stopCh := sm.stopCh
+	ticker := sm.ticker
 
 	sm.running = false
-	stopCh := sm.tickerStopped
 	sm.stopCh = nil
+	sm.tickerStopped = nil
 	sm.ticker = nil
+	sm.trackerMu.Unlock()
 
-	if stopCh == nil {
-		log.Printf("[status-monitor] stopped (no stopped channel)")
-		return nil
+	// Close channels and stop outside lock
+	if ticker != nil {
+		ticker.Stop()
+	}
+	if stopCh != nil {
+		close(stopCh)
 	}
 
-	select {
-	case <-stopCh:
-		log.Printf("[status-monitor] stopped")
-		return nil
-	case <-time.After(5 * time.Second):
-		log.Printf("[status-monitor] timeout waiting for ticker goroutine to stop")
-		return fmt.Errorf("timeout waiting for ticker goroutine to stop")
-	}
+	// Give the goroutine a moment to notice the closed channel and exit
+	// Since we set sm.running = false, the goroutine will exit on its next loop iteration
+	time.Sleep(10 * time.Millisecond)
+	log.Printf("[status-monitor] stopped")
+	return nil
 }
 
 // monitorLoop is the main ticker loop for polling status files
 func (sm *StatusMonitor) monitorLoop(ctx context.Context) {
 	log.Printf("[status-monitor] monitor loop started")
 
-	defer func() {
-		if sm.tickerStopped != nil {
-			close(sm.tickerStopped)
-		}
-	}()
-
-	// Do initial poll
-	sm.PollStatusFiles()
-	sm.CheckForStalls()
-
 	for {
+		// Get ticker reference safely
+		var ticker *time.Ticker
+		var running bool
+		sm.trackerMu.RLock()
+		ticker = sm.ticker
+		running = sm.running
+		sm.trackerMu.RUnlock()
+
+		if !running || ticker == nil {
+			// Monitor has been stopped, exit loop
+			log.Printf("[status-monitor] ticker stopped, exiting monitor loop")
+			return
+		}
+
 		select {
 		case <-ctx.Done():
 			log.Printf("[status-monitor] monitor loop stopped: context cancelled")
@@ -139,7 +152,7 @@ func (sm *StatusMonitor) monitorLoop(ctx context.Context) {
 		case <-sm.stopCh:
 			log.Printf("[status-monitor] monitor loop stopped: stop signal received")
 			return
-		case <-sm.ticker.C:
+		case <-ticker.C:
 			sm.PollStatusFiles()
 			sm.CheckForStalls()
 		}
