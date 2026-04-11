@@ -52,6 +52,8 @@ import (
 	zeroairpc "github.com/wavetermdev/waveterm/pkg/zeroai/rpc"
 	zeroaiservice "github.com/wavetermdev/waveterm/pkg/zeroai/service"
 	"github.com/wavetermdev/waveterm/pkg/zeroai/store"
+	"github.com/wavetermdev/waveterm/pkg/agentregistry"
+	agentregistryrpc "github.com/wavetermdev/waveterm/pkg/agentregistry/rpc"
 
 	"net/http"
 	_ "net/http/pprof"
@@ -425,6 +427,17 @@ func createMainWshClient() {
 	assistantServer := assistantrpc.NewWshRpcAssistantServer(assistantInstance)
 	assistantWsh := wshutil.MakeWshRpc(wshrpc.RpcContext{}, assistantServer, "assistant")
 	wshutil.DefaultRouter.RegisterTrustedLeaf(assistantWsh, "assistant")
+
+	// Initialize AgentRegistry service
+	err := agentregistry.InitAgentStore()
+	if err != nil {
+		log.Printf("[error] initializing agent registry store: %v", err)
+	}
+	agentStore := agentregistry.NewAgentStore()
+	agentRegistry := agentregistry.NewAgentRegistry(agentStore)
+	agentRegistryServer := agentregistryrpc.NewWshRpcAgentRegistryServer(agentRegistry)
+	agentRegistryWsh := wshutil.MakeWshRpc(wshrpc.RpcContext{}, agentRegistryServer, "agentregistry")
+	wshutil.DefaultRouter.RegisterTrustedLeaf(agentRegistryWsh, "agentregistry")
 }
 
 func grabAndRemoveEnvVars() error {

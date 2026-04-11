@@ -127,6 +127,13 @@ type WshRpcInterface interface {
 	AssistantAddTaskCommand(ctx context.Context, data CommandAssistantAddTaskData) (CommandAssistantAddTaskRtnData, error)
 	AssistantListTasksCommand(ctx context.Context, data CommandAssistantListTasksData) (CommandAssistantListTasksRtnData, error)
 
+	// AgentRegistry commands
+	AgentRegisterCommand(ctx context.Context, data CommandAgentRegisterData) (CommandAgentRegisterRtnData, error)
+	AgentGetCommand(ctx context.Context, data CommandAgentGetData) (CommandAgentGetRtnData, error)
+	AgentListCommand(ctx context.Context, data CommandAgentListData) (CommandAgentListRtnData, error)
+	AgentUpdateCommand(ctx context.Context, data CommandAgentUpdateData) (CommandAgentUpdateRtnData, error)
+	AgentDeleteCommand(ctx context.Context, data CommandAgentDeleteData) error
+
 	// ZeroAI Provider commands
 	ZeroAiListProvidersCommand(ctx context.Context, data CommandZeroAiListProvidersData) (CommandZeroAiListProvidersRtnData, error)
 	ZeroAiSaveProviderCommand(ctx context.Context, data CommandZeroAiSaveProviderData) error
@@ -1155,4 +1162,78 @@ type AssistantTaskInfo struct {
 	Status          string `json:"status"`
 	AssignedAgentID string `json:"assignedAgentId,omitempty"`
 	CreatedAt       int64  `json:"createdAt"`
+}
+
+// AgentRegistry RPC request/response types
+
+type CommandAgentRegisterData struct {
+	Name           string         `json:"name"`
+	Role           string         `json:"role"`
+	Soul           string         `json:"soul,omitempty"`
+	Skills         []string       `json:"skills,omitempty"`
+	MCPConnections []MCPConnection `json:"mcpConnections,omitempty"`
+	Config         map[string]any `json:"config,omitempty"`
+	Enabled        bool           `json:"enabled"`
+}
+
+type CommandAgentRegisterRtnData struct {
+	ID string `json:"id"`
+}
+
+type CommandAgentGetData struct {
+	ID string `json:"id"`
+}
+
+type CommandAgentGetRtnData struct {
+	Agent Agent `json:"agent"`
+}
+
+type CommandAgentListData struct {
+	Enabled *bool  `json:"enabled,omitempty"`
+	Role    string `json:"role,omitempty"`
+	Limit   int    `json:"limit,omitempty"`
+	Offset  int    `json:"offset,omitempty"`
+}
+
+type CommandAgentListRtnData struct {
+	Agents []Agent `json:"agents"`
+}
+
+type CommandAgentUpdateData struct {
+	ID             string         `json:"id"`
+	Name           string         `json:"name"`
+	Role           string         `json:"role"`
+	Soul           string         `json:"soul,omitempty"`
+	Skills         []string       `json:"skills,omitempty"`
+	MCPConnections []MCPConnection `json:"mcpConnections,omitempty"`
+	Config         map[string]any `json:"config,omitempty"`
+	Enabled        bool           `json:"enabled"`
+}
+
+type CommandAgentUpdateRtnData struct {
+	ID string `json:"id"`
+}
+
+type CommandAgentDeleteData struct {
+	ID string `json:"id"`
+}
+
+// AgentRegistry types
+
+type Agent struct {
+	ID             string           `json:"id"`
+	Name           string           `json:"name"`
+	Role           string           `json:"role"`
+	Soul           string           `json:"soul,omitempty"`
+	Skills         []string         `json:"skills,omitempty"`
+	MCPConnections []MCPConnection  `json:"mcpConnections,omitempty"`
+	Config         map[string]any   `json:"config,omitempty"`
+	Enabled        bool             `json:"enabled"`
+	CreatedAt      int64            `json:"createdAt"`
+	UpdatedAt      int64            `json:"updatedAt"`
+}
+
+type MCPConnection struct {
+	ServerName string         `json:"serverName"`
+	Config     map[string]any `json:"config,omitempty"`
 }

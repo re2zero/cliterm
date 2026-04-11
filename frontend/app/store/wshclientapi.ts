@@ -24,6 +24,36 @@ export class RpcApiType {
         return client.wshRpcCall("activity", data, opts);
     }
 
+    // command "agentdelete" [call]
+    AgentDeleteCommand(client: WshClient, data: CommandAgentDeleteData, opts?: RpcOpts): Promise<void> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "agentdelete", data, opts);
+        return client.wshRpcCall("agentdelete", data, opts);
+    }
+
+    // command "agentget" [call]
+    AgentGetCommand(client: WshClient, data: CommandAgentGetData, opts?: RpcOpts): Promise<CommandAgentGetRtnData> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "agentget", data, opts);
+        return client.wshRpcCall("agentget", data, opts);
+    }
+
+    // command "agentlist" [call]
+    AgentListCommand(client: WshClient, data: CommandAgentListData, opts?: RpcOpts): Promise<CommandAgentListRtnData> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "agentlist", data, opts);
+        return client.wshRpcCall("agentlist", data, opts);
+    }
+
+    // command "agentregister" [call]
+    AgentRegisterCommand(client: WshClient, data: CommandAgentRegisterData, opts?: RpcOpts): Promise<CommandAgentRegisterRtnData> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "agentregister", data, opts);
+        return client.wshRpcCall("agentregister", data, opts);
+    }
+
+    // command "agentupdate" [call]
+    AgentUpdateCommand(client: WshClient, data: CommandAgentUpdateData, opts?: RpcOpts): Promise<CommandAgentUpdateRtnData> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "agentupdate", data, opts);
+        return client.wshRpcCall("agentupdate", data, opts);
+    }
+
     // command "aisendmessage" [call]
     AiSendMessageCommand(client: WshClient, data: AiMessageData, opts?: RpcOpts): Promise<void> {
         if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "aisendmessage", data, opts);

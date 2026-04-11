@@ -80,6 +80,20 @@ declare global {
         conn?: {[key: string]: number};
     };
 
+    // wshrpc.Agent
+    type Agent = {
+        id: string;
+        name: string;
+        role: string;
+        soul?: string;
+        skills?: string[];
+        mcpConnections?: MCPConnection[];
+        config?: {[key: string]: any};
+        enabled: boolean;
+        createdAt: number;
+        updatedAt: number;
+    };
+
     // agent.AgentSession
     type AgentSession = {
         id: string;
@@ -255,6 +269,67 @@ declare global {
     type CloseTabRtnType = {
         closewindow?: boolean;
         newactivetabid?: string;
+    };
+
+    // wshrpc.CommandAgentDeleteData
+    type CommandAgentDeleteData = {
+        id: string;
+    };
+
+    // wshrpc.CommandAgentGetData
+    type CommandAgentGetData = {
+        id: string;
+    };
+
+    // wshrpc.CommandAgentGetRtnData
+    type CommandAgentGetRtnData = {
+        agent: Agent;
+    };
+
+    // wshrpc.CommandAgentListData
+    type CommandAgentListData = {
+        enabled?: boolean;
+        role?: string;
+        limit?: number;
+        offset?: number;
+    };
+
+    // wshrpc.CommandAgentListRtnData
+    type CommandAgentListRtnData = {
+        agents: Agent[];
+    };
+
+    // wshrpc.CommandAgentRegisterData
+    type CommandAgentRegisterData = {
+        name: string;
+        role: string;
+        soul?: string;
+        skills?: string[];
+        mcpConnections?: MCPConnection[];
+        config?: {[key: string]: any};
+        enabled: boolean;
+    };
+
+    // wshrpc.CommandAgentRegisterRtnData
+    type CommandAgentRegisterRtnData = {
+        id: string;
+    };
+
+    // wshrpc.CommandAgentUpdateData
+    type CommandAgentUpdateData = {
+        id: string;
+        name: string;
+        role: string;
+        soul?: string;
+        skills?: string[];
+        mcpConnections?: MCPConnection[];
+        config?: {[key: string]: any};
+        enabled: boolean;
+    };
+
+    // wshrpc.CommandAgentUpdateRtnData
+    type CommandAgentUpdateRtnData = {
+        id: string;
     };
 
     // wshrpc.CommandAssistantAddTaskData
@@ -1402,6 +1477,12 @@ declare global {
     type LeafOrderEntry = {
         nodeid: string;
         blockid: string;
+    };
+
+    // wshrpc.MCPConnection
+    type MCPConnection = {
+        serverName: string;
+        config?: {[key: string]: any};
     };
 
     // messageservice.Message

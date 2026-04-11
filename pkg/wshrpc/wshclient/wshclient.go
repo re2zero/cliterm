@@ -23,6 +23,36 @@ func ActivityCommand(w *wshutil.WshRpc, data wshrpc.ActivityUpdate, opts *wshrpc
 	return err
 }
 
+// command "agentdelete", wshserver.AgentDeleteCommand
+func AgentDeleteCommand(w *wshutil.WshRpc, data wshrpc.CommandAgentDeleteData, opts *wshrpc.RpcOpts) error {
+	_, err := sendRpcRequestCallHelper[any](w, "agentdelete", data, opts)
+	return err
+}
+
+// command "agentget", wshserver.AgentGetCommand
+func AgentGetCommand(w *wshutil.WshRpc, data wshrpc.CommandAgentGetData, opts *wshrpc.RpcOpts) (wshrpc.CommandAgentGetRtnData, error) {
+	resp, err := sendRpcRequestCallHelper[wshrpc.CommandAgentGetRtnData](w, "agentget", data, opts)
+	return resp, err
+}
+
+// command "agentlist", wshserver.AgentListCommand
+func AgentListCommand(w *wshutil.WshRpc, data wshrpc.CommandAgentListData, opts *wshrpc.RpcOpts) (wshrpc.CommandAgentListRtnData, error) {
+	resp, err := sendRpcRequestCallHelper[wshrpc.CommandAgentListRtnData](w, "agentlist", data, opts)
+	return resp, err
+}
+
+// command "agentregister", wshserver.AgentRegisterCommand
+func AgentRegisterCommand(w *wshutil.WshRpc, data wshrpc.CommandAgentRegisterData, opts *wshrpc.RpcOpts) (wshrpc.CommandAgentRegisterRtnData, error) {
+	resp, err := sendRpcRequestCallHelper[wshrpc.CommandAgentRegisterRtnData](w, "agentregister", data, opts)
+	return resp, err
+}
+
+// command "agentupdate", wshserver.AgentUpdateCommand
+func AgentUpdateCommand(w *wshutil.WshRpc, data wshrpc.CommandAgentUpdateData, opts *wshrpc.RpcOpts) (wshrpc.CommandAgentUpdateRtnData, error) {
+	resp, err := sendRpcRequestCallHelper[wshrpc.CommandAgentUpdateRtnData](w, "agentupdate", data, opts)
+	return resp, err
+}
+
 // command "aisendmessage", wshserver.AiSendMessageCommand
 func AiSendMessageCommand(w *wshutil.WshRpc, data wshrpc.AiMessageData, opts *wshrpc.RpcOpts) error {
 	_, err := sendRpcRequestCallHelper[any](w, "aisendmessage", data, opts)
