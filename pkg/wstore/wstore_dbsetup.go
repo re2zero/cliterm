@@ -25,6 +25,11 @@ type TxWrap = txwrap.TxWrap
 
 var globalDB *sqlx.DB
 
+// SetTestDB sets a test database for use in tests
+func SetTestDB(db *sqlx.DB) {
+	globalDB = db
+}
+
 func InitWStore() error {
 	ctx, cancelFn := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancelFn()
