@@ -22,29 +22,31 @@ const (
 )
 
 const (
-	OType_Client      = "client"
-	OType_Window      = "window"
-	OType_Workspace   = "workspace"
-	OType_Tab         = "tab"
-	OType_LayoutState = "layout"
-	OType_Block       = "block"
-	OType_MainServer  = "mainserver"
-	OType_Job         = "job"
-	OType_Temp        = "temp"
-	OType_Builder     = "builder" // not persisted to DB
+	OType_Client         = "client"
+	OType_Window         = "window"
+	OType_Workspace      = "workspace"
+	OType_Tab            = "tab"
+	OType_LayoutState    = "layout"
+	OType_Block          = "block"
+	OType_MainServer     = "mainserver"
+	OType_Job            = "job"
+	OType_Temp           = "temp"
+	OType_Builder        = "builder"    // not persisted to DB
+	OType_ScheduledTask  = "scheduledtask"
 )
 
 var ValidOTypes = map[string]bool{
-	OType_Client:      true,
-	OType_Window:      true,
-	OType_Workspace:   true,
-	OType_Tab:         true,
-	OType_LayoutState: true,
-	OType_Block:       true,
-	OType_MainServer:  true,
-	OType_Job:         true,
-	OType_Temp:        true,
-	OType_Builder:     true,
+	OType_Client:        true,
+	OType_Window:        true,
+	OType_Workspace:     true,
+	OType_Tab:           true,
+	OType_LayoutState:   true,
+	OType_Block:         true,
+	OType_MainServer:    true,
+	OType_Job:           true,
+	OType_Temp:          true,
+	OType_Builder:       true,
+	OType_ScheduledTask: true,
 }
 
 type WaveObjUpdate struct {
@@ -354,6 +356,23 @@ func (*Job) GetOType() string {
 	return OType_Job
 }
 
+type ScheduledTask struct {
+	OID       string      `json:"oid"`
+	Version   int         `json:"version"`
+	TaskYAML  string      `json:"taskyaml"`  // YAML content for the task to execute
+	NextRun   int64       `json:"nextrun"`   // Unix milliseconds when task should next run
+	Status    string      `json:"status"`    // pending, scheduled, running, completed, missed
+	Pattern   string      `json:"pattern"`   // Recurrence pattern: once, daily, hourly, weekly
+	ExecCount int         `json:"execcount"` // Number of times task has been executed
+	MaxExecs  int         `json:"maxexecs"`  // Maximum executions (0 for unlimited)
+	LastRun   int64       `json:"lastrun"`   // Last execution timestamp in milliseconds
+	Meta      MetaMapType `json:"meta"`
+}
+
+func (*ScheduledTask) GetOType() string {
+	return OType_ScheduledTask
+}
+
 func AllWaveObjTypes() []reflect.Type {
 	return []reflect.Type{
 		reflect.TypeOf(&Client{}),
@@ -364,6 +383,7 @@ func AllWaveObjTypes() []reflect.Type {
 		reflect.TypeOf(&LayoutState{}),
 		reflect.TypeOf(&MainServer{}),
 		reflect.TypeOf(&Job{}),
+		reflect.TypeOf(&ScheduledTask{}),
 	}
 }
 
