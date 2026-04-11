@@ -129,3 +129,46 @@ func (as *WshRpcAssistantServer) AssistantListTasksCommand(ctx context.Context, 
 		Tasks: result,
 	}, nil
 }
+
+func (as *WshRpcAssistantServer) AssistantForwardAgentMessageCommand(ctx context.Context, data wshrpc.CommandForwardAgentMessageData) (wshrpc.CommandForwardAgentMessageRtnData, error) {
+	defer func() {
+		panichandler.PanicHandler("AssistantForwardAgentMessageCommand", recover())
+	}()
+
+	// Validate input
+	if data.From == "" {
+		log.Printf("[assistant rpc error] ForwardAgentMessage: empty from agent")
+		return wshrpc.CommandForwardAgentMessageRtnData{}, fmt.Errorf("from agent cannot be empty")
+	}
+	if data.To == "" {
+		log.Printf("[assistant rpc error] ForwardAgentMessage: empty to agent")
+		return wshrpc.CommandForwardAgentMessageRtnData{}, fmt.Errorf("to agent cannot be empty")
+	}
+	if data.Content == "" {
+		log.Printf("[assistant rpc error] ForwardAgentMessage: empty content")
+		return wshrpc.CommandForwardAgentMessageRtnData{}, fmt.Errorf("message content cannot be empty")
+	}
+
+	// Call Assistant's ForwardAgentMessage method
+	success, message, warning, err := as.assistant.ForwardAgentMessage(ctx, data.From, data.To, data.Content)
+	if err != nil {
+		log.Printf("[assistant rpc error] ForwardAgentMessage: from=%s to=%s error=%v", data.From, data.To, err)
+		if containsAgentNotFoundError(err) {
+			return wshrpc.CommandForwardAgentMessageRtnData{}, fmt.Errorf("agent not found: %w (404)", err)
+		}
+		return wshrpc.CommandForwardAgentMessageRtnData{}, fmt.Errorf("failed to forward message: %w", err)
+	}
+
+	log.Printf("[assistant rpc] ForwardAgentMessage: from=%s to=%s success", data.From, data.To)
+
+	return wshrpc.CommandForwardAgentMessageRtnData{
+		Success: success,
+		Message: message,
+		Warning: warning,
+	}, nil
+}
+
+// containsAgentNotFoundError checks if error is an agent not found error
+func containsAgentNotFoundError(err error) bool {
+	return err != nil && (err.Error() == "agent not found" || err.Error() == "recipient agent not found")
+}

@@ -65,6 +65,12 @@ func AssistantAddTaskCommand(w *wshutil.WshRpc, data wshrpc.CommandAssistantAddT
 	return resp, err
 }
 
+// command "assistantforwardagentmessage", wshserver.AssistantForwardAgentMessageCommand
+func AssistantForwardAgentMessageCommand(w *wshutil.WshRpc, data wshrpc.CommandForwardAgentMessageData, opts *wshrpc.RpcOpts) (wshrpc.CommandForwardAgentMessageRtnData, error) {
+	resp, err := sendRpcRequestCallHelper[wshrpc.CommandForwardAgentMessageRtnData](w, "assistantforwardagentmessage", data, opts)
+	return resp, err
+}
+
 // command "assistantlisttasks", wshserver.AssistantListTasksCommand
 func AssistantListTasksCommand(w *wshutil.WshRpc, data wshrpc.CommandAssistantListTasksData, opts *wshrpc.RpcOpts) (wshrpc.CommandAssistantListTasksRtnData, error) {
 	resp, err := sendRpcRequestCallHelper[wshrpc.CommandAssistantListTasksRtnData](w, "assistantlisttasks", data, opts)

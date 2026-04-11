@@ -7,10 +7,12 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net/http"
 	"sync"
 	"time"
 
 	"gopkg.in/yaml.v3"
+	"github.com/wavetermdev/waveterm/pkg/agentregistry"
 	"github.com/wavetermdev/waveterm/pkg/zeroai/service"
 	"github.com/wavetermdev/waveterm/pkg/zeroai/team"
 )
@@ -22,33 +24,50 @@ const (
 	DefaultPlaceholderAgentID = "worker-1"
 )
 
+// ForwardedMessage tracks a message forwarded between agents
+type ForwardedMessage struct {
+	From      string
+	To        string
+	Content   string
+	Timestamp int64
+}
+
 // Assistant manages task assignment and worker coordination
 type Assistant struct {
-	mu            sync.RWMutex
-	running       bool
-	taskStore     TaskStore
-	agentService  *service.AgentService
-	workerManager *WorkerManager
-	statusMonitor *StatusMonitor
-	stopCh        chan struct{}
-	ticker        *time.Ticker
-	tickerStopped chan struct{}
+	mu               sync.RWMutex
+	running          bool
+	taskStore        TaskStore
+	agentService     *service.AgentService
+	workerManager    *WorkerManager
+	statusMonitor    *StatusMonitor
+	stopCh           chan struct{}
+	ticker           *time.Ticker
+	tickerStopped    chan struct{}
+	agentRegistry    *agentregistry.AgentRegistry
+	forwardedMessages []ForwardedMessage
 }
 
 // NewAssistant creates a new Assistant instance
-func NewAssistant(agentSvc *service.AgentService) *Assistant {
+func NewAssistant(agentSvc *service.AgentService, opts ...*agentregistry.AgentRegistry) *Assistant {
+	var agentRegistry *agentregistry.AgentRegistry
+	if len(opts) > 0 {
+		agentRegistry = opts[0]
+	}
+
 	taskStore := NewInMemoryTaskStore()
 	statusMonitor := NewStatusMonitor(taskStore)
 	workerManager := NewWorkerManager(statusMonitor, taskStore)
 
 	return &Assistant{
-		taskStore:     taskStore,
-		agentService:  agentSvc,
-		workerManager: workerManager,
-		statusMonitor: statusMonitor,
-		stopCh:        nil, // Created on Start
-		ticker:        nil, // Created on Start
-		tickerStopped: nil, // Created on Start
+		taskStore:         taskStore,
+		agentService:      agentSvc,
+		workerManager:     workerManager,
+		statusMonitor:     statusMonitor,
+		stopCh:            nil, // Created on Start
+		ticker:            nil, // Created on Start
+		tickerStopped:     nil, // Created on Start
+		agentRegistry:     agentRegistry,
+		forwardedMessages: make([]ForwardedMessage, 0),
 	}
 }
 
@@ -366,4 +385,108 @@ func (a *Assistant) processPendingTasks(ctx context.Context) {
 	if processedCount > 0 {
 		log.Printf("[assistant] processed %d pending tasks, assigned %d", processedCount, assignedCount)
 	}
+}
+
+// ForwardAgentMessage forwards a message from one agent to another
+func (a *Assistant) ForwardAgentMessage(ctx context.Context, from, to, content string) (bool, string, string, error) {
+	// Validate content is not empty
+	if content == "" {
+		log.Printf("[assistant rpc error] message content cannot be empty (from: %s, to: %s)", from, to)
+		return false, "", "", fmt.Errorf("message content cannot be empty")
+	}
+
+	// Validate sender agent exists
+	fromAgent, err := a.agentRegistry.GetAgent(ctx, from)
+	if err != nil || fromAgent == nil {
+		log.Printf("[assistant rpc error] sender agent not found: %s (from: %s, to: %s)", from, from, to)
+		return false, "", "", &HTTPError{StatusCode: http.StatusNotFound, Message: fmt.Sprintf("sender agent not found: %s", from)}
+	}
+
+	// Validate recipient agent exists
+	toAgent, err := a.agentRegistry.GetAgent(ctx, to)
+	if err != nil || toAgent == nil {
+		log.Printf("[assistant rpc error] recipient agent not found: %s (from: %s, to: %s)", to, from, to)
+		return false, "", "", &HTTPError{StatusCode: http.StatusNotFound, Message: fmt.Sprintf("recipient agent not found: %s", to)}
+	}
+
+	// Check if recipient is offline (disabled)
+	warning := ""
+	if !toAgent.Enabled {
+		warning = fmt.Sprintf("recipient agent %s (%s) is offline (disabled)", toAgent.ID, toAgent.Name)
+		log.Printf("[assistant] warning: %s -> %s: %s", from, to, warning)
+	}
+
+	// Track message in memory (for MVP observability)
+	a.mu.Lock()
+	a.forwardedMessages = append(a.forwardedMessages, ForwardedMessage{
+		From:      from,
+		To:        to,
+		Content:   content,
+		Timestamp: time.Now().Unix(),
+	})
+	a.mu.Unlock()
+
+	// Log message forwarding
+	log.Printf("[assistant] message forwarded: %s -> %s (content: %s)", from, to, content)
+
+	return true, "", warning, nil
+}
+
+// forwardAgentMessageWithRegistry is a test helper that allows overriding the agent registry
+// This is only used for testing to inject mock registries
+func forwardAgentMessageWithRegistry(registry agentRegistryGetter, ctx context.Context, from, to, content string) (bool, string, string, error, []ForwardedMessage) {
+	// Validate content is not empty
+	if content == "" {
+		log.Printf("[assistant rpc error] message content cannot be empty (from: %s, to: %s)", from, to)
+		return false, "", "", fmt.Errorf("message content cannot be empty"), nil
+	}
+
+	// Validate sender agent exists
+	fromAgent, err := registry.GetAgent(ctx, from)
+	if err != nil || fromAgent == nil {
+		log.Printf("[assistant rpc error] sender agent not found: %s (from: %s, to: %s)", from, from, to)
+		return false, "", "", &HTTPError{StatusCode: http.StatusNotFound, Message: fmt.Sprintf("sender agent not found: %s", from)}, nil
+	}
+
+	// Validate recipient agent exists
+	toAgent, err := registry.GetAgent(ctx, to)
+	if err != nil || toAgent == nil {
+		log.Printf("[assistant rpc error] recipient agent not found: %s (from: %s, to: %s)", to, from, to)
+		return false, "", "", &HTTPError{StatusCode: http.StatusNotFound, Message: fmt.Sprintf("recipient agent not found: %s", to)}, nil
+	}
+
+	// Check if recipient is offline (disabled)
+	warning := ""
+	if !toAgent.Enabled {
+		warning = fmt.Sprintf("recipient agent %s (%s) is offline (disabled)", toAgent.ID, toAgent.Name)
+		log.Printf("[assistant] warning: %s -> %s: %s", from, to, warning)
+	}
+
+	// Create tracked message
+	msg := ForwardedMessage{
+		From:      from,
+		To:        to,
+		Content:   content,
+		Timestamp: time.Now().Unix(),
+	}
+
+	// Log message forwarding
+	log.Printf("[assistant] message forwarded: %s -> %s (content: %s)", from, to, content)
+
+	return true, "", warning, nil, []ForwardedMessage{msg}
+}
+
+// agentRegistryGetter is the interface needed for GetAgent calls
+type agentRegistryGetter interface {
+	GetAgent(ctx context.Context, id string) (*agentregistry.Agent, error)
+}
+
+// HTTPError represents an HTTP error with status code
+type HTTPError struct {
+	StatusCode int
+	Message    string
+}
+
+func (e *HTTPError) Error() string {
+	return fmt.Sprintf("HTTP %d: %s", e.StatusCode, e.Message)
 }

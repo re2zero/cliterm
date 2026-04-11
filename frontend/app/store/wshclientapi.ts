@@ -66,6 +66,12 @@ export class RpcApiType {
         return client.wshRpcCall("assistantaddtask", data, opts);
     }
 
+    // command "assistantforwardagentmessage" [call]
+    AssistantForwardAgentMessageCommand(client: WshClient, data: CommandForwardAgentMessageData, opts?: RpcOpts): Promise<CommandForwardAgentMessageRtnData> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "assistantforwardagentmessage", data, opts);
+        return client.wshRpcCall("assistantforwardagentmessage", data, opts);
+    }
+
     // command "assistantlisttasks" [call]
     AssistantListTasksCommand(client: WshClient, data: CommandAssistantListTasksData, opts?: RpcOpts): Promise<CommandAssistantListTasksRtnData> {
         if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "assistantlisttasks", data, opts);

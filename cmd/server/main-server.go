@@ -422,12 +422,6 @@ func createMainWshClient() {
 	zeroaiWsh := wshutil.MakeWshRpc(wshrpc.RpcContext{}, zeroaiServer, "zeroai")
 	wshutil.DefaultRouter.RegisterTrustedLeaf(zeroaiWsh, "zeroai")
 
-	// Initialize Assistant service
-	assistantInstance := assistant.NewAssistant(agentSvc)
-	assistantServer := assistantrpc.NewWshRpcAssistantServer(assistantInstance)
-	assistantWsh := wshutil.MakeWshRpc(wshrpc.RpcContext{}, assistantServer, "assistant")
-	wshutil.DefaultRouter.RegisterTrustedLeaf(assistantWsh, "assistant")
-
 	// Initialize AgentRegistry service
 	err := agentregistry.InitAgentStore()
 	if err != nil {
@@ -438,6 +432,12 @@ func createMainWshClient() {
 	agentRegistryServer := agentregistryrpc.NewWshRpcAgentRegistryServer(agentRegistry)
 	agentRegistryWsh := wshutil.MakeWshRpc(wshrpc.RpcContext{}, agentRegistryServer, "agentregistry")
 	wshutil.DefaultRouter.RegisterTrustedLeaf(agentRegistryWsh, "agentregistry")
+
+	// Initialize Assistant service (must be after AgentRegistry)
+	assistantInstance := assistant.NewAssistant(agentSvc, agentRegistry)
+	assistantServer := assistantrpc.NewWshRpcAssistantServer(assistantInstance)
+	assistantWsh := wshutil.MakeWshRpc(wshrpc.RpcContext{}, assistantServer, "assistant")
+	wshutil.DefaultRouter.RegisterTrustedLeaf(assistantWsh, "assistant")
 }
 
 func grabAndRemoveEnvVars() error {

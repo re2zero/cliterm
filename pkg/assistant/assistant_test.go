@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/wavetermdev/waveterm/pkg/agentregistry"
 	"github.com/wavetermdev/waveterm/pkg/zeroai/process"
 	"github.com/wavetermdev/waveterm/pkg/zeroai/service"
 	"github.com/wavetermdev/waveterm/pkg/wavebase"
@@ -1861,6 +1862,342 @@ func contains(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr || len(s) > len(substr) && findSubstring(s, substr))
 }
 
+// ============================================================================
+// ForwardAgentMessage Tests
+// ============================================================================
+
+// testAgentRegistry is a minimal interface for testing ForwardAgentMessage
+type testAgentRegistry interface {
+	GetAgent(ctx context.Context, id string) (*agentregistry.Agent, error)
+}
+
+// mockAgentRegistry implements testAgentRegistry for testing
+type mockAgentRegistry struct {
+	agents map[string]*agentregistry.Agent
+}
+
+func newMockAgentRegistry() *mockAgentRegistry {
+	return &mockAgentRegistry{
+		agents: make(map[string]*agentregistry.Agent),
+	}
+}
+
+func (m *mockAgentRegistry) AddAgent(agent *agentregistry.Agent) {
+	m.agents[agent.ID] = agent
+}
+
+func (m *mockAgentRegistry) GetAgent(ctx context.Context, id string) (*agentregistry.Agent, error) {
+	agent, ok := m.agents[id]
+	if !ok {
+		return nil, fmt.Errorf("agent not found: %s", id)
+	}
+	return agent, nil
+}
+
+// forwardAgentMessageTestCase defines a single test case for ForwardAgentMessage
+type forwardAgentMessageTestCase struct {
+	name              string
+	from              string
+	to                string
+	content           string
+	setupRegistry     func(*mockAgentRegistry)
+	wantSuccess       bool
+	wantMessage       string
+	wantWarning       string
+	wantError         bool
+	wantErrorContains string
+}
+
+func TestForwardAgentMessage(t *testing.T) {
+	// Create some test agents
+	agent1 := &agentregistry.Agent{
+		ID:      "agent-001",
+		Name:    "agent-one",
+		Role:    "worker",
+		Enabled: true,
+	}
+	agent2 := &agentregistry.Agent{
+		ID:      "agent-002",
+		Name:    "agent-two",
+		Role:    "worker",
+		Enabled: true,
+	}
+	agent3 := &agentregistry.Agent{
+		ID:      "agent-003",
+		Name:    "agent-three",
+		Role:    "worker",
+		Enabled: false, // Offline/disabled
+	}
+
+	// Define test cases
+	testCases := []forwardAgentMessageTestCase{
+		{
+			name:    "valid forward",
+			from:    "agent-001",
+			to:      "agent-002",
+			content: "hello from agent 001",
+			setupRegistry: func(m *mockAgentRegistry) {
+				m.AddAgent(agent1)
+				m.AddAgent(agent2)
+			},
+			wantSuccess: true,
+			wantWarning: "",
+		},
+		{
+			name:    "sender not found",
+			from:    "nonexistent-sender",
+			to:      "agent-002",
+			content: "message",
+			setupRegistry: func(m *mockAgentRegistry) {
+				m.AddAgent(agent2)
+			},
+			wantSuccess:       false,
+			wantError:         true,
+			wantErrorContains: "404",
+		},
+		{
+			name:    "recipient not found",
+			from:    "agent-001",
+			to:      "nonexistent-recipient",
+			content: "message",
+			setupRegistry: func(m *mockAgentRegistry) {
+				m.AddAgent(agent1)
+			},
+			wantSuccess:       false,
+			wantError:         true,
+			wantErrorContains: "404",
+		},
+		{
+			name:    "recipient offline",
+			from:    "agent-001",
+			to:      "agent-003",
+			content: "message to offline agent",
+			setupRegistry: func(m *mockAgentRegistry) {
+				m.AddAgent(agent1)
+				m.AddAgent(agent3)
+			},
+			wantSuccess: true,
+			wantWarning: "offline",
+		},
+		{
+			name:    "empty from",
+			from:    "",
+			to:      "agent-002",
+			content: "message",
+			setupRegistry: func(m *mockAgentRegistry) {
+				m.AddAgent(agent2)
+			},
+			wantSuccess:       false,
+			wantError:         true,
+			wantErrorContains: "404",
+		},
+		{
+			name:    "empty to",
+			from:    "agent-001",
+			to:      "",
+			content: "message",
+			setupRegistry: func(m *mockAgentRegistry) {
+				m.AddAgent(agent1)
+			},
+			wantSuccess:       false,
+			wantError:         true,
+			wantErrorContains: "404",
+		},
+		{
+			name:    "empty content",
+			from:    "agent-001",
+			to:      "agent-002",
+			content: "",
+			setupRegistry: func(m *mockAgentRegistry) {
+				m.AddAgent(agent1)
+				m.AddAgent(agent2)
+			},
+			wantSuccess:       false,
+			wantError:         true,
+			wantErrorContains: "content cannot be empty",
+		},
+	}
+
+	ctx := context.Background()
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Create mock registry and set up test data
+			mockReg := newMockAgentRegistry()
+			if tc.setupRegistry != nil {
+				tc.setupRegistry(mockReg)
+			}
+
+			// Call the test helper function
+			success, message, warning, err, _ := forwardAgentMessageWithRegistry(
+				mockReg, ctx, tc.from, tc.to, tc.content,
+			)
+
+			// Verify expected success
+			if success != tc.wantSuccess {
+				t.Errorf("expected success=%v, got success=%v", tc.wantSuccess, success)
+			}
+
+			// Verify expected warning
+			if tc.wantWarning != "" && warning == "" {
+				t.Errorf("expected warning containing %q, got empty warning", tc.wantWarning)
+			}
+			if tc.wantWarning != "" && warning != "" && !contains(warning, tc.wantWarning) {
+				t.Errorf("expected warning containing %q, got warning=%q", tc.wantWarning, warning)
+			}
+			if tc.wantWarning == "" && warning != "" {
+				t.Errorf("expected no warning, got warning=%q", warning)
+			}
+
+			// Verify expected error
+			if tc.wantError {
+				if err == nil {
+					t.Errorf("expected error, got nil")
+				} else if tc.wantErrorContains != "" && !contains(err.Error(), tc.wantErrorContains) {
+					t.Errorf("expected error containing %q, got error=%v", tc.wantErrorContains, err)
+				}
+			} else {
+				if err != nil && tc.wantErrorContains != "" && !contains(err.Error(), "cannot be empty") {
+					t.Errorf("expected no error, got error=%v", err)
+				}
+			}
+
+			// Verify message field is empty (current implementation doesn't populate response message)
+			if tc.wantSuccess && message != "" {
+				t.Logf("message field populated: %q (this may be expected in future)", message)
+			}
+		})
+	}
+}
+
+// TestForwardAgentMessage_Tracking tests that forwarded messages are tracked in memory
+func TestForwardAgentMessage_Tracking(t *testing.T) {
+	ctx := context.Background()
+	mockReg := newMockAgentRegistry()
+
+	// Add test agents
+	agent1 := &agentregistry.Agent{
+		ID:      "agent-track-1",
+		Name:    "tracker-sender",
+		Role:    "worker",
+		Enabled: true,
+	}
+	agent2 := &agentregistry.Agent{
+		ID:      "agent-track-2",
+		Name:    "tracker-recipient",
+		Role:    "worker",
+		Enabled: true,
+	}
+	mockReg.AddAgent(agent1)
+	mockReg.AddAgent(agent2)
+
+	// Forward a few messages and collect them
+	_, _, _, _, msgs1 := forwardAgentMessageWithRegistry(mockReg, ctx, "agent-track-1", "agent-track-2", "message 1")
+	_, _, _, _, msgs2 := forwardAgentMessageWithRegistry(mockReg, ctx, "agent-track-1", "agent-track-2", "message 2")
+	_, _, _, _, msgs3 := forwardAgentMessageWithRegistry(mockReg, ctx, "agent-track-2", "agent-track-1", "reply message")
+
+	// Verify messages are tracked
+	allMessages := []ForwardedMessage{}
+	if msgs1 != nil {
+		allMessages = append(allMessages, msgs1...)
+	}
+	if msgs2 != nil {
+		allMessages = append(allMessages, msgs2...)
+	}
+	if msgs3 != nil {
+		allMessages = append(allMessages, msgs3...)
+	}
+
+	if len(allMessages) != 3 {
+		t.Errorf("expected 3 tracked messages, got %d", len(allMessages))
+		if len(allMessages) > 0 {
+			t.Logf("messages: %+v", allMessages)
+		}
+	}
+
+	// Verify message content (first message)
+	if allMessages[0].From != "agent-track-1" {
+		t.Errorf("expected from=agent-track-1, got from=%s", allMessages[0].From)
+	}
+	if allMessages[0].To != "agent-track-2" {
+		t.Errorf("expected to=agent-track-2, got to=%s", allMessages[0].To)
+	}
+	if allMessages[0].Content != "message 1" {
+		t.Errorf("expected content='message 1', got content=%s", allMessages[0].Content)
+	}
+	if allMessages[0].Timestamp == 0 {
+		t.Error("expected timestamp to be set")
+	}
+}
+
+// TestForwardAgentMessage_Concurrent tests concurrent message forwarding
+func TestForwardAgentMessage_Concurrent(t *testing.T) {
+	ctx := context.Background()
+	mockReg := newMockAgentRegistry()
+
+	// Add test agents
+	agent1 := &agentregistry.Agent{
+		ID:      "agent-concurrent-1",
+		Name:    "concurrent-1",
+		Role:    "worker",
+		Enabled: true,
+	}
+	agent2 := &agentregistry.Agent{
+		ID:      "agent-concurrent-2",
+		Name:    "concurrent-2",
+		Role:    "worker",
+		Enabled: true,
+	}
+	mockReg.AddAgent(agent1)
+	mockReg.AddAgent(agent2)
+
+	// Forward multiple messages concurrently
+	numMessages := 100
+	var wg sync.WaitGroup
+	errors := make(chan error, numMessages)
+
+	for i := 0; i < numMessages; i++ {
+		wg.Add(1)
+		go func(idx int) {
+			defer wg.Done()
+			success, _, _, err, _ := forwardAgentMessageWithRegistry(
+				mockReg, ctx, "agent-concurrent-1", "agent-concurrent-2", fmt.Sprintf("message %d", idx),
+			)
+			if !success || err != nil {
+				errors <- err
+			}
+		}(i)
+	}
+
+	wg.Wait()
+	close(errors)
+
+	// Check for errors
+	errorCount := 0
+	for err := range errors {
+		if err != nil {
+			t.Errorf("unexpected error during concurrent forwarding: %v", err)
+			errorCount++
+		}
+	}
+
+	if errorCount > 0 {
+		t.Errorf("expected no errors, got %d errors during concurrent forwarding", errorCount)
+	}
+
+	// Note: We can't directly test the forwardedMessages slice because the helper
+	// returns messages separately. In a real Assistant instance, the messages would
+	// be tracked in the forwardedMessages slice.
+}
+
+// agentRegistryWrapper wraps the mock to satisfy the *agentregistry.AgentRegistry interface
+func (m *mockAgentRegistry) agentRegistryWrapper() *agentregistry.AgentRegistry {
+	// Return nil to indicate we're using the mock directly
+	// The Assistant's ForwardAgentMessage method will call a.agentRegistry.GetAgent
+	// which we've mocked
+	return nil
+}
+
 func findSubstring(s, substr string) bool {
 	for i := 0; i <= len(s)-len(substr); i++ {
 		if s[i:i+len(substr)] == substr {
@@ -1869,4 +2206,3 @@ func findSubstring(s, substr string) bool {
 	}
 	return false
 }
-

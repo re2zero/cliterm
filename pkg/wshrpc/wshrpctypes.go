@@ -126,6 +126,7 @@ type WshRpcInterface interface {
 	AssistantStatusCommand(ctx context.Context, data CommandAssistantStatusData) (CommandAssistantStatusRtnData, error)
 	AssistantAddTaskCommand(ctx context.Context, data CommandAssistantAddTaskData) (CommandAssistantAddTaskRtnData, error)
 	AssistantListTasksCommand(ctx context.Context, data CommandAssistantListTasksData) (CommandAssistantListTasksRtnData, error)
+	AssistantForwardAgentMessageCommand(ctx context.Context, data CommandForwardAgentMessageData) (CommandForwardAgentMessageRtnData, error)
 
 	// AgentRegistry commands
 	AgentRegisterCommand(ctx context.Context, data CommandAgentRegisterData) (CommandAgentRegisterRtnData, error)
@@ -1162,6 +1163,18 @@ type AssistantTaskInfo struct {
 	Status          string `json:"status"`
 	AssignedAgentID string `json:"assignedAgentId,omitempty"`
 	CreatedAt       int64  `json:"createdAt"`
+}
+
+type CommandForwardAgentMessageData struct {
+	From    string `json:"from"`
+	To      string `json:"to"`
+	Content string `json:"content"`
+}
+
+type CommandForwardAgentMessageRtnData struct {
+	Success bool   `json:"success"`
+	Message string `json:"message"`
+	Warning string `json:"warning"`
 }
 
 // AgentRegistry RPC request/response types

@@ -543,6 +543,20 @@ declare global {
         streammeta: StreamMeta;
     };
 
+    // wshrpc.CommandForwardAgentMessageData
+    type CommandForwardAgentMessageData = {
+        from: string;
+        to: string;
+        content: string;
+    };
+
+    // wshrpc.CommandForwardAgentMessageRtnData
+    type CommandForwardAgentMessageRtnData = {
+        success: boolean;
+        message: string;
+        warning: string;
+    };
+
     // wshrpc.CommandGetMetaData
     type CommandGetMetaData = {
         oref: ORef;
