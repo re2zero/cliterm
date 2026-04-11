@@ -649,6 +649,52 @@ declare global {
         truncated?: boolean;
     };
 
+    // wshrpc.CommandMCPServerDeleteData
+    type CommandMCPServerDeleteData = {
+        id: string;
+    };
+
+    // wshrpc.CommandMCPServerListData
+    type CommandMCPServerListData = object;
+
+    // wshrpc.CommandMCPServerListRtnData
+    type CommandMCPServerListRtnData = {
+        servers: MCPServerInfo[];
+    };
+
+    // wshrpc.CommandMCPServerRegisterData
+    type CommandMCPServerRegisterData = {
+        name: string;
+        description: string;
+        config: {[key: string]: any};
+        enabled: boolean;
+    };
+
+    // wshrpc.CommandMCPServerRegisterRtnData
+    type CommandMCPServerRegisterRtnData = {
+        id: string;
+    };
+
+    // wshrpc.CommandMCPServerSetEnabledData
+    type CommandMCPServerSetEnabledData = {
+        id: string;
+        enabled: boolean;
+    };
+
+    // wshrpc.CommandMCPServerUpdateData
+    type CommandMCPServerUpdateData = {
+        id: string;
+        name: string;
+        description: string;
+        config: {[key: string]: any};
+        enabled: boolean;
+    };
+
+    // wshrpc.CommandMCPServerUpdateRtnData
+    type CommandMCPServerUpdateRtnData = {
+        id: string;
+    };
+
     // wshrpc.CommandMakeDraftFromLocalData
     type CommandMakeDraftFromLocalData = {
         localappid: string;
@@ -794,6 +840,32 @@ declare global {
         builderid: string;
     };
 
+    // wshrpc.CommandSchedulerAddScheduledTaskData
+    type CommandSchedulerAddScheduledTaskData = {
+        taskYAML: string;
+        pattern: string;
+        firstRunUnix?: number;
+        maxExecs?: number;
+    };
+
+    // wshrpc.CommandSchedulerAddScheduledTaskRtnData
+    type CommandSchedulerAddScheduledTaskRtnData = {
+        taskId: string;
+    };
+
+    // wshrpc.CommandSchedulerDeleteTaskData
+    type CommandSchedulerDeleteTaskData = {
+        taskId: string;
+    };
+
+    // wshrpc.CommandSchedulerListTasksData
+    type CommandSchedulerListTasksData = object;
+
+    // wshrpc.CommandSchedulerListTasksRtnData
+    type CommandSchedulerListTasksRtnData = {
+        tasks: ScheduledTaskInfo[];
+    };
+
     // wshrpc.CommandSetMetaData
     type CommandSetMetaData = {
         oref: ORef;
@@ -805,6 +877,42 @@ declare global {
         oref: ORef;
         data: ObjRTInfo;
         delete?: boolean;
+    };
+
+    // wshrpc.CommandSkillsDeleteData
+    type CommandSkillsDeleteData = {
+        id: string;
+    };
+
+    // wshrpc.CommandSkillsListData
+    type CommandSkillsListData = object;
+
+    // wshrpc.CommandSkillsListRtnData
+    type CommandSkillsListRtnData = {
+        skills: SkillInfo[];
+    };
+
+    // wshrpc.CommandSkillsRegisterData
+    type CommandSkillsRegisterData = {
+        name: string;
+        description: string;
+    };
+
+    // wshrpc.CommandSkillsRegisterRtnData
+    type CommandSkillsRegisterRtnData = {
+        id: string;
+    };
+
+    // wshrpc.CommandSkillsUpdateData
+    type CommandSkillsUpdateData = {
+        id: string;
+        name: string;
+        description: string;
+    };
+
+    // wshrpc.CommandSkillsUpdateRtnData
+    type CommandSkillsUpdateRtnData = {
+        id: string;
     };
 
     // wshrpc.CommandStartBuilderData
@@ -1499,6 +1607,17 @@ declare global {
         config?: {[key: string]: any};
     };
 
+    // wshrpc.MCPServerInfo
+    type MCPServerInfo = {
+        id: string;
+        name: string;
+        description: string;
+        config: {[key: string]: any};
+        enabled: boolean;
+        createdAt: number;
+        updatedAt: number;
+    };
+
     // messageservice.Message
     type Message = {
         id: number;
@@ -1791,6 +1910,29 @@ declare global {
         winsize?: WinSize;
     };
 
+    // waveobj.ScheduledTask
+    type ScheduledTask = WaveObj & {
+        taskyaml: string;
+        nextrun: number;
+        status: string;
+        pattern: string;
+        execcount: number;
+        maxexecs: number;
+        lastrun: number;
+    };
+
+    // wshrpc.ScheduledTaskInfo
+    type ScheduledTaskInfo = {
+        oid: string;
+        taskYAML: string;
+        nextRun: number;
+        lastRun: number;
+        status: string;
+        pattern: string;
+        execCount: number;
+        maxExecs: number;
+    };
+
     // wshrpc.SecretMeta
     type SecretMeta = {
         desc: string;
@@ -1926,6 +2068,15 @@ declare global {
         "tsunami:sdkreplacepath"?: string;
         "tsunami:sdkversion"?: string;
         "tsunami:gopath"?: string;
+    };
+
+    // wshrpc.SkillInfo
+    type SkillInfo = {
+        id: string;
+        name: string;
+        description: string;
+        createdAt: number;
+        updatedAt: number;
     };
 
     // waveobj.StickerClickOptsType

@@ -22,86 +22,34 @@ const AgentItem = React.memo(
     ({
         agent,
         isActive,
-        expanded,
         onSelect,
-        onDelete,
-        onEdit,
     }: {
         agent: AgentDefinition;
         isActive: boolean;
-        expanded: boolean;
         onSelect: () => void;
-        onDelete?: () => void;
-        onEdit?: () => void;
     }) => {
-        const [isHovered, setIsHovered] = React.useState(false);
-
         return (
             <div
                 className={clsx("agent-list-item", { active: isActive })}
                 onClick={onSelect}
-                onMouseEnter={() => setIsHovered(true)}
-                onMouseLeave={() => setIsHovered(false)}
             >
                 {isActive && <div className="agent-item-indicator" />}
                 <div className="agent-item-main">
                     <div className="agent-item-avatar" style={{ color: agent.color }}>
                         <i className={makeIconClass(agent.icon, false)} />
                     </div>
-                    {expanded && (
-                        <div className="agent-item-details">
-                            <div className="agent-item-name">
-                                <span
-                                    className="agent-role-badge"
-                                    style={{ backgroundColor: agent.color + "33", color: agent.color }}
-                                >
-                                    {agent.role}
-                                </span>
-                                {agent.name}
-                            </div>
-                            <div className="agent-item-desc">{agent.description}</div>
-                            <div className="agent-item-meta">
-                                <span className="agent-item-backend">{agent.backend}</span>
-                                <span className="agent-item-sep">·</span>
-                                <span className="agent-item-model">{agent.model}</span>
-                                {agent.skills.length > 0 && (
-                                    <>
-                                        <span className="agent-item-sep">·</span>
-                                        <span className="agent-item-skills">{agent.skills.length} skills</span>
-                                    </>
-                                )}
-                            </div>
+                    <div className="agent-item-details">
+                        <div className="agent-item-name">
+                            <span
+                                className="agent-role-badge"
+                                style={{ backgroundColor: agent.color + "33", color: agent.color }}
+                            >
+                                {agent.role}
+                            </span>
+                            {agent.name}
                         </div>
-                    )}
-                </div>
-                {expanded && isHovered && (
-                    <div className="agent-item-actions">
-                        {onEdit && (
-                            <button
-                                className="agent-item-edit"
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    onEdit();
-                                }}
-                                aria-label="Edit agent"
-                            >
-                                <i className="fa-solid fa-pen" />
-                            </button>
-                        )}
-                        {onDelete && (
-                            <button
-                                className="agent-item-delete"
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    onDelete();
-                                }}
-                                aria-label="Delete agent"
-                            >
-                                <i className="fa-solid fa-trash" />
-                            </button>
-                        )}
                     </div>
-                )}
+                </div>
             </div>
         );
     }
@@ -266,17 +214,8 @@ CreateAgentModal.displayName = "CreateAgentModal";
 
 export const AgentList = React.memo(
     ({ agents, activeAgentId, onSelectAgent, collapsed = false, onToggleCollapse }: AgentListProps) => {
-        const [expanded, setExpanded] = React.useState(false);
         const [showCreate, setShowCreate] = React.useState(false);
         const [editingAgent, setEditingAgent] = React.useState<AgentDefinition | null>(null);
-
-        const handleToggleExpand = React.useCallback(() => {
-            setExpanded((prev) => !prev);
-        }, []);
-
-        const handleDelete = React.useCallback((id: string) => {
-            removeAgent(id);
-        }, []);
 
         return (
             <div className={clsx("agent-list", { collapsed })}>
@@ -296,13 +235,6 @@ export const AgentList = React.memo(
                                 <span className="agent-count">{agents.length}</span>
                             </div>
                             <div className="agent-list-actions">
-                                <button
-                                    className={clsx("agent-list-expand", { active: expanded })}
-                                    onClick={handleToggleExpand}
-                                    title={expanded ? "Compact view" : "Expand view"}
-                                >
-                                    <i className={clsx("fa-solid", expanded ? "fa-compress" : "fa-expand")} />
-                                </button>
                                 <button
                                     className="agent-list-create"
                                     onClick={() => setShowCreate(true)}
@@ -332,10 +264,7 @@ export const AgentList = React.memo(
                                     key={agent.id}
                                     agent={agent}
                                     isActive={agent.id === activeAgentId}
-                                    expanded={expanded}
                                     onSelect={() => onSelectAgent(agent.id)}
-                                    onDelete={agents.length > 1 ? () => handleDelete(agent.id) : undefined}
-                                    onEdit={() => setEditingAgent(agent)}
                                 />
                             ))}
                         </div>

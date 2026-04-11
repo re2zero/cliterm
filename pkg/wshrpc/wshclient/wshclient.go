@@ -694,6 +694,36 @@ func MakeDraftFromLocalCommand(w *wshutil.WshRpc, data wshrpc.CommandMakeDraftFr
 	return resp, err
 }
 
+// command "mcpserverdelete", wshserver.MCPServerDeleteCommand
+func MCPServerDeleteCommand(w *wshutil.WshRpc, data wshrpc.CommandMCPServerDeleteData, opts *wshrpc.RpcOpts) error {
+	_, err := sendRpcRequestCallHelper[any](w, "mcpserverdelete", data, opts)
+	return err
+}
+
+// command "mcpserverlist", wshserver.MCPServerListCommand
+func MCPServerListCommand(w *wshutil.WshRpc, data wshrpc.CommandMCPServerListData, opts *wshrpc.RpcOpts) (wshrpc.CommandMCPServerListRtnData, error) {
+	resp, err := sendRpcRequestCallHelper[wshrpc.CommandMCPServerListRtnData](w, "mcpserverlist", data, opts)
+	return resp, err
+}
+
+// command "mcpserverregister", wshserver.MCPServerRegisterCommand
+func MCPServerRegisterCommand(w *wshutil.WshRpc, data wshrpc.CommandMCPServerRegisterData, opts *wshrpc.RpcOpts) (wshrpc.CommandMCPServerRegisterRtnData, error) {
+	resp, err := sendRpcRequestCallHelper[wshrpc.CommandMCPServerRegisterRtnData](w, "mcpserverregister", data, opts)
+	return resp, err
+}
+
+// command "mcpserversetenabled", wshserver.MCPServerSetEnabledCommand
+func MCPServerSetEnabledCommand(w *wshutil.WshRpc, data wshrpc.CommandMCPServerSetEnabledData, opts *wshrpc.RpcOpts) error {
+	_, err := sendRpcRequestCallHelper[any](w, "mcpserversetenabled", data, opts)
+	return err
+}
+
+// command "mcpserverupdate", wshserver.MCPServerUpdateCommand
+func MCPServerUpdateCommand(w *wshutil.WshRpc, data wshrpc.CommandMCPServerUpdateData, opts *wshrpc.RpcOpts) (wshrpc.CommandMCPServerUpdateRtnData, error) {
+	resp, err := sendRpcRequestCallHelper[wshrpc.CommandMCPServerUpdateRtnData](w, "mcpserverupdate", data, opts)
+	return resp, err
+}
+
 // command "message", wshserver.MessageCommand
 func MessageCommand(w *wshutil.WshRpc, data wshrpc.CommandMessageData, opts *wshrpc.RpcOpts) error {
 	_, err := sendRpcRequestCallHelper[any](w, "message", data, opts)
@@ -890,6 +920,24 @@ func RouteUnannounceCommand(w *wshutil.WshRpc, opts *wshrpc.RpcOpts) error {
 	return err
 }
 
+// command "scheduleraddscheduledtask", wshserver.SchedulerAddScheduledTaskCommand
+func SchedulerAddScheduledTaskCommand(w *wshutil.WshRpc, data wshrpc.CommandSchedulerAddScheduledTaskData, opts *wshrpc.RpcOpts) (wshrpc.CommandSchedulerAddScheduledTaskRtnData, error) {
+	resp, err := sendRpcRequestCallHelper[wshrpc.CommandSchedulerAddScheduledTaskRtnData](w, "scheduleraddscheduledtask", data, opts)
+	return resp, err
+}
+
+// command "schedulerdeletetask", wshserver.SchedulerDeleteTaskCommand
+func SchedulerDeleteTaskCommand(w *wshutil.WshRpc, data wshrpc.CommandSchedulerDeleteTaskData, opts *wshrpc.RpcOpts) error {
+	_, err := sendRpcRequestCallHelper[any](w, "schedulerdeletetask", data, opts)
+	return err
+}
+
+// command "schedulerlisttasks", wshserver.SchedulerListTasksCommand
+func SchedulerListTasksCommand(w *wshutil.WshRpc, data wshrpc.CommandSchedulerListTasksData, opts *wshrpc.RpcOpts) (wshrpc.CommandSchedulerListTasksRtnData, error) {
+	resp, err := sendRpcRequestCallHelper[wshrpc.CommandSchedulerListTasksRtnData](w, "schedulerlisttasks", data, opts)
+	return resp, err
+}
+
 // command "sendtelemetry", wshserver.SendTelemetryCommand
 func SendTelemetryCommand(w *wshutil.WshRpc, opts *wshrpc.RpcOpts) error {
 	_, err := sendRpcRequestCallHelper[any](w, "sendtelemetry", nil, opts)
@@ -942,6 +990,30 @@ func SetSecretsCommand(w *wshutil.WshRpc, data map[string]*string, opts *wshrpc.
 func SetVarCommand(w *wshutil.WshRpc, data wshrpc.CommandVarData, opts *wshrpc.RpcOpts) error {
 	_, err := sendRpcRequestCallHelper[any](w, "setvar", data, opts)
 	return err
+}
+
+// command "skillsdelete", wshserver.SkillsDeleteCommand
+func SkillsDeleteCommand(w *wshutil.WshRpc, data wshrpc.CommandSkillsDeleteData, opts *wshrpc.RpcOpts) error {
+	_, err := sendRpcRequestCallHelper[any](w, "skillsdelete", data, opts)
+	return err
+}
+
+// command "skillslist", wshserver.SkillsListCommand
+func SkillsListCommand(w *wshutil.WshRpc, data wshrpc.CommandSkillsListData, opts *wshrpc.RpcOpts) (wshrpc.CommandSkillsListRtnData, error) {
+	resp, err := sendRpcRequestCallHelper[wshrpc.CommandSkillsListRtnData](w, "skillslist", data, opts)
+	return resp, err
+}
+
+// command "skillsregister", wshserver.SkillsRegisterCommand
+func SkillsRegisterCommand(w *wshutil.WshRpc, data wshrpc.CommandSkillsRegisterData, opts *wshrpc.RpcOpts) (wshrpc.CommandSkillsRegisterRtnData, error) {
+	resp, err := sendRpcRequestCallHelper[wshrpc.CommandSkillsRegisterRtnData](w, "skillsregister", data, opts)
+	return resp, err
+}
+
+// command "skillsupdate", wshserver.SkillsUpdateCommand
+func SkillsUpdateCommand(w *wshutil.WshRpc, data wshrpc.CommandSkillsUpdateData, opts *wshrpc.RpcOpts) (wshrpc.CommandSkillsUpdateRtnData, error) {
+	resp, err := sendRpcRequestCallHelper[wshrpc.CommandSkillsUpdateRtnData](w, "skillsupdate", data, opts)
+	return resp, err
 }
 
 // command "startbuilder", wshserver.StartBuilderCommand

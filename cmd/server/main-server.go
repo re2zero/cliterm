@@ -48,12 +48,17 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/wstore"
 	"github.com/wavetermdev/waveterm/pkg/assistant"
 	assistantrpc "github.com/wavetermdev/waveterm/pkg/assistant/rpc"
+	"github.com/wavetermdev/waveterm/pkg/scheduler"
 	"github.com/wavetermdev/waveterm/pkg/zeroai/agent"
 	zeroairpc "github.com/wavetermdev/waveterm/pkg/zeroai/rpc"
 	zeroaiservice "github.com/wavetermdev/waveterm/pkg/zeroai/service"
 	"github.com/wavetermdev/waveterm/pkg/zeroai/store"
 	"github.com/wavetermdev/waveterm/pkg/agentregistry"
 	agentregistryrpc "github.com/wavetermdev/waveterm/pkg/agentregistry/rpc"
+	"github.com/wavetermdev/waveterm/pkg/mcpservers"
+	mcpserversrpc "github.com/wavetermdev/waveterm/pkg/mcpservers/rpc"
+	"github.com/wavetermdev/waveterm/pkg/skills"
+	skillsrpc "github.com/wavetermdev/waveterm/pkg/skills/rpc"
 
 	"net/http"
 	_ "net/http/pprof"
@@ -74,6 +79,8 @@ const InitialDiagnosticWait = 5 * time.Minute
 const DiagnosticTick = 10 * time.Minute
 
 var shutdownOnce sync.Once
+
+var schedulerInstance *scheduler.Scheduler
 
 func init() {
 	envFilePath := os.Getenv("WAVETERM_ENVFILE")
@@ -98,6 +105,12 @@ func doShutdown(reason string) {
 		if watcher != nil {
 			watcher.Close()
 		}
+
+		// Stop scheduler service
+		if schedulerInstance != nil {
+			schedulerInstance.Stop()
+		}
+
 		time.Sleep(500 * time.Millisecond)
 		log.Printf("shutdown complete\n")
 		os.Exit(0)
@@ -433,11 +446,37 @@ func createMainWshClient() {
 	agentRegistryWsh := wshutil.MakeWshRpc(wshrpc.RpcContext{}, agentRegistryServer, "agentregistry")
 	wshutil.DefaultRouter.RegisterTrustedLeaf(agentRegistryWsh, "agentregistry")
 
+	// Initialize Skills store
+	skillsDB := skills.MakeSkillDBFromSqlx(agentStore.GetDB())
+	skillsServer := skillsrpc.MakeSkillsRpcServer(skillsDB)
+	skillsWsh := wshutil.MakeWshRpc(wshrpc.RpcContext{}, skillsServer, "skills")
+	wshutil.DefaultRouter.RegisterTrustedLeaf(skillsWsh, "skills")
+
+	// Initialize MCP Servers store
+	mcpServersDB := mcpservers.MakeMCPServerDBFromSqlx(agentStore.GetDB())
+	mcpServersServer := mcpserversrpc.MakeMCPServerRpcServer(mcpServersDB)
+	mcpServersWsh := wshutil.MakeWshRpc(wshrpc.RpcContext{}, mcpServersServer, "mcpservers")
+	wshutil.DefaultRouter.RegisterTrustedLeaf(mcpServersWsh, "mcpservers")
+
 	// Initialize Assistant service (must be after AgentRegistry)
 	assistantInstance := assistant.NewAssistant(agentSvc, agentRegistry)
 	assistantServer := assistantrpc.NewWshRpcAssistantServer(assistantInstance)
 	assistantWsh := wshutil.MakeWshRpc(wshrpc.RpcContext{}, assistantServer, "assistant")
 	wshutil.DefaultRouter.RegisterTrustedLeaf(assistantWsh, "assistant")
+
+	// Initialize Scheduler service (must be after Assistant)
+	schedulerInstance = scheduler.NewScheduler(assistantInstance)
+	schedulerServer := scheduler.NewWshRpcSchedulerServer(schedulerInstance)
+	schedulerWsh := wshutil.MakeWshRpc(wshrpc.RpcContext{}, schedulerServer, "scheduler")
+	wshutil.DefaultRouter.RegisterTrustedLeaf(schedulerWsh, "scheduler")
+
+	// Start the scheduler service
+	err = schedulerInstance.Start()
+	if err != nil {
+		log.Printf("[error] starting scheduler: %v", err)
+	} else {
+		log.Printf("scheduler started successfully")
+	}
 }
 
 func grabAndRemoveEnvVars() error {

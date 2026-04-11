@@ -16,3 +16,6 @@ var ZeroaiMigrationFS embed.FS
 
 //go:embed migrations-agent/*.sql
 var AgentMigrationFS embed.FS
+
+//go:embed migrations-skills/*.sql
+var SkillsMigrationFS embed.FS

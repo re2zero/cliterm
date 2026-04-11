@@ -128,12 +128,28 @@ type WshRpcInterface interface {
 	AssistantListTasksCommand(ctx context.Context, data CommandAssistantListTasksData) (CommandAssistantListTasksRtnData, error)
 	AssistantForwardAgentMessageCommand(ctx context.Context, data CommandForwardAgentMessageData) (CommandForwardAgentMessageRtnData, error)
 
+	// Scheduler commands
+	SchedulerAddScheduledTaskCommand(ctx context.Context, data CommandSchedulerAddScheduledTaskData) (CommandSchedulerAddScheduledTaskRtnData, error)
+	SchedulerListTasksCommand(ctx context.Context, data CommandSchedulerListTasksData) (CommandSchedulerListTasksRtnData, error)
+	SchedulerDeleteTaskCommand(ctx context.Context, data CommandSchedulerDeleteTaskData) error
+
 	// AgentRegistry commands
 	AgentRegisterCommand(ctx context.Context, data CommandAgentRegisterData) (CommandAgentRegisterRtnData, error)
 	AgentGetCommand(ctx context.Context, data CommandAgentGetData) (CommandAgentGetRtnData, error)
 	AgentListCommand(ctx context.Context, data CommandAgentListData) (CommandAgentListRtnData, error)
 	AgentUpdateCommand(ctx context.Context, data CommandAgentUpdateData) (CommandAgentUpdateRtnData, error)
 	AgentDeleteCommand(ctx context.Context, data CommandAgentDeleteData) error
+	// Skills commands
+	SkillsListCommand(ctx context.Context, data CommandSkillsListData) (CommandSkillsListRtnData, error)
+	SkillsRegisterCommand(ctx context.Context, data CommandSkillsRegisterData) (CommandSkillsRegisterRtnData, error)
+	SkillsUpdateCommand(ctx context.Context, data CommandSkillsUpdateData) (CommandSkillsUpdateRtnData, error)
+	SkillsDeleteCommand(ctx context.Context, data CommandSkillsDeleteData) error
+	// MCP Server commands
+	MCPServerListCommand(ctx context.Context, data CommandMCPServerListData) (CommandMCPServerListRtnData, error)
+	MCPServerRegisterCommand(ctx context.Context, data CommandMCPServerRegisterData) (CommandMCPServerRegisterRtnData, error)
+	MCPServerUpdateCommand(ctx context.Context, data CommandMCPServerUpdateData) (CommandMCPServerUpdateRtnData, error)
+	MCPServerSetEnabledCommand(ctx context.Context, data CommandMCPServerSetEnabledData) error
+	MCPServerDeleteCommand(ctx context.Context, data CommandMCPServerDeleteData) error
 
 	// ZeroAI Provider commands
 	ZeroAiListProvidersCommand(ctx context.Context, data CommandZeroAiListProvidersData) (CommandZeroAiListProvidersRtnData, error)
@@ -1231,6 +1247,133 @@ type CommandAgentDeleteData struct {
 	ID string `json:"id"`
 }
 
+// Skills types
+
+type SkillInfo struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	CreatedAt   int64  `json:"createdAt"`
+	UpdatedAt   int64  `json:"updatedAt"`
+}
+
+type CommandSkillsListData struct {
+	// No parameters for list
+}
+
+type CommandSkillsListRtnData struct {
+	Skills []SkillInfo `json:"skills"`
+}
+
+type CommandSkillsRegisterData struct {
+	Name        string `json:"name"`
+	Description string `json:"description"`
+}
+
+type CommandSkillsRegisterRtnData struct {
+	ID string `json:"id"`
+}
+
+type CommandSkillsUpdateData struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+}
+
+type CommandSkillsUpdateRtnData struct {
+	ID string `json:"id"`
+}
+
+type CommandSkillsDeleteData struct {
+	ID string `json:"id"`
+}
+
+// MCP Server types
+
+type MCPServerInfo struct {
+	ID          string         `json:"id"`
+	Name        string         `json:"name"`
+	Description string         `json:"description"`
+	Config      map[string]any `json:"config"`
+	Enabled     bool           `json:"enabled"`
+	CreatedAt   int64          `json:"createdAt"`
+	UpdatedAt   int64          `json:"updatedAt"`
+}
+
+type CommandMCPServerListData struct {
+	// No parameters for list
+}
+
+type CommandMCPServerListRtnData struct {
+	Servers []MCPServerInfo `json:"servers"`
+}
+
+type CommandMCPServerRegisterData struct {
+	Name        string         `json:"name"`
+	Description string         `json:"description"`
+	Config      map[string]any `json:"config"`
+	Enabled     bool           `json:"enabled"`
+}
+
+type CommandMCPServerRegisterRtnData struct {
+	ID string `json:"id"`
+}
+
+type CommandMCPServerUpdateData struct {
+	ID          string         `json:"id"`
+	Name        string         `json:"name"`
+	Description string         `json:"description"`
+	Config      map[string]any `json:"config"`
+	Enabled     bool           `json:"enabled"`
+}
+
+type CommandMCPServerUpdateRtnData struct {
+	ID string `json:"id"`
+}
+
+type CommandMCPServerSetEnabledData struct {
+	ID      string `json:"id"`
+	Enabled bool   `json:"enabled"`
+}
+
+type CommandMCPServerDeleteData struct {
+	ID string `json:"id"`
+}
+
+// Scheduler types
+
+type CommandSchedulerAddScheduledTaskData struct {
+	TaskYAML       string `json:"taskYAML"`
+	Pattern        string `json:"pattern"`
+	FirstRunUnix   int64  `json:"firstRunUnix,omitempty"`
+	MaxExecs       int    `json:"maxExecs,omitempty"`
+}
+
+type CommandSchedulerAddScheduledTaskRtnData struct {
+	TaskID string `json:"taskId"`
+}
+
+type CommandSchedulerListTasksData struct{}
+
+type CommandSchedulerListTasksRtnData struct {
+	Tasks []ScheduledTaskInfo `json:"tasks"`
+}
+
+type ScheduledTaskInfo struct {
+	OID       string `json:"oid"`
+	TaskYAML  string `json:"taskYAML"`
+	NextRun   int64  `json:"nextRun"`
+	LastRun   int64  `json:"lastRun"`
+	Status    string `json:"status"`
+	Pattern   string `json:"pattern"`
+	ExecCount int    `json:"execCount"`
+	MaxExecs  int    `json:"maxExecs"`
+}
+
+type CommandSchedulerDeleteTaskData struct {
+	TaskID string `json:"taskId"`
+}
+
 // AgentRegistry types
 
 type Agent struct {
@@ -1249,4 +1392,24 @@ type Agent struct {
 type MCPConnection struct {
 	ServerName string         `json:"serverName"`
 	Config     map[string]any `json:"config,omitempty"`
+}
+
+// Skill represents a skill
+type Skill struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	CreatedAt   int64  `json:"createdAt"`
+	UpdatedAt   int64  `json:"updatedAt"`
+}
+
+// MCPServer represents an MCP server
+type MCPServer struct {
+	ID          string         `json:"id"`
+	Name        string         `json:"name"`
+	Description string         `json:"description"`
+	Config      map[string]any `json:"config"`
+	Enabled     bool           `json:"enabled"`
+	CreatedAt   int64          `json:"createdAt"`
+	UpdatedAt   int64          `json:"updatedAt"`
 }

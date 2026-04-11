@@ -696,6 +696,36 @@ export class RpcApiType {
         return client.wshRpcCall("makedraftfromlocal", data, opts);
     }
 
+    // command "mcpserverdelete" [call]
+    MCPServerDeleteCommand(client: WshClient, data: CommandMCPServerDeleteData, opts?: RpcOpts): Promise<void> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "mcpserverdelete", data, opts);
+        return client.wshRpcCall("mcpserverdelete", data, opts);
+    }
+
+    // command "mcpserverlist" [call]
+    MCPServerListCommand(client: WshClient, data: CommandMCPServerListData, opts?: RpcOpts): Promise<CommandMCPServerListRtnData> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "mcpserverlist", data, opts);
+        return client.wshRpcCall("mcpserverlist", data, opts);
+    }
+
+    // command "mcpserverregister" [call]
+    MCPServerRegisterCommand(client: WshClient, data: CommandMCPServerRegisterData, opts?: RpcOpts): Promise<CommandMCPServerRegisterRtnData> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "mcpserverregister", data, opts);
+        return client.wshRpcCall("mcpserverregister", data, opts);
+    }
+
+    // command "mcpserversetenabled" [call]
+    MCPServerSetEnabledCommand(client: WshClient, data: CommandMCPServerSetEnabledData, opts?: RpcOpts): Promise<void> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "mcpserversetenabled", data, opts);
+        return client.wshRpcCall("mcpserversetenabled", data, opts);
+    }
+
+    // command "mcpserverupdate" [call]
+    MCPServerUpdateCommand(client: WshClient, data: CommandMCPServerUpdateData, opts?: RpcOpts): Promise<CommandMCPServerUpdateRtnData> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "mcpserverupdate", data, opts);
+        return client.wshRpcCall("mcpserverupdate", data, opts);
+    }
+
     // command "message" [call]
     MessageCommand(client: WshClient, data: CommandMessageData, opts?: RpcOpts): Promise<void> {
         if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "message", data, opts);
@@ -894,6 +924,24 @@ export class RpcApiType {
         return client.wshRpcCall("routeunannounce", null, opts);
     }
 
+    // command "scheduleraddscheduledtask" [call]
+    SchedulerAddScheduledTaskCommand(client: WshClient, data: CommandSchedulerAddScheduledTaskData, opts?: RpcOpts): Promise<CommandSchedulerAddScheduledTaskRtnData> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "scheduleraddscheduledtask", data, opts);
+        return client.wshRpcCall("scheduleraddscheduledtask", data, opts);
+    }
+
+    // command "schedulerdeletetask" [call]
+    SchedulerDeleteTaskCommand(client: WshClient, data: CommandSchedulerDeleteTaskData, opts?: RpcOpts): Promise<void> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "schedulerdeletetask", data, opts);
+        return client.wshRpcCall("schedulerdeletetask", data, opts);
+    }
+
+    // command "schedulerlisttasks" [call]
+    SchedulerListTasksCommand(client: WshClient, data: CommandSchedulerListTasksData, opts?: RpcOpts): Promise<CommandSchedulerListTasksRtnData> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "schedulerlisttasks", data, opts);
+        return client.wshRpcCall("schedulerlisttasks", data, opts);
+    }
+
     // command "sendtelemetry" [call]
     SendTelemetryCommand(client: WshClient, opts?: RpcOpts): Promise<void> {
         if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "sendtelemetry", null, opts);
@@ -946,6 +994,30 @@ export class RpcApiType {
     SetVarCommand(client: WshClient, data: CommandVarData, opts?: RpcOpts): Promise<void> {
         if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "setvar", data, opts);
         return client.wshRpcCall("setvar", data, opts);
+    }
+
+    // command "skillsdelete" [call]
+    SkillsDeleteCommand(client: WshClient, data: CommandSkillsDeleteData, opts?: RpcOpts): Promise<void> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "skillsdelete", data, opts);
+        return client.wshRpcCall("skillsdelete", data, opts);
+    }
+
+    // command "skillslist" [call]
+    SkillsListCommand(client: WshClient, data: CommandSkillsListData, opts?: RpcOpts): Promise<CommandSkillsListRtnData> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "skillslist", data, opts);
+        return client.wshRpcCall("skillslist", data, opts);
+    }
+
+    // command "skillsregister" [call]
+    SkillsRegisterCommand(client: WshClient, data: CommandSkillsRegisterData, opts?: RpcOpts): Promise<CommandSkillsRegisterRtnData> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "skillsregister", data, opts);
+        return client.wshRpcCall("skillsregister", data, opts);
+    }
+
+    // command "skillsupdate" [call]
+    SkillsUpdateCommand(client: WshClient, data: CommandSkillsUpdateData, opts?: RpcOpts): Promise<CommandSkillsUpdateRtnData> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "skillsupdate", data, opts);
+        return client.wshRpcCall("skillsupdate", data, opts);
     }
 
     // command "startbuilder" [call]
