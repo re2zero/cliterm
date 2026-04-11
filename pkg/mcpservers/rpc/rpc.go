@@ -8,21 +8,24 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/google/uuid"
+	"github.com/wavetermdev/waveterm/pkg/mcpservers"
 	"github.com/wavetermdev/waveterm/pkg/wshrpc"
 )
 
 // MCPServerRpcServer handles WSH RPC commands for MCP servers
 type MCPServerRpcServer struct {
-	store *MCPServerDB
+	store *mcpservers.MCPServerDB
 }
 
 // MakeMCPServerRpcServer creates a new MCP server RPC server
-func MakeMCPServerRpcServer(store *MCPServerDB) *MCPServerRpcServer {
+func MakeMCPServerRpcServer(store *mcpservers.MCPServerDB) *MCPServerRpcServer {
 	return &MCPServerRpcServer{
 		store: store,
 	}
 }
+
+// WshServerImpl implements wshutil.ServerImpl interface
+func (*MCPServerRpcServer) WshServerImpl() {}
 
 // MCPServerListCommand lists all MCP servers
 func (m *MCPServerRpcServer) MCPServerListCommand(ctx context.Context, data wshrpc.CommandMCPServerListData) (wshrpc.CommandMCPServerListRtnData, error) {
@@ -52,8 +55,8 @@ func (m *MCPServerRpcServer) MCPServerListCommand(ctx context.Context, data wshr
 
 // MCPServerRegisterCommand creates a new MCP server
 func (m *MCPServerRpcServer) MCPServerRegisterCommand(ctx context.Context, data wshrpc.CommandMCPServerRegisterData) (wshrpc.CommandMCPServerRegisterRtnData, error) {
-	server := &wshrpc.MCPServer{
-		ID:          uuid.New().String(),
+	server := &mcpservers.MCPServer{
+		ID:          m.store.GenerateID(),
 		Name:        data.Name,
 		Description: data.Description,
 		Config:      data.Config,

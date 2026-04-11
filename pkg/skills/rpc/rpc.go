@@ -8,30 +8,34 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/google/uuid"
+	"github.com/wavetermdev/waveterm/pkg/skills"
 	"github.com/wavetermdev/waveterm/pkg/wshrpc"
 )
+
 // SkillsRpcServer handles WSH RPC commands for skills
 type SkillsRpcServer struct {
-	store *SkillDB
+	store *skills.SkillDB
 }
 
 // MakeSkillsRpcServer creates a new skills RPC server
-func MakeSkillsRpcServer(store *SkillDB) *SkillsRpcServer {
+func MakeSkillsRpcServer(store *skills.SkillDB) *SkillsRpcServer {
 	return &SkillsRpcServer{
 		store: store,
 	}
 }
 
+// WshServerImpl implements wshutil.ServerImpl interface
+func (*SkillsRpcServer) WshServerImpl() {}
+
 // SkillsListCommand lists all skills
 func (s *SkillsRpcServer) SkillsListCommand(ctx context.Context, data wshrpc.CommandSkillsListData) (wshrpc.CommandSkillsListRtnData, error) {
-	skills, err := s.store.ListSkills()
+	skillList, err := s.store.ListSkills()
 	if err != nil {
 		return wshrpc.CommandSkillsListRtnData{}, fmt.Errorf("failed to list skills: %w", err)
 	}
 
-	skillInfos := make([]wshrpc.SkillInfo, len(skills))
-	for i, skill := range skills {
+	skillInfos := make([]wshrpc.SkillInfo, len(skillList))
+	for i, skill := range skillList {
 		skillInfos[i] = wshrpc.SkillInfo{
 			ID:          skill.ID,
 			Name:        skill.Name,
@@ -49,8 +53,8 @@ func (s *SkillsRpcServer) SkillsListCommand(ctx context.Context, data wshrpc.Com
 
 // SkillsRegisterCommand creates a new skill
 func (s *SkillsRpcServer) SkillsRegisterCommand(ctx context.Context, data wshrpc.CommandSkillsRegisterData) (wshrpc.CommandSkillsRegisterRtnData, error) {
-	skill := &wshrpc.Skill{
-		ID:          uuid.New().String(),
+	skill := &skills.Skill{
+		ID:          s.store.GenerateID(),
 		Name:        data.Name,
 		Description: data.Description,
 	}

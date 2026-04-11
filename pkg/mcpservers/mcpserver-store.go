@@ -7,10 +7,10 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"log"
+	"time"
 
+	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
-	"github.com/sawka/txwrap"
 )
 
 // MCPServer represents an MCP server in the database
@@ -43,6 +43,11 @@ func MakeMCPServerDBFromSqlx(dbx *sqlx.DB) *MCPServerDB {
 	}
 }
 
+// GenerateID generates a new UUID for an MCP server
+func (m *MCPServerDB) GenerateID() string {
+	return uuid.New().String()
+}
+
 // boolToInt converts bool to int
 func boolToInt(enabled bool) int {
 	if enabled {
@@ -62,13 +67,17 @@ func (m *MCPServerDB) CreateMCPServer(server *MCPServer) error {
 		return fmt.Errorf("server name is required")
 	}
 
-	tx, err := txwrap.Wrap(m.db)
-	if err != nil {
-		return fmt.Errorf("failed to begin transaction: %w", err)
+	if server.ID == "" {
+		server.ID = m.GenerateID()
 	}
-	defer tx.Rollback()
+
+	if server.Config == nil {
+		server.Config = make(map[string]any)
+	}
 
 	now := time.Now().UnixMilli()
+	server.CreatedAt = now
+	server.UpdatedAt = now
 
 	// Marshal config to JSON
 	configJSON, err := json.Marshal(server.Config)
@@ -77,22 +86,18 @@ func (m *MCPServerDB) CreateMCPServer(server *MCPServer) error {
 	}
 
 	// Insert MCP server
-	_, err = tx.Exec(
+	_, err = m.db.Exec(
 		"INSERT INTO mcp_servers (id, name, description, config, enabled, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
 		server.ID,
 		server.Name,
 		server.Description,
 		string(configJSON),
 		boolToInt(server.Enabled),
-		now,
-		now,
+		server.CreatedAt,
+		server.UpdatedAt,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to insert MCP server: %w", err)
-	}
-
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
 	return nil
@@ -137,7 +142,7 @@ func (m *MCPServerDB) ListMCPServers() ([]*MCPServer, error) {
 	}
 	defer rows.Close()
 
-	var servers []*MCPServer
+	var serverList []*MCPServer
 	for rows.Next() {
 		var server MCPServer
 		var configJSON string
@@ -158,14 +163,14 @@ func (m *MCPServerDB) ListMCPServers() ([]*MCPServer, error) {
 			server.Config = make(map[string]any)
 		}
 
-		servers = append(servers, &server)
+		serverList = append(serverList, &server)
 	}
 
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("error iterating MCP servers: %w", err)
 	}
 
-	return servers, nil
+	return serverList, nil
 }
 
 // ListEnabledMCPServers retrieves only enabled MCP servers
@@ -176,7 +181,7 @@ func (m *MCPServerDB) ListEnabledMCPServers() ([]*MCPServer, error) {
 	}
 	defer rows.Close()
 
-	var servers []*MCPServer
+	var serverList []*MCPServer
 	for rows.Next() {
 		var server MCPServer
 		var configJSON string
@@ -197,14 +202,14 @@ func (m *MCPServerDB) ListEnabledMCPServers() ([]*MCPServer, error) {
 			server.Config = make(map[string]any)
 		}
 
-		servers = append(servers, &server)
+		serverList = append(serverList, &server)
 	}
 
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("error iterating MCP servers: %w", err)
 	}
 
-	return servers, nil
+	return serverList, nil
 }
 
 // UpdateMCPServer updates an existing MCP server
@@ -213,13 +218,12 @@ func (m *MCPServerDB) UpdateMCPServer(server *MCPServer) error {
 		return fmt.Errorf("server name is required")
 	}
 
-	tx, err := txwrap.Wrap(m.db)
-	if err != nil {
-		return fmt.Errorf("failed to begin transaction: %w", err)
+	if server.Config == nil {
+		server.Config = make(map[string]any)
 	}
-	defer tx.Rollback()
 
 	now := time.Now().UnixMilli()
+	server.UpdatedAt = now
 
 	// Marshal config to JSON
 	configJSON, err := json.Marshal(server.Config)
@@ -228,13 +232,13 @@ func (m *MCPServerDB) UpdateMCPServer(server *MCPServer) error {
 	}
 
 	// Update MCP server
-	result, err := tx.Exec(
+	result, err := m.db.Exec(
 		"UPDATE mcp_servers SET name = ?, description = ?, config = ?, enabled = ?, updated_at = ? WHERE id = ?",
 		server.Name,
 		server.Description,
 		string(configJSON),
 		boolToInt(server.Enabled),
-		now,
+		server.UpdatedAt,
 		server.ID,
 	)
 	if err != nil {
@@ -248,10 +252,6 @@ func (m *MCPServerDB) UpdateMCPServer(server *MCPServer) error {
 
 	if rowsAffected == 0 {
 		return fmt.Errorf("MCP server not found: %s", server.ID)
-	}
-
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
 	return nil

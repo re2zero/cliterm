@@ -1,11 +1,11 @@
 // Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+import "@/types/gotypes"; // Import global types
 import { globalStore } from "@/app/store/jotaiStore";
 import { atom, type PrimitiveAtom } from "jotai";
 import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
-import type { MCPServerInfo } from "@/types/gotypes";
 
 // Atoms for MCP servers state
 export const mcpServersAtom = atom<MCPServerInfo[]>([]) as PrimitiveAtom<MCPServerInfo[]>;

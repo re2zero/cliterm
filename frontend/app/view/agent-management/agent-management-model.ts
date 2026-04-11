@@ -9,8 +9,8 @@ import * as jotai from "jotai";
 import type * as React from "react";
 import { AgentManagementView } from "./AgentManagementView";
 
-// Import types from generated bindings
-import type { Agent, MCPConnection } from "@/types/gotypes";
+// Import types from generated bindings (global types)
+import "@/types/gotypes";
 
 // View state types (extends backend Agent with display properties)
 export type AgentViewState = Agent & {
@@ -158,8 +158,8 @@ export class AgentManagementViewModel {
         }
     }
 
-    // Update existing agent
-    public async updateAgent(id: string, data: Partial<Agent>): Promise<void> {
+    // Update existing agent (requires at least name and role)
+    public async updateAgent(id: string, data: Pick<Agent, "name" | "role" | "soul" | "skills" | "mcpConnections" | "enabled">): Promise<void> {
         try {
             await RpcApi.AgentUpdateCommand(TabRpcClient, { id, ...data });
 

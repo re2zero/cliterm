@@ -8,8 +8,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
-	"github.com/sawka/txwrap"
 )
 
 // Skill represents a skill in the database
@@ -40,35 +40,36 @@ func MakeSkillDBFromSqlx(dbx *sqlx.DB) *SkillDB {
 	}
 }
 
+// GenerateID generates a new UUID for a skill
+func (s *SkillDB) GenerateID() string {
+	return uuid.New().String()
+}
+
 // CreateSkill creates a new skill
 func (s *SkillDB) CreateSkill(skill *Skill) error {
 	if skill.Name == "" {
 		return fmt.Errorf("skill name is required")
 	}
 
-	tx, err := txwrap.Wrap(s.db)
-	if err != nil {
-		return fmt.Errorf("failed to begin transaction: %w", err)
+	if skill.ID == "" {
+		skill.ID = s.GenerateID()
 	}
-	defer tx.Rollback()
 
 	now := time.Now().UnixMilli()
+	skill.CreatedAt = now
+	skill.UpdatedAt = now
 
 	// Insert skill
-	_, err = tx.Exec(
+	_, err := s.db.Exec(
 		"INSERT INTO skills (id, name, description, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
 		skill.ID,
 		skill.Name,
 		skill.Description,
-		now,
-		now,
+		skill.CreatedAt,
+		skill.UpdatedAt,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to insert skill: %w", err)
-	}
-
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
 	return nil
@@ -98,20 +99,20 @@ func (s *SkillDB) ListSkills() ([]*Skill, error) {
 	}
 	defer rows.Close()
 
-	var skills []*Skill
+	var skillList []*Skill
 	for rows.Next() {
 		var skill Skill
 		if err := rows.Scan(&skill.ID, &skill.Name, &skill.Description, &skill.CreatedAt, &skill.UpdatedAt); err != nil {
 			return nil, fmt.Errorf("failed to scan skill: %w", err)
 		}
-		skills = append(skills, &skill)
+		skillList = append(skillList, &skill)
 	}
 
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("error iterating skills: %w", err)
 	}
 
-	return skills, nil
+	return skillList, nil
 }
 
 // UpdateSkill updates an existing skill
@@ -120,20 +121,15 @@ func (s *SkillDB) UpdateSkill(skill *Skill) error {
 		return fmt.Errorf("skill name is required")
 	}
 
-	tx, err := txwrap.Wrap(s.db)
-	if err != nil {
-		return fmt.Errorf("failed to begin transaction: %w", err)
-	}
-	defer tx.Rollback()
-
 	now := time.Now().UnixMilli()
+	skill.UpdatedAt = now
 
 	// Update skill
-	result, err := tx.Exec(
+	result, err := s.db.Exec(
 		"UPDATE skills SET name = ?, description = ?, updated_at = ? WHERE id = ?",
 		skill.Name,
 		skill.Description,
-		now,
+		skill.UpdatedAt,
 		skill.ID,
 	)
 	if err != nil {
@@ -147,10 +143,6 @@ func (s *SkillDB) UpdateSkill(skill *Skill) error {
 
 	if rowsAffected == 0 {
 		return fmt.Errorf("skill not found: %s", skill.ID)
-	}
-
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
 	return nil

@@ -67,6 +67,11 @@ func NewAgentStore() *AgentDB {
 	}
 }
 
+// GetDB returns the underlying sqlx.DB
+func (a *AgentDB) GetDB() *sqlx.DB {
+	return a.db
+}
+
 // makeAgentDB creates a new SQLite database connection for agents
 func makeAgentDB(ctx context.Context) (*sqlx.DB, error) {
 	dbName := getAgentDBName()

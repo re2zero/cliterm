@@ -4,7 +4,7 @@
 import { Button } from "@/app/element/button";
 import * as jotai from "jotai";
 import * as React from "react";
-import type { AgentManagementViewModel, type AgentViewState } from "./agent-management-model";
+import type { AgentManagementViewModel, AgentViewState } from "./agent-management-model";
 import { AgentDialog } from "./AgentDialog";
 import dayjs from "dayjs";
 

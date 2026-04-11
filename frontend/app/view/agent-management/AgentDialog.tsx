@@ -6,7 +6,7 @@ import { Input } from "@/app/element/input";
 import { Toggle } from "@/app/element/toggle";
 import { WaveStreamdown } from "@/app/element/streamdown";
 import type { AgentManagementViewModel } from "./agent-management-model";
-import type { Agent, MCPConnection } from "@/types/gotypes";
+import "@/types/gotypes"; // Import for global types (SkillInfo, MCPServerInfo)
 import { fetchSkills, skillsAtom, skillsLoadingAtom } from "@/app/zeroai/models/skills-model";
 import { fetchMCPServers, mcpServersAtom, mcpServersLoadingAtom } from "@/app/zeroai/models/mcp-model";
 import clsx from "clsx";
@@ -20,7 +20,7 @@ interface AgentFormData {
     role: string;
     soul: string;
     skills: string[];
-    mcpConnections: MCPConnection[];
+    mcpServerNames: string[];
     enabled: boolean;
 }
 
@@ -38,7 +38,7 @@ const AgentCreateDialog = React.memo(({ model, onClose }: { model: AgentManageme
         role: "",
         soul: "",
         skills: [],
-        mcpConnections: [],
+        mcpServerNames: [],
         enabled: true,
     });
     const [errors, setErrors] = React.useState<FormErrors>({});
@@ -83,7 +83,7 @@ const AgentCreateDialog = React.memo(({ model, onClose }: { model: AgentManageme
                 role: formData.role.trim(),
                 soul: formData.soul.trim() || undefined,
                 skills: formData.skills,
-                mcpConnections: formData.mcpConnections.map((serverName) => ({
+                mcpConnections: formData.mcpServerNames.map((serverName) => ({
                     serverName,
                     config: {},
                 })),
@@ -112,9 +112,9 @@ const AgentCreateDialog = React.memo(({ model, onClose }: { model: AgentManageme
     const toggleMCPServer = (serverName: string) => {
         setFormData((prev) => ({
             ...prev,
-            mcpConnections: prev.mcpConnections.some((mcp) => mcp.serverName === serverName)
-                ? prev.mcpConnections.filter((mcp) => mcp.serverName !== serverName)
-                : [...prev.mcpConnections, { serverName, config: {} }],
+            mcpServerNames: prev.mcpServerNames.includes(serverName)
+                ? prev.mcpServerNames.filter((name) => name !== serverName)
+                : [...prev.mcpServerNames, serverName],
         }));
     };
 
@@ -138,7 +138,7 @@ const AgentCreateDialog = React.memo(({ model, onClose }: { model: AgentManageme
                         </span>
                         <Input
                             value={formData.name}
-                            onChange={setFormData}
+                            onChange={(value) => setFormData((prev) => ({ ...prev, name: value }))}
                             placeholder="e.g. Code Reviewer"
                             autoFocus
                             disabled={loading}
@@ -150,7 +150,12 @@ const AgentCreateDialog = React.memo(({ model, onClose }: { model: AgentManageme
                         <span className={clsx({ "text-error-color": errors.role })}>
                             Role {errors.role && `(${errors.role})`}
                         </span>
-                        <Input value={formData.role} onChange={setFormData} placeholder="e.g. Architect" disabled={loading} />
+                        <Input
+                            value={formData.role}
+                            onChange={(value) => setFormData((prev) => ({ ...prev, role: value }))}
+                            placeholder="e.g. Architect"
+                            disabled={loading}
+                        />
                     </label>
 
                     {/* Soul with markdown preview */}
@@ -179,16 +184,16 @@ const AgentCreateDialog = React.memo(({ model, onClose }: { model: AgentManageme
                     <div className="agent-create-section">
                         <span className="agent-create-section-label">Skills ({formData.skills.length})</span>
                         <div className="agent-tags-grid">
-                            {subskills.map((skill) => (
+                            {skills.map((skill) => (
                                 <button
-                                    key={skill}
+                                    key={skill.id}
                                     className={clsx("agent-tag-button", {
-                                        selected: formData.skills.includes(skill),
+                                        selected: formData.skills.includes(skill.name),
                                     })}
-                                    onClick={() => toggleSkill(skill)}
+                                    onClick={() => toggleSkill(skill.name)}
                                     disabled={loading}
                                 >
-                                    {skill}
+                                    {skill.name}
                                 </button>
                             ))}
                         </div>
@@ -197,19 +202,19 @@ const AgentCreateDialog = React.memo(({ model, onClose }: { model: AgentManageme
                     {/* MCP servers multi-select */}
                     <div className="agent-create-section">
                         <span className="agent-create-section-label">
-                            MCP Connections ({formData.mcpConnections.length})
+                            MCP Connections ({formData.mcpServerNames.length})
                         </span>
                         <div className="agent-tags-grid">
-                            {submcpServers.map((server) => (
+                            {mcpServers.map((server) => (
                                 <button
-                                    key={server}
+                                    key={server.id}
                                     className={clsx("agent-tag-button", {
-                                        selected: formData.mcpConnections.some((mcp) => mcp.serverName === server),
+                                        selected: formData.mcpServerNames.includes(server.name),
                                     })}
-                                    onClick={() => toggleMCPServer(server)}
+                                    onClick={() => toggleMCPServer(server.name)}
                                     disabled={loading}
                                 >
-                                    {server}
+                                    {server.name}
                                 </button>
                             ))}
                         </div>
@@ -262,12 +267,24 @@ const AgentEditDialog = React.memo(({ model, onClose }: { model: AgentManagement
         role: "",
         soul: "",
         skills: [],
-        mcpConnections: [],
+        mcpServerNames: [],
         enabled: true,
     });
     const [errors, setErrors] = React.useState<FormErrors>({});
     const [loading, setLoading] = React.useState(false);
     const [agentLoaded, setAgentLoaded] = React.useState(false);
+
+    // Load skills and MCP servers on mount
+    React.useEffect(() => {
+        fetchSkills();
+        fetchMCPServers();
+    }, []);
+
+    // Get skills and MCP servers from global store
+    const skills = jotai.useAtomValue(skillsAtom);
+    const skillsLoading = jotai.useAtomValue(skillsLoadingAtom);
+    const mcpServers = jotai.useAtomValue(mcpServersAtom);
+    const mcpServersLoading = jotai.useAtomValue(mcpServersLoadingAtom);
 
     // Load agent data on mount
     React.useEffect(() => {
@@ -277,7 +294,7 @@ const AgentEditDialog = React.memo(({ model, onClose }: { model: AgentManagement
                 role: agentToEdit.role,
                 soul: agentToEdit.soul || "",
                 skills: agentToEdit.skills || [],
-                mcpConnections: agentToEdit.mcpConnections || [],
+                mcpServerNames: (agentToEdit.mcpConnections || []).map((mcp) => mcp.serverName),
                 enabled: agentToEdit.enabled,
             });
             setAgentLoaded(true);
@@ -310,19 +327,19 @@ const AgentEditDialog = React.memo(({ model, onClose }: { model: AgentManagement
 
         setLoading(true);
         try {
-            const updates: Partial<Agent> = {
-                name: formData.name.trim(),
-                role: formData.role.trim(),
-                soul: formData.soul.trim() || undefined,
-                skills: formData.skills,
-                mcpConnections: formData.mcpConnections.map((mcp) => ({
-                    serverName: mcp.serverName,
-                    config: mcp.config || {},
-                })),
-                enabled: formData.enabled,
-            };
+        const updates: Pick<Agent, "name" | "role" | "soul" | "skills" | "mcpConnections" | "enabled"> = {
+            name: formData.name.trim(),
+            role: formData.role.trim(),
+            soul: formData.soul.trim() || undefined,
+            skills: formData.skills,
+            mcpConnections: formData.mcpServerNames.map((serverName) => ({
+                serverName,
+                config: {},
+            })),
+            enabled: formData.enabled,
+        };
 
-            await model.updateAgent(agentToEdit.id, updates);
+        await model.updateAgent(agentToEdit.id, updates);
             onClose();
         } catch (error) {
             console.error("Failed to update agent:", error);
@@ -344,9 +361,9 @@ const AgentEditDialog = React.memo(({ model, onClose }: { model: AgentManagement
     const toggleMCPServer = (serverName: string) => {
         setFormData((prev) => ({
             ...prev,
-            mcpConnections: prev.mcpConnections.some((mcp) => mcp.serverName === serverName)
-                ? prev.mcpConnections.filter((mcp) => mcp.serverName !== serverName)
-                : [...prev.mcpConnections, { serverName, config: {} }],
+            mcpServerNames: prev.mcpServerNames.includes(serverName)
+                ? prev.mcpServerNames.filter((name) => name !== serverName)
+                : [...prev.mcpServerNames, serverName],
         }));
     };
 
@@ -368,7 +385,11 @@ const AgentEditDialog = React.memo(({ model, onClose }: { model: AgentManagement
                         <span className={clsx({ "text-error-color": errors.name })}>
                             Name {errors.name && `(${errors.name})`}
                         </span>
-                        <Input value={formData.name} onChange={setFormData} disabled={loading} />
+                        <Input
+                            value={formData.name}
+                            onChange={(value) => setFormData((prev) => ({ ...prev, name: value }))}
+                            disabled={loading}
+                        />
                     </label>
 
                     {/* Role */}
@@ -376,7 +397,11 @@ const AgentEditDialog = React.memo(({ model, onClose }: { model: AgentManagement
                         <span className={clsx({ "text-error-color": errors.role })}>
                             Role {errors.role && `(${errors.role})`}
                         </span>
-                        <Input value={formData.role} onChange={setFormData} disabled={loading} />
+                        <Input
+                            value={formData.role}
+                            onChange={(value) => setFormData((prev) => ({ ...prev, role: value }))}
+                            disabled={loading}
+                        />
                     </label>
 
                     {/* Soul with markdown preview */}
@@ -404,16 +429,16 @@ const AgentEditDialog = React.memo(({ model, onClose }: { model: AgentManagement
                     <div className="agent-create-section">
                         <span className="agent-create-section-label">Skills ({formData.skills.length})</span>
                         <div className="agent-tags-grid">
-                            {subskills.map((skill) => (
+                            {skills.map((skill) => (
                                 <button
-                                    key={skill}
+                                    key={skill.id}
                                     className={clsx("agent-tag-button", {
-                                        selected: formData.skills.includes(skill),
+                                        selected: formData.skills.includes(skill.name),
                                     })}
-                                    onClick={() => toggleSkill(skill)}
+                                    onClick={() => toggleSkill(skill.name)}
                                     disabled={loading}
                                 >
-                                    {skill}
+                                    {skill.name}
                                 </button>
                             ))}
                         </div>
@@ -422,20 +447,19 @@ const AgentEditDialog = React.memo(({ model, onClose }: { model: AgentManagement
                     {/* MCP servers multi-select */}
                     <div className="agent-create-section">
                         <span className="agent-create-section-label">
-                            MCP Connections ({formData.mcpConnections.length})
+                            MCP Connections ({formData.mcpServerNames.length})
                         </span>
                         <div className="agent-tags-grid">
-                            {submcpServers.map((server) => (
+                            {mcpServers.map((server) => (
                                 <button
-                                    key={server}
+                                    key={server.id}
                                     className={clsx("agent-tag-button", {
-                                        selected: formData.mcpConnections.some((mcp) => mcp.serverName === server),
+                                        selected: formData.mcpServerNames.includes(server.name),
                                     })}
-                                    onClick={() => toggleMCPServer(server)}
+                                    onClick={() => toggleMCPServer(server.name)}
                                     disabled={loading}
-                                }
                                 >
-                                    {server}
+                                    {server.name}
                                 </button>
                             ))}
                         </div>

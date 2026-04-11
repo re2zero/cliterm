@@ -1,11 +1,11 @@
 // Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+import "@/types/gotypes"; // Import global types (SkillInfo, MCPServerInfo available globally)
 import { globalStore } from "@/app/store/jotaiStore";
 import { atom, type PrimitiveAtom } from "jotai";
 import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
-import type { SkillInfo } from "@/types/gotypes";
 
 // Atoms for skills state
 export const skillsAtom = atom<SkillInfo[]>([]) as PrimitiveAtom<SkillInfo[]>;
