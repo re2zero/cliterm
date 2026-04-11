@@ -13,3 +13,6 @@ var WStoreMigrationFS embed.FS
 
 //go:embed migrations-zeroai/*.sql
 var ZeroaiMigrationFS embed.FS
+
+//go:embed migrations-agent/*.sql
+var AgentMigrationFS embed.FS
