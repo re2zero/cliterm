@@ -27,31 +27,13 @@ const CollapsedAgentItem = React.memo(
         agent,
         isActive,
         onSelectAgent,
-        onEditAgent,
         onRunAgent,
     }: {
         agent: AgentDefinition;
         isActive: boolean;
         onSelectAgent: (id: string) => void;
-        onEditAgent: (agent: AgentDefinition) => void;
         onRunAgent: (agent: AgentDefinition) => void;
     }) => {
-        const [showMenu, setShowMenu] = React.useState(false);
-        const menuRef = React.useRef<HTMLDivElement>(null);
-
-        React.useEffect(() => {
-            const handleClickOutside = (event: MouseEvent) => {
-                if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-                    setShowMenu(false);
-                }
-            };
-
-            if (showMenu) {
-                document.addEventListener("mousedown", handleClickOutside);
-                return () => document.removeEventListener("mousedown", handleClickOutside);
-            }
-        }, [showMenu]);
-
         const handleClick = () => {
             onSelectAgent(agent.id);
         };
@@ -62,47 +44,15 @@ const CollapsedAgentItem = React.memo(
             onRunAgent(agent);
         };
 
-        const handleContextMenu = (e: React.MouseEvent) => {
-            e.preventDefault();
-            setShowMenu(true);
-        };
-
-        const handleRun = (e: React.MouseEvent) => {
-            e.stopPropagation();
-            onSelectAgent(agent.id);
-            onRunAgent(agent);
-            setShowMenu(false);
-        };
-
-        const handleEdit = (e: React.MouseEvent) => {
-            e.stopPropagation();
-            onSelectAgent(agent.id);
-            onEditAgent(agent);
-            setShowMenu(false);
-        };
-
         return (
             <button
                 className={clsx("agent-list-collapsed-icon", { active: isActive })}
                 onClick={handleClick}
                 onDoubleClick={handleDoubleClick}
-                onContextMenu={handleContextMenu}
                 title={agent.name}
                 style={{ color: agent.color }}
             >
                 <i className={makeIconClass(agent.icon, false)} />
-                {showMenu && (
-                    <div className="agent-list-collapsed-menu" ref={menuRef}>
-                        <button className="agent-list-collapsed-menu-item" onClick={handleRun}>
-                            <i className="fa-solid fa-play" />
-                            <span>Run</span>
-                        </button>
-                        <button className="agent-list-collapsed-menu-item" onClick={handleEdit}>
-                            <i className="fa-solid fa-pen" />
-                            <span>Edit</span>
-                        </button>
-                    </div>
-                )}
             </button>
         );
     }
@@ -126,6 +76,7 @@ const AgentItem = React.memo(
         onRun?: () => void;
     }) => {
         const [showMenu, setShowMenu] = React.useState(false);
+        const [showDeleteConfirm, setShowDeleteConfirm] = React.useState(false);
         const menuRef = React.useRef<HTMLDivElement>(null);
 
         // Close menu when clicking outside
@@ -142,15 +93,20 @@ const AgentItem = React.memo(
             }
         }, [showMenu]);
 
-        const handleMenuAction = (action: "run" | "edit" | "delete") => {
+        const handleMenuAction = (action: "edit" | "delete") => {
             setShowMenu(false);
-            if (action === "run" && onRun) {
-                onRun();
-            } else if (action === "edit" && onEdit) {
+            if (action === "edit" && onEdit) {
                 onEdit();
-            } else if (action === "delete" && onDelete) {
+            } else if (action === "delete") {
+                setShowDeleteConfirm(true);
+            }
+        };
+
+        const handleConfirmDelete = () => {
+            if (onDelete) {
                 onDelete();
             }
+            setShowDeleteConfirm(false);
         };
 
         const handleRun = (e: React.MouseEvent) => {
@@ -197,15 +153,6 @@ const AgentItem = React.memo(
                             </button>
                             {showMenu && (
                                 <div className="agent-item-menu-dropdown">
-                                    {onRun && (
-                                        <button
-                                            className="agent-item-menu-item"
-                                            onClick={() => handleMenuAction("run")}
-                                        >
-                                            <i className="fa-solid fa-play" />
-                                            <span>Run</span>
-                                        </button>
-                                    )}
                                     {onEdit && (
                                         <button
                                             className="agent-item-menu-item"
@@ -229,6 +176,36 @@ const AgentItem = React.memo(
                         </div>
                     )}
                 </div>
+                {showDeleteConfirm && (
+                    <div className="agent-create-overlay" onClick={() => setShowDeleteConfirm(false)}>
+                        <div className="agent-create-modal agent-delete-modal" onClick={(e) => e.stopPropagation()}>
+                            <div className="agent-create-header">
+                                <span>Confirm Delete</span>
+                                <button className="agent-create-close" onClick={() => setShowDeleteConfirm(false)}>
+                                    <i className="fa-solid fa-xmark" />
+                                </button>
+                            </div>
+                            <div className="agent-delete-body">
+                                <div className="agent-delete-icon">
+                                    <i className="fa-solid fa-triangle-exclamation" style={{ color: "#f87171" }} />
+                                </div>
+                                <div className="agent-delete-message">
+                                    Are you sure you want to delete <strong>{agent.name}</strong>?
+                                    <br />
+                                    <span className="text-sm text-gray-400">This action cannot be undone.</span>
+                                </div>
+                            </div>
+                            <div className="agent-create-footer">
+                                <button className="agent-create-cancel" onClick={() => setShowDeleteConfirm(false)}>
+                                    Cancel
+                                </button>
+                                <button className="agent-create-confirm danger" onClick={handleConfirmDelete}>
+                                    Delete
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
         );
     }
@@ -557,7 +534,6 @@ export const AgentList = React.memo(
                                     agent={agent}
                                     isActive={agent.id === activeAgentId}
                                     onSelectAgent={onSelectAgent}
-                                    onEditAgent={setEditingAgent}
                                     onRunAgent={handleRunAgent}
                                 />
                             ))}
