@@ -949,19 +949,25 @@ func (bc *ShellController) startAgentProcess(
 		backend = protocol.AcpBackendClaude // default to claude
 	}
 
-	// Generate a unique session ID for this agent
-	sessionID := fmt.Sprintf("agent-%s-%d", agentID, time.Now().Unix())
-
 	// Build CLI command based on backend
-	cliPath, cliArgs := zprocess.BuildAcpCommand(backend, sessionID, false, false)
+	cliPath, cliArgs := zprocess.BuildAcpCommand(backend, "", false, false)
 	if cliPath == "" {
 		return nil, fmt.Errorf("unsupported agent backend: %q", agentBackend)
 	}
 
-	blocklogger.Infof(logCtx, "[agent] CLI path: %s, args: %v\n", cliPath, cliArgs)
+	blocklogger.Infof(logCtx, "[agent] CLI path: %s\n", cliPath)
 
-	// Construct full command string with quoted arguments
-	cmdStr := cliPath
+	// Construct command with system prompt for agent
+	var cmdStr string
+	if agentSoul != "" {
+		// Escape the agent soul for shell command
+		escapedSoul := shellutil.HardQuote(agentSoul)
+		cmdStr = fmt.Sprintf("%s --system-prompt %s", cliPath, escapedSoul)
+	} else {
+		cmdStr = cliPath
+	}
+
+	// Add any additional CLI arguments
 	for _, arg := range cliArgs {
 		cmdStr += " " + shellutil.HardQuote(arg)
 	}
@@ -969,14 +975,21 @@ func (bc *ShellController) startAgentProcess(
 	// Build environment variables for agent
 	agentEnv := zprocess.BuildAgentEnv(backend, false, agentModel, nil)
 
-	// Inject agent soul as environment variable (for CLI to use as system prompt)
+	// Inject agent metadata as environment variables
 	if agentSoul != "" {
 		agentEnv["AGENT_SOUL"] = agentSoul
-		agentEnv["AGENT_NAME"] = agentName
+	}
+	agentEnv["AGENT_NAME"] = agentName
+	agentEnv["AGENT_ID"] = agentID
+	agentEnv["AGENT_BACKEND"] = agentBackend
+	if agentModel != "" {
+		agentEnv["AGENT_MODEL"] = agentModel
 	}
 
 	// Create swap token for the agent process
 	swapToken := makeSwapToken(ctx, logCtx, bc.BlockId, blockMeta, "", shellutil.ShellType_bash)
+	swapToken.Env = agentEnv
+	// Also add environment variables via SwapToken
 	swapToken.Env = agentEnv
 
 	blocklogger.Infof(logCtx, "[agent] command: %s\n", cmdStr)

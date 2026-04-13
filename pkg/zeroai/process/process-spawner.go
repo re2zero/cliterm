@@ -5,6 +5,7 @@
 package process
 
 import (
+	"os/exec"
 	"runtime"
 
 	"github.com/wavetermdev/waveterm/pkg/zeroai/protocol"
@@ -15,67 +16,52 @@ func DefaultProcessManager() ProcessManager {
 	return NewWSHProcessManager()
 }
 
-// BuildAcpCommand builds the ACP command line arguments for a given backend
+// BuildAcpCommand builds the CLI command and arguments for a given backend
+// Returns: (cliPath, cliArgs)
+// Note: CLI tools may not support all backends or arguments
 func BuildAcpCommand(backend protocol.AcpBackend, sessionID string, forkSession bool, yoloMode bool) (string, []string) {
-	var cmd string
-	var args []string
-
 	switch backend {
 	case protocol.AcpBackendClaude:
-		// claude acp --json-rpc [session-id] [--fork-session-id X]
-		cmd = "claude"
-		args = []string{"acp", "--json-rpc"}
-
-		if sessionID != "" {
-			args = append(args, sessionID)
-		}
-
-		if forkSession {
-			// Not implemented in claude-code yet, placeholder
-		}
+		// claude CLI (standard Claude Code)
+		// Usage: claude --system-prompt "<prompt>" [options]
+		// Note: Claude Code does not have ACP protocol, we use --system-prompt instead
+		return "claude", []string{}
 
 	case protocol.AcpBackendQwen:
-		// qwen acp [session-id] [--fork-session-id X]? [yolo-mode?]?
-		// Note: This depends on qwen CLI implementation
-		cmd = "qwen"
-		args = []string{"acp"}
-
-		if sessionID != "" {
-			args = append(args, sessionID)
+		// qwen CLI - check if acp subcommand is supported
+		cmd, err := exec.LookPath("qwen")
+		if err == nil {
+			// Try to check if 'qwen acp' is supported by checking version or help
+			// For now, use standard qwen CLI
+			return cmd, []string{}
 		}
-
-		if yoloMode {
-			args = append(args, protocol.QwenYoloSessionMode)
-		}
+		return "", nil
 
 	case protocol.AcpBackendCodex:
-		// codex acp [session-id] [--fork-session-id X]?
-		cmd = "codex"
-		args = []string{"acp"}
-
-		if sessionID != "" {
-			args = append(args, sessionID)
+		// codex CLI - standard usage
+		cmd, err := exec.LookPath("codex")
+		if err != nil {
+			return "", nil
 		}
+		return cmd, []string{}
 
 	case protocol.AcpBackendOpenCode:
-		// opencode acp [session-id] [--fork-session-id X]?
-		cmd = "opencode"
-		args = []string{"acp"}
-
-		if sessionID != "" {
-			args = append(args, sessionID)
+		// opencode CLI has 'acp' subcommand for ACP server, but not for running agents
+		// Standard usage: opencode [project]
+		cmd, err := exec.LookPath("opencode")
+		if err == nil {
+			return cmd, []string{}
 		}
+		return "", nil
 
 	case protocol.AcpBackendCustom:
 		// Custom backends use configurable command
-		cmd = ""
-		args = nil
+		// Caller must provide the command path
+		return "", nil
 
 	default:
 		return "", nil
 	}
-
-	return cmd, args
 }
 
 // BuildAgentEnv builds the environment variables for an agent process
@@ -86,9 +72,9 @@ func BuildAgentEnv(backend protocol.AcpBackend, yoloMode bool, model string, cus
 	switch backend {
 	case protocol.AcpBackendClaude:
 		if yoloMode {
-			env["ANTHROPIC_YOLO"] = protocol.ClaudeYoloSessionMode
+			env["ANTHROPIC_YOLO"] = "1"
 		}
-		// Note: CLAUDE_MODEL should be set via session/new RPC
+		// Note: CLAUDE_MODEL should be set via --model flag
 
 	case protocol.AcpBackendQwen:
 		// Qwen yolo mode is passed via command line, not env
@@ -96,7 +82,7 @@ func BuildAgentEnv(backend protocol.AcpBackend, yoloMode bool, model string, cus
 
 	case protocol.AcpBackendCodex:
 		if yoloMode {
-			env["GOOSE_MODE"] = protocol.GooseYoloEnvValue
+			env["GOOSE_MODE"] = "1"
 		}
 
 	case protocol.AcpBackendOpenCode:
