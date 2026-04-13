@@ -366,7 +366,7 @@ export const AgentList = React.memo(
                 {collapsed && (
                     <div className="agent-list-collapsed-content">
                         <div className="agent-list-collapsed-icons">
-                            {agents.slice(0, 5).map((agent) => (
+                            {agents.map((agent) => (
                                 <button
                                     key={agent.id}
                                     className={clsx("agent-list-collapsed-icon", { active: agent.id === activeAgentId })}
@@ -377,15 +377,6 @@ export const AgentList = React.memo(
                                     <i className={makeIconClass(agent.icon, false)} />
                                 </button>
                             ))}
-                            {agents.length > 5 && (
-                                <button
-                                    className="agent-list-collapsed-more"
-                                    onClick={onToggleCollapse}
-                                    title={`+${agents.length - 5} more agents`}
-                                >
-                                    +{agents.length - 5}
-                                </button>
-                            )}
                         </div>
                         <button
                             className="agent-list-create-collapsed"
