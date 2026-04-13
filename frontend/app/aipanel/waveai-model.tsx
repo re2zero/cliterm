@@ -393,6 +393,13 @@ export class WaveAIModel {
         });
     }
 
+    openCoworkBlock() {
+        const blockDef: BlockDef = {
+            meta: { view: "cowork" },
+        };
+        createBlock(blockDef, false, true);
+    }
+
     isValidMode(mode: string): boolean {
         const telemetryEnabled = globalStore.get(getSettingsKeyAtom("telemetry:enabled")) ?? false;
         if (mode.startsWith("waveai@") && !telemetryEnabled) {

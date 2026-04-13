@@ -28,6 +28,7 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/blockcontroller"
 	"github.com/wavetermdev/waveterm/pkg/blocklogger"
 	"github.com/wavetermdev/waveterm/pkg/buildercontroller"
+	"github.com/wavetermdev/waveterm/pkg/cowork"
 	"github.com/wavetermdev/waveterm/pkg/filebackup"
 	"github.com/wavetermdev/waveterm/pkg/filestore"
 	"github.com/wavetermdev/waveterm/pkg/genconn"
@@ -1577,4 +1578,184 @@ func (ws *WshServer) JobControllerDetachJobCommand(ctx context.Context, jobId st
 
 func (ws *WshServer) BlockJobStatusCommand(ctx context.Context, blockId string) (*wshrpc.BlockJobStatusData, error) {
 	return jobcontroller.GetBlockJobStatus(ctx, blockId)
+}
+
+func (ws *WshServer) CoworkCreateTaskCommand(ctx context.Context, data wshrpc.CoworkCreateTaskData) (*wshrpc.CoworkTask, error) {
+	task := &wshrpc.CoworkTask{
+		Title:       data.Title,
+		Description: data.Description,
+		Priority:    data.Priority,
+		Status:      "pending",
+	}
+	err := cowork.CreateTask(ctx, task)
+	if err != nil {
+		return nil, fmt.Errorf("error creating cowork task: %w", err)
+	}
+	cowork.PublishTaskUpdate()
+	return task, nil
+}
+
+func (ws *WshServer) CoworkGetTaskCommand(ctx context.Context, taskId string) (*wshrpc.CoworkTask, error) {
+	task, err := cowork.GetTask(ctx, taskId)
+	if err != nil {
+		return nil, fmt.Errorf("error getting cowork task: %w", err)
+	}
+	return task, nil
+}
+
+func (ws *WshServer) CoworkUpdateTaskCommand(ctx context.Context, data wshrpc.CoworkUpdateTaskData) (*wshrpc.CoworkTask, error) {
+	task, err := cowork.GetTask(ctx, data.TaskId)
+	if err != nil {
+		return nil, fmt.Errorf("error getting cowork task: %w", err)
+	}
+	if data.Title != "" {
+		task.Title = data.Title
+	}
+	if data.Priority != "" {
+		task.Priority = data.Priority
+	}
+	if data.Status != "" {
+		task.Status = data.Status
+		if data.Status == "done" || data.Status == "failed" {
+			task.CompletedAt = time.Now().Unix()
+		}
+	}
+	if data.AssignedWorker != "" {
+		task.AssignedWorker = data.AssignedWorker
+	}
+	if data.Result != "" {
+		task.Result = data.Result
+	}
+	if data.Error != "" {
+		task.Error = data.Error
+	}
+	if data.Progress != "" {
+		task.Progress = data.Progress
+	}
+	if data.Description != "" {
+		task.Description = data.Description
+	}
+	task.UpdatedAt = time.Now().Unix()
+	err = cowork.UpdateTask(ctx, task)
+	if err != nil {
+		return nil, fmt.Errorf("error updating cowork task: %w", err)
+	}
+	cowork.PublishTaskUpdate()
+	return task, nil
+}
+
+func (ws *WshServer) CoworkDeleteTaskCommand(ctx context.Context, taskId string) error {
+	err := cowork.DeleteTask(ctx, taskId)
+	if err != nil {
+		return fmt.Errorf("error deleting cowork task: %w", err)
+	}
+	cowork.PublishTaskUpdate()
+	return nil
+}
+
+func (ws *WshServer) CoworkListTasksCommand(ctx context.Context, data wshrpc.CoworkListTasksData) ([]*wshrpc.CoworkTask, error) {
+	tasks, err := cowork.ListTasks(ctx, data.Status, data.Priority)
+	if err != nil {
+		return nil, fmt.Errorf("error listing cowork tasks: %w", err)
+	}
+	return tasks, nil
+}
+
+func (ws *WshServer) CoworkRegisterWorkerCommand(ctx context.Context, data wshrpc.CoworkRegisterWorkerData) (*wshrpc.CoworkWorker, error) {
+	worker := &wshrpc.CoworkWorker{
+		WorkerId:     data.WorkerId,
+		Name:         data.Name,
+		Tool:         data.Tool,
+		CustomCmd:    data.CustomCmd,
+		Status:       "idle",
+		BlockId:      data.BlockId,
+		TabId:        data.TabId,
+		CreatedAt:    time.Now().Unix(),
+		LastActiveAt: time.Now().Unix(),
+	}
+	err := cowork.RegisterWorker(ctx, worker)
+	if err != nil {
+		return nil, fmt.Errorf("error registering cowork worker: %w", err)
+	}
+	cowork.PublishWorkerUpdate()
+	return worker, nil
+}
+
+func (ws *WshServer) CoworkUpdateWorkerCommand(ctx context.Context, data wshrpc.CoworkUpdateWorkerData) (*wshrpc.CoworkWorker, error) {
+	worker, err := cowork.GetWorker(ctx, data.WorkerId)
+	if err != nil {
+		return nil, fmt.Errorf("error getting cowork worker: %w", err)
+	}
+	if data.Status != "" {
+		worker.Status = data.Status
+	}
+	if data.AssignedTask != "" {
+		worker.AssignedTask = data.AssignedTask
+	}
+	if data.LastOutputHash != "" {
+		worker.LastOutputHash = data.LastOutputHash
+	}
+	if data.ErrorMsg != "" {
+		worker.ErrorMsg = data.ErrorMsg
+	}
+	worker.LastActiveAt = time.Now().Unix()
+	err = cowork.UpdateWorker(ctx, worker)
+	if err != nil {
+		return nil, fmt.Errorf("error updating cowork worker: %w", err)
+	}
+	cowork.PublishWorkerUpdate()
+	return worker, nil
+}
+
+func (ws *WshServer) CoworkListWorkersCommand(ctx context.Context) ([]*wshrpc.CoworkWorker, error) {
+	workers, err := cowork.ListWorkers(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("error listing cowork workers: %w", err)
+	}
+	return workers, nil
+}
+
+func (ws *WshServer) CoworkDeleteWorkerCommand(ctx context.Context, workerId string) error {
+	err := cowork.DeleteWorker(ctx, workerId)
+	if err != nil {
+		return fmt.Errorf("error deleting cowork worker: %w", err)
+	}
+	cowork.PublishWorkerUpdate()
+	return nil
+}
+
+func (ws *WshServer) CoworkAddActivityCommand(ctx context.Context, data wshrpc.CoworkAddActivityData) error {
+	activity := &wshrpc.CoworkActivity{
+		TaskId:      data.TaskId,
+		WorkerId:    data.WorkerId,
+		Type:        data.Type,
+		Description: data.Description,
+		Meta:        data.Meta,
+		CreatedAt:   time.Now().Unix(),
+	}
+	err := cowork.AddActivity(ctx, activity)
+	if err != nil {
+		return fmt.Errorf("error adding cowork activity: %w", err)
+	}
+	return nil
+}
+
+func (ws *WshServer) CoworkListActivityCommand(ctx context.Context, data wshrpc.CoworkListActivityData) ([]*wshrpc.CoworkActivity, error) {
+	limit := data.Limit
+	if limit <= 0 {
+		limit = 100
+	}
+	activities, err := cowork.ListActivities(ctx, limit)
+	if err != nil {
+		return nil, fmt.Errorf("error listing cowork activities: %w", err)
+	}
+	return activities, nil
+}
+
+func (ws *WshServer) CoworkGetStatusCommand(ctx context.Context) (*wshrpc.CoworkStatusData, error) {
+	status, err := cowork.GetStatus(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("error getting cowork status: %w", err)
+	}
+	return status, nil
 }

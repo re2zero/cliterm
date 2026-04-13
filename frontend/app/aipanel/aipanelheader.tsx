@@ -53,11 +53,21 @@ export const AIPanelHeader = memo(() => {
                             />
                             <span
                                 className={`relative z-10 text-xs text-white transition-all ${
-                                    widgetAccess ? "ml-2.5 mr-6 text-left" : "ml-6 mr-1 text-right"
+                                    widgetAccess ? "ml-2.5 mr-6 text-left" : "ml-6 mr-1.5 text-right"
                                 }`}
                             >
                                 {widgetAccess ? "ON" : "OFF"}
                             </span>
+                        </button>
+
+                        <button
+                            onClick={() => {
+                                model.openCoworkBlock();
+                            }}
+                            className="ml-2 px-2 py-1 bg-accent/80 hover:bg-accent text-white text-xs rounded transition-colors cursor-pointer"
+                            title="Open Cowork Dashboard"
+                        >
+                            👥
                         </button>
                     </div>
                 )}

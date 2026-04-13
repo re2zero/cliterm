@@ -880,6 +880,118 @@ declare global {
         keepalivesenttime?: number;
     };
 
+    // wshrpc.CoworkActivity
+    type CoworkActivity = {
+        id: number;
+        taskid?: string;
+        workerid?: string;
+        type: string;
+        description: string;
+        meta?: string;
+        createdat: number;
+    };
+
+    // wshrpc.CoworkAddActivityData
+    type CoworkAddActivityData = {
+        taskid?: string;
+        workerid?: string;
+        type: string;
+        description: string;
+        meta?: string;
+    };
+
+    // wshrpc.CoworkCreateTaskData
+    type CoworkCreateTaskData = {
+        title: string;
+        description?: string;
+        priority: string;
+    };
+
+    // wshrpc.CoworkListActivityData
+    type CoworkListActivityData = {
+        limit?: number;
+    };
+
+    // wshrpc.CoworkListTasksData
+    type CoworkListTasksData = {
+        status?: string;
+        priority?: string;
+    };
+
+    // wshrpc.CoworkRegisterWorkerData
+    type CoworkRegisterWorkerData = {
+        workerid: string;
+        name: string;
+        tool: string;
+        customcmd?: string;
+        blockid: string;
+        tabid: string;
+    };
+
+    // wshrpc.CoworkStatusData
+    type CoworkStatusData = {
+        pendingtasks: number;
+        workingtasks: number;
+        donetasks: number;
+        failedtasks: number;
+        activeworkers: number;
+        idleworkers: number;
+    };
+
+    // wshrpc.CoworkTask
+    type CoworkTask = {
+        taskid: string;
+        title: string;
+        description?: string;
+        priority: string;
+        status: string;
+        assignedworker?: string;
+        createdat: number;
+        updatedat: number;
+        completedat?: number;
+        result?: string;
+        error?: string;
+        progress?: string;
+    };
+
+    // wshrpc.CoworkUpdateTaskData
+    type CoworkUpdateTaskData = {
+        taskid: string;
+        title?: string;
+        description?: string;
+        priority?: string;
+        status?: string;
+        assignedworker?: string;
+        result?: string;
+        error?: string;
+        progress?: string;
+    };
+
+    // wshrpc.CoworkUpdateWorkerData
+    type CoworkUpdateWorkerData = {
+        workerid: string;
+        status?: string;
+        assignedtask?: string;
+        lastoutputhash?: string;
+        errormsg?: string;
+    };
+
+    // wshrpc.CoworkWorker
+    type CoworkWorker = {
+        workerid: string;
+        name: string;
+        tool: string;
+        customcmd?: string;
+        status: string;
+        assignedtask?: string;
+        blockid: string;
+        tabid: string;
+        createdat: number;
+        lastactiveat: number;
+        lastoutputhash?: string;
+        errormsg?: string;
+    };
+
     // wshrpc.CpuDataRequest
     type CpuDataRequest = {
         id: string;

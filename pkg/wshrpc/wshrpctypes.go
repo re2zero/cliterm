@@ -183,6 +183,20 @@ type WshRpcInterface interface {
 	// builder
 	WshRpcBuilderInterface
 
+	// cowork
+	CoworkCreateTaskCommand(ctx context.Context, data CoworkCreateTaskData) (*CoworkTask, error)
+	CoworkGetTaskCommand(ctx context.Context, taskId string) (*CoworkTask, error)
+	CoworkUpdateTaskCommand(ctx context.Context, data CoworkUpdateTaskData) (*CoworkTask, error)
+	CoworkDeleteTaskCommand(ctx context.Context, taskId string) error
+	CoworkListTasksCommand(ctx context.Context, data CoworkListTasksData) ([]*CoworkTask, error)
+	CoworkRegisterWorkerCommand(ctx context.Context, data CoworkRegisterWorkerData) (*CoworkWorker, error)
+	CoworkUpdateWorkerCommand(ctx context.Context, data CoworkUpdateWorkerData) (*CoworkWorker, error)
+	CoworkListWorkersCommand(ctx context.Context) ([]*CoworkWorker, error)
+	CoworkDeleteWorkerCommand(ctx context.Context, workerId string) error
+	CoworkAddActivityCommand(ctx context.Context, data CoworkAddActivityData) error
+	CoworkListActivityCommand(ctx context.Context, data CoworkListActivityData) ([]*CoworkActivity, error)
+	CoworkGetStatusCommand(ctx context.Context) (*CoworkStatusData, error)
+
 	// proc
 	VDomRenderCommand(ctx context.Context, data vdom.VDomFrontendUpdate) chan RespOrErrorUnion[*vdom.VDomBackendUpdate]
 	VDomUrlRequestCommand(ctx context.Context, data VDomUrlRequestData) chan RespOrErrorUnion[VDomUrlRequestResponse]
@@ -966,4 +980,105 @@ type CommandRemoteProcessListData struct {
 type CommandRemoteProcessSignalData struct {
 	Pid    int32  `json:"pid"`
 	Signal string `json:"signal"`
+}
+
+type CoworkTask struct {
+	TaskId         string `json:"taskid"`
+	Title          string `json:"title"`
+	Description    string `json:"description,omitempty"`
+	Priority       string `json:"priority"`
+	Status         string `json:"status"`
+	AssignedWorker string `json:"assignedworker,omitempty"`
+	CreatedAt      int64  `json:"createdat"`
+	UpdatedAt      int64  `json:"updatedat"`
+	CompletedAt    int64  `json:"completedat,omitempty"`
+	Result         string `json:"result,omitempty"`
+	Error          string `json:"error,omitempty"`
+	Progress       string `json:"progress,omitempty"`
+}
+
+type CoworkWorker struct {
+	WorkerId       string `json:"workerid"`
+	Name           string `json:"name"`
+	Tool           string `json:"tool"`
+	CustomCmd      string `json:"customcmd,omitempty"`
+	Status         string `json:"status"`
+	AssignedTask   string `json:"assignedtask,omitempty"`
+	BlockId        string `json:"blockid"`
+	TabId          string `json:"tabid"`
+	CreatedAt      int64  `json:"createdat"`
+	LastActiveAt   int64  `json:"lastactiveat"`
+	LastOutputHash string `json:"lastoutputhash,omitempty"`
+	ErrorMsg       string `json:"errormsg,omitempty"`
+}
+
+type CoworkActivity struct {
+	Id          int64  `json:"id"`
+	TaskId      string `json:"taskid,omitempty"`
+	WorkerId    string `json:"workerid,omitempty"`
+	Type        string `json:"type"`
+	Description string `json:"description"`
+	Meta        string `json:"meta,omitempty"`
+	CreatedAt   int64  `json:"createdat"`
+}
+
+type CoworkCreateTaskData struct {
+	Title       string `json:"title"`
+	Description string `json:"description,omitempty"`
+	Priority    string `json:"priority"`
+}
+
+type CoworkUpdateTaskData struct {
+	TaskId         string `json:"taskid"`
+	Title          string `json:"title,omitempty"`
+	Description    string `json:"description,omitempty"`
+	Priority       string `json:"priority,omitempty"`
+	Status         string `json:"status,omitempty"`
+	AssignedWorker string `json:"assignedworker,omitempty"`
+	Result         string `json:"result,omitempty"`
+	Error          string `json:"error,omitempty"`
+	Progress       string `json:"progress,omitempty"`
+}
+
+type CoworkListTasksData struct {
+	Status   string `json:"status,omitempty"`
+	Priority string `json:"priority,omitempty"`
+}
+
+type CoworkRegisterWorkerData struct {
+	WorkerId  string `json:"workerid"`
+	Name      string `json:"name"`
+	Tool      string `json:"tool"`
+	CustomCmd string `json:"customcmd,omitempty"`
+	BlockId   string `json:"blockid"`
+	TabId     string `json:"tabid"`
+}
+
+type CoworkUpdateWorkerData struct {
+	WorkerId       string `json:"workerid"`
+	Status         string `json:"status,omitempty"`
+	AssignedTask   string `json:"assignedtask,omitempty"`
+	LastOutputHash string `json:"lastoutputhash,omitempty"`
+	ErrorMsg       string `json:"errormsg,omitempty"`
+}
+
+type CoworkAddActivityData struct {
+	TaskId      string `json:"taskid,omitempty"`
+	WorkerId    string `json:"workerid,omitempty"`
+	Type        string `json:"type"`
+	Description string `json:"description"`
+	Meta        string `json:"meta,omitempty"`
+}
+
+type CoworkListActivityData struct {
+	Limit int `json:"limit,omitempty"`
+}
+
+type CoworkStatusData struct {
+	PendingTasks  int `json:"pendingtasks"`
+	WorkingTasks  int `json:"workingtasks"`
+	DoneTasks     int `json:"donetasks"`
+	FailedTasks   int `json:"failedtasks"`
+	ActiveWorkers int `json:"activeworkers"`
+	IdleWorkers   int `json:"idleworkers"`
 }

@@ -79,3 +79,7 @@ func WithTxRtn[RT any](ctx context.Context, fn func(tx *TxWrap) (RT, error)) (rt
 	}()
 	return txwrap.WithTxRtn(ctx, globalDB, fn)
 }
+
+func GetGlobalDB() *sqlx.DB {
+	return globalDB
+}

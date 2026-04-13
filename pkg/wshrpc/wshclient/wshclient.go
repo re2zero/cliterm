@@ -179,6 +179,78 @@ func ControllerResyncCommand(w *wshutil.WshRpc, data wshrpc.CommandControllerRes
 	return err
 }
 
+// command "coworkaddactivity", wshserver.CoworkAddActivityCommand
+func CoworkAddActivityCommand(w *wshutil.WshRpc, data wshrpc.CoworkAddActivityData, opts *wshrpc.RpcOpts) error {
+	_, err := sendRpcRequestCallHelper[any](w, "coworkaddactivity", data, opts)
+	return err
+}
+
+// command "coworkcreatetask", wshserver.CoworkCreateTaskCommand
+func CoworkCreateTaskCommand(w *wshutil.WshRpc, data wshrpc.CoworkCreateTaskData, opts *wshrpc.RpcOpts) (*wshrpc.CoworkTask, error) {
+	resp, err := sendRpcRequestCallHelper[*wshrpc.CoworkTask](w, "coworkcreatetask", data, opts)
+	return resp, err
+}
+
+// command "coworkdeletetask", wshserver.CoworkDeleteTaskCommand
+func CoworkDeleteTaskCommand(w *wshutil.WshRpc, data string, opts *wshrpc.RpcOpts) error {
+	_, err := sendRpcRequestCallHelper[any](w, "coworkdeletetask", data, opts)
+	return err
+}
+
+// command "coworkdeleteworker", wshserver.CoworkDeleteWorkerCommand
+func CoworkDeleteWorkerCommand(w *wshutil.WshRpc, data string, opts *wshrpc.RpcOpts) error {
+	_, err := sendRpcRequestCallHelper[any](w, "coworkdeleteworker", data, opts)
+	return err
+}
+
+// command "coworkgetstatus", wshserver.CoworkGetStatusCommand
+func CoworkGetStatusCommand(w *wshutil.WshRpc, opts *wshrpc.RpcOpts) (*wshrpc.CoworkStatusData, error) {
+	resp, err := sendRpcRequestCallHelper[*wshrpc.CoworkStatusData](w, "coworkgetstatus", nil, opts)
+	return resp, err
+}
+
+// command "coworkgettask", wshserver.CoworkGetTaskCommand
+func CoworkGetTaskCommand(w *wshutil.WshRpc, data string, opts *wshrpc.RpcOpts) (*wshrpc.CoworkTask, error) {
+	resp, err := sendRpcRequestCallHelper[*wshrpc.CoworkTask](w, "coworkgettask", data, opts)
+	return resp, err
+}
+
+// command "coworklistactivity", wshserver.CoworkListActivityCommand
+func CoworkListActivityCommand(w *wshutil.WshRpc, data wshrpc.CoworkListActivityData, opts *wshrpc.RpcOpts) ([]*wshrpc.CoworkActivity, error) {
+	resp, err := sendRpcRequestCallHelper[[]*wshrpc.CoworkActivity](w, "coworklistactivity", data, opts)
+	return resp, err
+}
+
+// command "coworklisttasks", wshserver.CoworkListTasksCommand
+func CoworkListTasksCommand(w *wshutil.WshRpc, data wshrpc.CoworkListTasksData, opts *wshrpc.RpcOpts) ([]*wshrpc.CoworkTask, error) {
+	resp, err := sendRpcRequestCallHelper[[]*wshrpc.CoworkTask](w, "coworklisttasks", data, opts)
+	return resp, err
+}
+
+// command "coworklistworkers", wshserver.CoworkListWorkersCommand
+func CoworkListWorkersCommand(w *wshutil.WshRpc, opts *wshrpc.RpcOpts) ([]*wshrpc.CoworkWorker, error) {
+	resp, err := sendRpcRequestCallHelper[[]*wshrpc.CoworkWorker](w, "coworklistworkers", nil, opts)
+	return resp, err
+}
+
+// command "coworkregisterworker", wshserver.CoworkRegisterWorkerCommand
+func CoworkRegisterWorkerCommand(w *wshutil.WshRpc, data wshrpc.CoworkRegisterWorkerData, opts *wshrpc.RpcOpts) (*wshrpc.CoworkWorker, error) {
+	resp, err := sendRpcRequestCallHelper[*wshrpc.CoworkWorker](w, "coworkregisterworker", data, opts)
+	return resp, err
+}
+
+// command "coworkupdatetask", wshserver.CoworkUpdateTaskCommand
+func CoworkUpdateTaskCommand(w *wshutil.WshRpc, data wshrpc.CoworkUpdateTaskData, opts *wshrpc.RpcOpts) (*wshrpc.CoworkTask, error) {
+	resp, err := sendRpcRequestCallHelper[*wshrpc.CoworkTask](w, "coworkupdatetask", data, opts)
+	return resp, err
+}
+
+// command "coworkupdateworker", wshserver.CoworkUpdateWorkerCommand
+func CoworkUpdateWorkerCommand(w *wshutil.WshRpc, data wshrpc.CoworkUpdateWorkerData, opts *wshrpc.RpcOpts) (*wshrpc.CoworkWorker, error) {
+	resp, err := sendRpcRequestCallHelper[*wshrpc.CoworkWorker](w, "coworkupdateworker", data, opts)
+	return resp, err
+}
+
 // command "createblock", wshserver.CreateBlockCommand
 func CreateBlockCommand(w *wshutil.WshRpc, data wshrpc.CommandCreateBlockData, opts *wshrpc.RpcOpts) (waveobj.ORef, error) {
 	resp, err := sendRpcRequestCallHelper[waveobj.ORef](w, "createblock", data, opts)
