@@ -1081,4 +1081,5 @@ type CoworkStatusData struct {
 	FailedTasks   int `json:"failedtasks"`
 	ActiveWorkers int `json:"activeworkers"`
 	IdleWorkers   int `json:"idleworkers"`
+	TotalWorkers  int `json:"totalworkers"`
 }

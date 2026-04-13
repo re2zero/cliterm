@@ -56,6 +56,7 @@ export class WaveAIModel {
     isAIStreaming = jotai.atom(false);
 
     widgetAccessAtom!: jotai.Atom<boolean>;
+    coworkModeAtom!: jotai.Atom<boolean>;
     droppedFiles: jotai.PrimitiveAtom<DroppedFile[]> = jotai.atom([]);
     chatId!: jotai.PrimitiveAtom<string>;
     currentAIMode!: jotai.PrimitiveAtom<string>;
@@ -94,6 +95,15 @@ export class WaveAIModel {
             const widgetAccessMetaAtom = getOrefMetaKeyAtom(this.orefContext, "waveai:widgetcontext");
             const value = get(widgetAccessMetaAtom);
             return value ?? true;
+        });
+
+        this.coworkModeAtom = jotai.atom((get) => {
+            if (this.inBuilder) {
+                return false;
+            }
+            const coworkModeMetaAtom = getOrefMetaKeyAtom(this.orefContext, "waveai:coworkmode");
+            const value = get(coworkModeMetaAtom);
+            return value ?? false;
         });
 
         this.codeBlockMaxWidth = jotai.atom((get) => {
@@ -390,6 +400,13 @@ export class WaveAIModel {
         RpcApi.SetMetaCommand(TabRpcClient, {
             oref: this.orefContext,
             meta: { "waveai:widgetcontext": enabled },
+        });
+    }
+
+    setCoworkMode(enabled: boolean) {
+        RpcApi.SetMetaCommand(TabRpcClient, {
+            oref: this.orefContext,
+            meta: { "waveai:coworkmode": enabled },
         });
     }
 

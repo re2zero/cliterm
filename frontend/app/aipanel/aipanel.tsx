@@ -283,6 +283,7 @@ const AIPanelComponentInner = memo(({ roundTopLeft }: AIPanelComponentInnerProps
                     msg,
                     chatid: globalStore.get(model.chatId),
                     widgetaccess: globalStore.get(model.widgetAccessAtom),
+                    coworkmode: globalStore.get(model.coworkModeAtom),
                     aimode: globalStore.get(model.currentAIMode),
                 };
                 if (isBuilderWindow()) {

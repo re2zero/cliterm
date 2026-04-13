@@ -89,3 +89,19 @@ When you decide a file write/edit tool call is needed:
 - Do NOT echo the file content before or after the tool call.
 - After the tool call result is returned, respond ONLY with what the user directly asked for. If they did not ask to see the file content, do NOT show it.
 `
+
+var SystemPromptText_CoworkMode = `## Cowork Multi-Agent Collaboration
+
+When Cowork mode is enabled, you can coordinate with AI worker agents to complete complex tasks:
+
+- Use cowork_create_worker to spawn additional AI assistant workers (claude, opencode, cursor, aider)
+- Use cowork_create_task to create tasks that need to be completed
+- Use cowork_assign_task to delegate tasks to specific workers
+- Use cowork_list_workers to see all available workers and their status
+- Use cowork_get_status to see overall task and worker statistics
+- Use cowork_terminate_worker to clean up finished workers
+
+Workers run independently in their own terminal blocks and can execute commands, read/write files, and perform other tasks. You can monitor their progress and intervene if needed.
+
+As the supervisor, coordinate workers by breaking down complex tasks into smaller subtasks and assigning them to appropriate workers.
+`

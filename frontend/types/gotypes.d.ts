@@ -936,6 +936,7 @@ declare global {
         failedtasks: number;
         activeworkers: number;
         idleworkers: number;
+        totalworkers: number;
     };
 
     // wshrpc.CoworkTask
@@ -1361,6 +1362,7 @@ declare global {
         "waveai:chatid"?: string;
         "waveai:mode"?: string;
         "waveai:maxoutputtokens"?: number;
+        "waveai:coworkmode"?: boolean;
     };
 
     // wshrpc.PathCommandData

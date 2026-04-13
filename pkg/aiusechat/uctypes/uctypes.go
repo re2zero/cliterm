@@ -313,6 +313,7 @@ type AIMetrics struct {
 	FirstByteLatency  int            `json:"firstbytelatency"` // ms
 	RequestDuration   int            `json:"requestduration"`  // ms
 	WidgetAccess      bool           `json:"widgetaccess"`
+	CoworkMode        bool           `json:"coworkmode"`
 	ThinkingLevel     string         `json:"thinkinglevel,omitempty"`
 	AIMode            string         `json:"aimode,omitempty"`
 	AIProvider        string         `json:"aiprovider,omitempty"`
@@ -505,6 +506,7 @@ type WaveChatOpts struct {
 	TabStateGenerator    func() (string, []ToolDefinition, string, error)
 	BuilderAppGenerator  func() (string, string, string, error)
 	WidgetAccess         bool
+	CoworkMode           bool
 	AllowNativeWebSearch bool
 	BuilderId            string
 	BuilderAppId         string
