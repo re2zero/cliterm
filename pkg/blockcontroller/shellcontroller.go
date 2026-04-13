@@ -928,12 +928,21 @@ func (bc *ShellController) startAgentProcess(
 	agentID string,
 ) (*shellexec.ShellProc, error) {
 	// Get agent configuration from block meta
-	agentBackend := blockMeta.GetString("agent-backend", "")
 	agentName := blockMeta.GetString("agent-name", "")
+	agentBackend := blockMeta.GetString("agent-backend", "")
 	agentModel := blockMeta.GetString("agent-model", "")
+	agentProvider := blockMeta.GetString("agent-provider", "")
+	agentRole := blockMeta.GetString("agent-role", "")
 	agentSoul := blockMeta.GetString("agent-soul", "")
+	agentDesc := blockMeta.GetString("agent-description", "")
+	agentSkillsJSON := blockMeta.GetString("agent-skills", "")
+	agentMcpToolsJSON := blockMeta.GetString("agent-mcp-tools", "")
 
-	blocklogger.Infof(logCtx, "[agent] starting agent: id=%q name=%q backend=%q model=%q\n", agentID, agentName, agentBackend, agentModel)
+	blocklogger.Infof(logCtx, "[agent] starting agent:\n")
+	blocklogger.Infof(logCtx, "[agent]   name=%q\n", agentName)
+	blocklogger.Infof(logCtx, "[agent]   role=%q\n", agentRole)
+	blocklogger.Infof(logCtx, "[agent]   backend=%q\n", agentBackend)
+	blocklogger.Infof(logCtx, "[agent]   model=%q\n", agentModel)
 
 	// Create a circular blockfile for the output
 	ctx, cancelFn := context.WithTimeout(context.Background(), 2*time.Second)
@@ -955,7 +964,7 @@ func (bc *ShellController) startAgentProcess(
 		return nil, fmt.Errorf("unsupported agent backend: %q", agentBackend)
 	}
 
-	blocklogger.Infof(logCtx, "[agent] CLI path: %s, backend: %s\n", cliPath, backend)
+	blocklogger.Infof(logCtx, "[agent] CLI path: %s\n", cliPath)
 
 	// Construct command based on backend type
 	var cmdStr string
@@ -977,15 +986,42 @@ func (bc *ShellController) startAgentProcess(
 	// Build environment variables for agent
 	agentEnv := zprocess.BuildAgentEnv(backend, false, agentModel, nil)
 
-	// Inject agent metadata as environment variables (for CLIs that support them)
+	// Inject agent metadata as environment variables
 	if agentSoul != "" {
 		agentEnv["AGENT_SOUL"] = agentSoul
 	}
-	agentEnv["AGENT_NAME"] = agentName
+	if agentName != "" {
+		agentEnv["AGENT_NAME"] = agentName
+	}
+	if agentRole != "" {
+		agentEnv["AGENT_ROLE"] = agentRole
+	}
+	if agentDesc != "" {
+		agentEnv["AGENT_DESCRIPTION"] = agentDesc
+	}
 	agentEnv["AGENT_ID"] = agentID
-	agentEnv["AGENT_BACKEND"] = agentBackend
+	if agentBackend != "" {
+		agentEnv["AGENT_BACKEND"] = agentBackend
+	}
+	if agentProvider != "" {
+		agentEnv["AGENT_PROVIDER"] = agentProvider
+	}
 	if agentModel != "" {
 		agentEnv["AGENT_MODEL"] = agentModel
+	}
+	if agentSkillsJSON != "" {
+		agentEnv["AGENT_SKILLS"] = agentSkillsJSON
+	}
+	if agentMcpToolsJSON != "" {
+		agentEnv["AGENT_MCP_TOOLS"] = agentMcpToolsJSON
+	}
+
+	// Log skills and MCP tools for debugging
+	if agentSkillsJSON != "" {
+		blocklogger.Debugf(logCtx, "[agent] skills: %s\n", agentSkillsJSON)
+	}
+	if agentMcpToolsJSON != "" {
+		blocklogger.Debugf(logCtx, "[agent] mcp tools: %s\n", agentMcpToolsJSON)
 	}
 
 	// For opencode, try to use --agent parameter if agent name is configured

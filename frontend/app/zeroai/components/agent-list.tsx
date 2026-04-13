@@ -493,6 +493,10 @@ export const AgentList = React.memo(
             // Import block creation functions lazily to avoid circular dependencies
             const { createBlock } = await import("@/store/global");
 
+            // Convert skills and MCP tools to JSON strings for block meta
+            const skillsJson = JSON.stringify(agent.skills);
+            const mcpToolsJson = JSON.stringify(agent.mcpTools);
+
             // Create terminal block with agent characteristics
             const blockDef = {
                 meta: {
@@ -505,10 +509,18 @@ export const AgentList = React.memo(
                     "agent-name": agent.name,
                     "agent-backend": agent.backend,
                     "agent-model": agent.model,
+                    "agent-provider": agent.provider,
                     // Agent characteristics for CLI to use
                     "agent-role": agent.role,
                     "agent-soul": agent.soul,
                     "agent-description": agent.description,
+                    "agent-md": agent.agentMd,
+                    // Skills and MCP tools as JSON
+                    "agent-skills": skillsJson,
+                    "agent-mcp-tools": mcpToolsJson,
+                    // Agent visual properties
+                    "agent-icon": agent.icon,
+                    "agent-color": agent.color,
                 },
             };
 
