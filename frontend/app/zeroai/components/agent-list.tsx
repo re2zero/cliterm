@@ -46,7 +46,9 @@ const AgentItem = React.memo(
                     </div>
                     <div className="agent-item-details">
                         <div className="agent-item-name">{agent.name}</div>
-                        <div className="agent-item-role">{agent.role}</div>
+                        <div className="agent-item-role" style={{ color: agent.color }}>
+                            {agent.role}
+                        </div>
                     </div>
                     {onEdit && (
                         <div className="agent-item-actions">
@@ -77,6 +79,34 @@ const CreateAgentModal = React.memo(({ onClose }: { onClose: () => void }) => {
     const [backend, setBackend] = React.useState("claude");
     const [model, setModel] = React.useState("");
     const [templateIdx, setTemplateIdx] = React.useState(-1);
+
+    // Skills and MCP selection for new agent
+    const [selectedSkills, setSelectedSkills] = React.useState<string[]>([]);
+    const [selectedMCPs, setSelectedMCPs] = React.useState<string[]>([]);
+
+    // Load skills and MCP servers from backend
+    React.useEffect(() => {
+        fetchSkills();
+        fetchMCPServers();
+    }, []);
+
+    // Get skills and MCP servers from global store
+    const skills = jotai.useAtomValue(skillsAtom);
+    const skillsLoading = jotai.useAtomValue(skillsLoadingAtom);
+    const mcpServers = jotai.useAtomValue(mcpServersAtom);
+    const mcpServersLoading = jotai.useAtomValue(mcpServersLoadingAtom);
+
+    const toggleSkill = (skillName: string) => {
+        setSelectedSkills((prev) =>
+            prev.includes(skillName) ? prev.filter((s) => s !== skillName) : [...prev, skillName]
+        );
+    };
+
+    const toggleMCP = (serverName: string) => {
+        setSelectedMCPs((prev) =>
+            prev.includes(serverName) ? prev.filter((m) => m !== serverName) : [...prev, serverName]
+        );
+    };
 
     const handleTemplateSelect = (idx: number) => {
         const t = defaultRoles[idx];
@@ -115,8 +145,18 @@ const CreateAgentModal = React.memo(({ onClose }: { onClose: () => void }) => {
             provider: backend,
             soul: soul.trim() || `You are a ${role.trim() || "helpful"} assistant.`,
             agentMd: `# ${name.trim()}\n\n## Role\n${role.trim() || "General assistant"}`,
-            skills: [],
-            mcpTools: [],
+            skills: selectedSkills.map((name, idx) => ({
+                id: `skill-${idx}`,
+                name,
+                description: "",
+                enabled: true,
+            })),
+            mcpTools: selectedMCPs.map((name, idx) => ({
+                id: `mcp-${idx}`,
+                name,
+                url: "",
+                enabled: true,
+            })),
         });
         onClose();
     };
@@ -205,6 +245,68 @@ const CreateAgentModal = React.memo(({ onClose }: { onClose: () => void }) => {
                                 placeholder="default"
                             />
                         </label>
+                    </div>
+
+                    {/* Skills Section - Multi-select from backend */}
+                    <div className="agent-edit-section">
+                        <div className="agent-edit-section-header">
+                            <span>Skills ({selectedSkills.length}/{skills.length})</span>
+                            <span className="text-xs text-gray-400">Click to select/deselect</span>
+                        </div>
+                        {skillsLoading ? (
+                            <div className="text-xs text-gray-400 py-2">Loading skills...</div>
+                        ) : skills.length === 0 ? (
+                            <div className="text-xs text-gray-400 py-2">No skills configured. Add skills in Settings.</div>
+                        ) : (
+                            <div className="agent-tags-grid">
+                                {skills.map((skill) => (
+                                    <button
+                                        key={skill.id}
+                                        type="button"
+                                        className={clsx("agent-tag-button", {
+                                            "agent-tag-selected": selectedSkills.includes(skill.name),
+                                        })}
+                                        onClick={() => toggleSkill(skill.name)}
+                                    >
+                                        <span className="agent-tag-indicator">
+                                            {selectedSkills.includes(skill.name) ? "✓" : ""}
+                                        </span>
+                                        <span className="agent-tag-text">{skill.name}</span>
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* MCP Section - Multi-select from backend */}
+                    <div className="agent-edit-section">
+                        <div className="agent-edit-section-header">
+                            <span>MCP ({selectedMCPs.length}/{mcpServers.length})</span>
+                            <span className="text-xs text-gray-400">Click to select/deselect</span>
+                        </div>
+                        {mcpServersLoading ? (
+                            <div className="text-xs text-gray-400 py-2">Loading MCP servers...</div>
+                        ) : mcpServers.length === 0 ? (
+                            <div className="text-xs text-gray-400 py-2">No MCP servers configured. Add servers in Settings.</div>
+                        ) : (
+                            <div className="agent-tags-grid">
+                                {mcpServers.map((mcp) => (
+                                    <button
+                                        key={mcp.id}
+                                        type="button"
+                                        className={clsx("agent-tag-button", {
+                                            "agent-tag-selected": selectedMCPs.includes(mcp.name),
+                                        })}
+                                        onClick={() => toggleMCP(mcp.name)}
+                                    >
+                                        <span className="agent-tag-indicator">
+                                            {selectedMCPs.includes(mcp.name) ? "✓" : ""}
+                                        </span>
+                                        <span className="agent-tag-text">{mcp.name}</span>
+                                    </button>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 </div>
                 <div className="agent-create-footer">
@@ -450,7 +552,10 @@ const EditAgentModal = React.memo(({ agent, onClose }: { agent: AgentDefinition;
                                         })}
                                         onClick={() => toggleSkill(skill.name)}
                                     >
-                                        {skill.name}
+                                        <span className="agent-tag-indicator">
+                                            {selectedSkills.includes(skill.name) ? "✓" : ""}
+                                        </span>
+                                        <span className="agent-tag-text">{skill.name}</span>
                                     </button>
                                 ))}
                             </div>
@@ -478,7 +583,10 @@ const EditAgentModal = React.memo(({ agent, onClose }: { agent: AgentDefinition;
                                         })}
                                         onClick={() => toggleMCP(mcp.name)}
                                     >
-                                        {mcp.name}
+                                        <span className="agent-tag-indicator">
+                                            {selectedMCPs.includes(mcp.name) ? "✓" : ""}
+                                        </span>
+                                        <span className="agent-tag-text">{mcp.name}</span>
                                     </button>
                                 ))}
                             </div>

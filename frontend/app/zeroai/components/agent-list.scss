@@ -239,7 +239,7 @@
 
 .agent-item-role {
     font-size: 11px;
-    color: rgba(255, 255, 255, 0.5);
+    color: inherit; /* Will be overridden by inline style */
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -825,7 +825,6 @@
     }
 }
 
-
 // Multi-select tags for skills and MCP
 .agent-tags-grid {
     display: grid;
@@ -837,6 +836,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    gap: 6px;
     padding: 6px 10px;
     border: 1px solid rgba(255, 255, 255, 0.15);
     border-radius: 6px;
@@ -845,12 +845,33 @@
     font-size: 11px;
     cursor: pointer;
     transition: all 0.2s ease;
-    text-align: center;
 
     &:hover {
         background: rgba(255, 255, 255, 0.08);
         border-color: rgba(255, 255, 255, 0.25);
         color: rgba(255, 255, 255, 0.8);
+    }
+
+    .agent-tag-indicator {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 14px;
+        height: 14px;
+        min-width: 14px;
+        min-height: 14px;
+        border: 2px solid rgba(255, 255, 255, 0.15);
+        border-radius: 3px;
+        background: transparent;
+        color: transparent;
+        font-size: 10px;
+        font-weight: bold;
+        transition: all 0.2s ease;
+    }
+
+    .agent-tag-text {
+        flex: 1;
+        text-align: center;
     }
 
     &.agent-tag-selected {
@@ -861,6 +882,18 @@
         &:hover {
             background: rgba(99, 102, 241, 0.3);
             border-color: rgba(99, 102, 241, 0.7);
+        }
+
+        .agent-tag-indicator {
+            width: 14px;
+            height: 14px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            background: rgba(99, 102, 241, 0.8);
+            color: white;
+        }
+
+        .agent-tag-text {
+            margin-right: 2px;
         }
     }
 }
