@@ -126,7 +126,6 @@ const AgentItem = React.memo(
         onRun?: () => void;
     }) => {
         const [showMenu, setShowMenu] = React.useState(false);
-        const [showDeleteConfirm, setShowDeleteConfirm] = React.useState(false);
         const menuRef = React.useRef<HTMLDivElement>(null);
 
         // Close menu when clicking outside
@@ -149,16 +148,9 @@ const AgentItem = React.memo(
                 onRun();
             } else if (action === "edit" && onEdit) {
                 onEdit();
-            } else if (action === "delete") {
-                setShowDeleteConfirm(true);
-            }
-        };
-
-        const handleConfirmDelete = () => {
-            if (onDelete) {
+            } else if (action === "delete" && onDelete) {
                 onDelete();
             }
-            setShowDeleteConfirm(false);
         };
 
         const handleRun = (e: React.MouseEvent) => {
@@ -237,36 +229,6 @@ const AgentItem = React.memo(
                         </div>
                     )}
                 </div>
-                {showDeleteConfirm && (
-                    <div className="agent-create-overlay" onClick={() => setShowDeleteConfirm(false)}>
-                        <div className="agent-create-modal agent-delete-modal" onClick={(e) => e.stopPropagation()}>
-                            <div className="agent-create-header">
-                                <span>Confirm Delete</span>
-                                <button className="agent-create-close" onClick={() => setShowDeleteConfirm(false)}>
-                                    <i className="fa-solid fa-xmark" />
-                                </button>
-                            </div>
-                            <div className="agent-delete-body">
-                                <div className="agent-delete-icon">
-                                    <i className="fa-solid fa-triangle-exclamation" style={{ color: "#f87171" }} />
-                                </div>
-                                <div className="agent-delete-message">
-                                    Are you sure you want to delete <strong>{agent.name}</strong>?
-                                    <br />
-                                    <span className="text-sm text-gray-400">This action cannot be undone.</span>
-                                </div>
-                            </div>
-                            <div className="agent-create-footer">
-                                <button className="agent-create-cancel" onClick={() => setShowDeleteConfirm(false)}>
-                                    Cancel
-                                </button>
-                                <button className="agent-create-confirm danger" onClick={handleConfirmDelete}>
-                                    Delete
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                )}
             </div>
         );
     }
@@ -281,6 +243,7 @@ const CreateAgentModal = React.memo(({ onClose }: { onClose: () => void }) => {
     const [backend, setBackend] = React.useState("claude");
     const [model, setModel] = React.useState("");
     const [templateIdx, setTemplateIdx] = React.useState(-1);
+    const nameInputRef = React.useRef<HTMLInputElement>(null);
 
     // Skills and MCP selection for new agent
     const [selectedSkills, setSelectedSkills] = React.useState<string[]>([]);
@@ -319,6 +282,10 @@ const CreateAgentModal = React.memo(({ onClose }: { onClose: () => void }) => {
         setSoul(t.soul);
         setBackend(t.backend);
         setModel(t.model);
+        // Focus the name input after selecting a template
+        setTimeout(() => {
+            nameInputRef.current?.focus();
+        }, 0);
     };
 
     const handleCreate = () => {
@@ -392,6 +359,7 @@ const CreateAgentModal = React.memo(({ onClose }: { onClose: () => void }) => {
                         <label className="agent-create-label">
                             Name
                             <input
+                                ref={nameInputRef}
                                 type="text"
                                 value={name}
                                 onChange={(e) => setName(e.target.value)}
@@ -535,12 +503,10 @@ export const AgentList = React.memo(
         const [editingAgent, setEditingAgent] = React.useState<AgentDefinition | null>(null);
 
         const handleDeleteAgent = (agent: AgentDefinition) => {
-            if (confirm(`Are you sure you want to delete ${agent.name}?`)) {
-                removeAgent(agent.id);
-                // If the deleted agent was active, switch to null
-                if (activeAgentId === agent.id) {
-                    onSelectAgent(null);
-                }
+            removeAgent(agent.id);
+            // If the deleted agent was active, switch to null
+            if (activeAgentId === agent.id) {
+                onSelectAgent(null);
             }
         };
 
