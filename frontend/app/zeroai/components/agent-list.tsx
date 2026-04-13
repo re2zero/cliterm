@@ -22,6 +22,93 @@ export interface AgentListProps {
 
 const DEFAULT_COLORS = ["#d97706", "#6366f1", "#2563eb", "#10b981", "#ec4899", "#8b5cf6", "#f59e0b", "#ef4444"];
 
+const CollapsedAgentItem = React.memo(
+    ({
+        agent,
+        isActive,
+        onSelectAgent,
+        onEditAgent,
+        onRunAgent,
+    }: {
+        agent: AgentDefinition;
+        isActive: boolean;
+        onSelectAgent: (id: string) => void;
+        onEditAgent: (agent: AgentDefinition) => void;
+        onRunAgent: (agent: AgentDefinition) => void;
+    }) => {
+        const [showMenu, setShowMenu] = React.useState(false);
+        const menuRef = React.useRef<HTMLDivElement>(null);
+
+        React.useEffect(() => {
+            const handleClickOutside = (event: MouseEvent) => {
+                if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+                    setShowMenu(false);
+                }
+            };
+
+            if (showMenu) {
+                document.addEventListener("mousedown", handleClickOutside);
+                return () => document.removeEventListener("mousedown", handleClickOutside);
+            }
+        }, [showMenu]);
+
+        const handleClick = () => {
+            onSelectAgent(agent.id);
+        };
+
+        const handleDoubleClick = (e: React.MouseEvent) => {
+            e.stopPropagation();
+            onSelectAgent(agent.id);
+            onRunAgent(agent);
+        };
+
+        const handleContextMenu = (e: React.MouseEvent) => {
+            e.preventDefault();
+            setShowMenu(true);
+        };
+
+        const handleRun = (e: React.MouseEvent) => {
+            e.stopPropagation();
+            onSelectAgent(agent.id);
+            onRunAgent(agent);
+            setShowMenu(false);
+        };
+
+        const handleEdit = (e: React.MouseEvent) => {
+            e.stopPropagation();
+            onSelectAgent(agent.id);
+            onEditAgent(agent);
+            setShowMenu(false);
+        };
+
+        return (
+            <button
+                className={clsx("agent-list-collapsed-icon", { active: isActive })}
+                onClick={handleClick}
+                onDoubleClick={handleDoubleClick}
+                onContextMenu={handleContextMenu}
+                title={agent.name}
+                style={{ color: agent.color }}
+            >
+                <i className={makeIconClass(agent.icon, false)} />
+                {showMenu && (
+                    <div className="agent-list-collapsed-menu" ref={menuRef}>
+                        <button className="agent-list-collapsed-menu-item" onClick={handleRun}>
+                            <i className="fa-solid fa-play" />
+                            <span>Run</span>
+                        </button>
+                        <button className="agent-list-collapsed-menu-item" onClick={handleEdit}>
+                            <i className="fa-solid fa-pen" />
+                            <span>Edit</span>
+                        </button>
+                    </div>
+                )}
+            </button>
+        );
+    }
+);
+CollapsedAgentItem.displayName = "CollapsedAgentItem";
+
 const AgentItem = React.memo(
     ({
         agent,
@@ -101,11 +188,7 @@ const AgentItem = React.memo(
                     {(onEdit || onDelete || onRun) && (
                         <div className="agent-item-actions" ref={menuRef}>
                             {onRun && (
-                                <button
-                                    className="agent-item-run"
-                                    onClick={handleRun}
-                                    title="Run agent"
-                                >
+                                <button className="agent-item-run" onClick={handleRun} title="Run agent">
                                     <i className="fa-solid fa-play" />
                                 </button>
                             )}
@@ -174,16 +257,10 @@ const AgentItem = React.memo(
                                 </div>
                             </div>
                             <div className="agent-create-footer">
-                                <button
-                                    className="agent-create-cancel"
-                                    onClick={() => setShowDeleteConfirm(false)}
-                                >
+                                <button className="agent-create-cancel" onClick={() => setShowDeleteConfirm(false)}>
                                     Cancel
                                 </button>
-                                <button
-                                    className="agent-create-confirm danger"
-                                    onClick={handleConfirmDelete}
-                                >
+                                <button className="agent-create-confirm danger" onClick={handleConfirmDelete}>
                                     Delete
                                 </button>
                             </div>
@@ -508,72 +585,16 @@ export const AgentList = React.memo(
                 {collapsed && (
                     <div className="agent-list-collapsed-content">
                         <div className="agent-list-collapsed-icons">
-                            {agents.map((agent) => {
-                                const [showMenu, setShowMenu] = React.useState(false);
-                                const menuRef = React.useRef<HTMLDivElement>(null);
-
-                                React.useEffect(() => {
-                                    const handleClickOutside = (event: MouseEvent) => {
-                                        if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-                                            setShowMenu(false);
-                                        }
-                                    };
-
-                                    if (showMenu) {
-                                        document.addEventListener("mousedown", handleClickOutside);
-                                        return () => document.removeEventListener("mousedown", handleClickOutside);
-                                    }
-                                }, [showMenu]);
-
-                                const handleRun = (e: React.MouseEvent) => {
-                                    e.stopPropagation();
-                                    onSelectAgent(agent.id);
-                                    handleRunAgent(agent);
-                                };
-
-                                const handleEdit = (e: React.MouseEvent) => {
-                                    e.stopPropagation();
-                                    onSelectAgent(agent.id);
-                                    setEditingAgent(agent);
-                                    setShowMenu(false);
-                                };
-
-                                return (
-                                    <React.Fragment key={agent.id}>
-                                        <button
-                                            className={clsx("agent-list-collapsed-icon", { active: agent.id === activeAgentId })}
-                                            onClick={() => onSelectAgent(agent.id)}
-                                            onDoubleClick={handleRun}
-                                            onContextMenu={(e) => {
-                                                e.preventDefault();
-                                                setShowMenu(true);
-                                            }}
-                                            title={agent.name}
-                                            style={{ color: agent.color }}
-                                        >
-                                            <i className={makeIconClass(agent.icon, false)} />
-                                            {showMenu && (
-                                                <div className="agent-list-collapsed-menu" ref={menuRef}>
-                                                    <button
-                                                        className="agent-list-collapsed-menu-item"
-                                                        onClick={handleRun}
-                                                    >
-                                                        <i className="fa-solid fa-play" />
-                                                        <span>Run</span>
-                                                    </button>
-                                                    <button
-                                                        className="agent-list-collapsed-menu-item"
-                                                        onClick={handleEdit}
-                                                    >
-                                                        <i className="fa-solid fa-pen" />
-                                                        <span>Edit</span>
-                                                    </button>
-                                                </div>
-                                            )}
-                                        </button>
-                                    </React.Fragment>
-                                );
-                            })}
+                            {agents.map((agent) => (
+                                <CollapsedAgentItem
+                                    key={agent.id}
+                                    agent={agent}
+                                    isActive={agent.id === activeAgentId}
+                                    onSelectAgent={onSelectAgent}
+                                    onEditAgent={setEditingAgent}
+                                    onRunAgent={handleRunAgent}
+                                />
+                            ))}
                         </div>
                         <button
                             className="agent-list-create-collapsed"
