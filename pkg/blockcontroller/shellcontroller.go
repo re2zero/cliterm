@@ -36,6 +36,9 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/wshutil"
 	"github.com/wavetermdev/waveterm/pkg/wslconn"
 	"github.com/wavetermdev/waveterm/pkg/wstore"
+
+	zprocess "github.com/wavetermdev/waveterm/pkg/zeroai/process"
+	"github.com/wavetermdev/waveterm/pkg/zeroai/protocol"
 )
 
 const (
@@ -375,6 +378,12 @@ func (bc *ShellController) getConnUnion(logCtx context.Context, remoteName strin
 }
 
 func (bc *ShellController) setupAndStartShellProcess(logCtx context.Context, rc *RunShellOpts, blockMeta waveobj.MetaMapType) (*shellexec.ShellProc, error) {
+	// Check if this block has agent configuration and start agent CLI instead of shell
+	agentID := blockMeta.GetString("agent-id", "")
+	if agentID != "" {
+		return bc.startAgentProcess(logCtx, rc, blockMeta, agentID)
+	}
+
 	// create a circular blockfile for the output
 	ctx, cancelFn := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancelFn()
@@ -909,4 +918,99 @@ func setTermSizeInDB(blockId string, termSize waveobj.TermSize) error {
 	updates := waveobj.ContextGetUpdatesRtn(ctx)
 	wps.Broker.SendUpdateEvents(updates)
 	return nil
+}
+
+// startAgentProcess starts an agent CLI process instead of a shell
+func (bc *ShellController) startAgentProcess(
+	logCtx context.Context,
+	rc *RunShellOpts,
+	blockMeta waveobj.MetaMapType,
+	agentID string,
+) (*shellexec.ShellProc, error) {
+	// Get agent configuration from block meta
+	agentBackend := blockMeta.GetString("agent-backend", "")
+	agentName := blockMeta.GetString("agent-name", "")
+	agentModel := blockMeta.GetString("agent-model", "")
+	agentSoul := blockMeta.GetString("agent-soul", "")
+
+	blocklogger.Infof(logCtx, "[agent] starting agent: id=%q name=%q backend=%q model=%q\n", agentID, agentName, agentBackend, agentModel)
+
+	// Create a circular blockfile for the output
+	ctx, cancelFn := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancelFn()
+	fsErr := filestore.WFS.MakeFile(ctx, bc.BlockId, wavebase.BlockFile_Term, nil, wshrpc.FileOpts{MaxSize: DefaultTermMaxFileSize, Circular: true})
+	if fsErr != nil && fsErr != fs.ErrExist {
+		return nil, fmt.Errorf("error creating blockfile: %w", fsErr)
+	}
+
+	// Convert backend string to AcpBackend type
+	backend := protocol.AcpBackend(agentBackend)
+	if backend == "" {
+		backend = protocol.AcpBackendClaude // default to claude
+	}
+
+	// Generate a unique session ID for this agent
+	sessionID := fmt.Sprintf("agent-%s-%d", agentID, time.Now().Unix())
+
+	// Build CLI command based on backend
+	cliPath, cliArgs := zprocess.BuildAcpCommand(backend, sessionID, false, false)
+	if cliPath == "" {
+		return nil, fmt.Errorf("unsupported agent backend: %q", agentBackend)
+	}
+
+	blocklogger.Infof(logCtx, "[agent] CLI path: %s, args: %v\n", cliPath, cliArgs)
+
+	// Construct full command string with quoted arguments
+	cmdStr := cliPath
+	for _, arg := range cliArgs {
+		cmdStr += " " + shellutil.HardQuote(arg)
+	}
+
+	// Build environment variables for agent
+	agentEnv := zprocess.BuildAgentEnv(backend, false, agentModel, nil)
+
+	// Inject agent soul as environment variable (for CLI to use as system prompt)
+	if agentSoul != "" {
+		agentEnv["AGENT_SOUL"] = agentSoul
+		agentEnv["AGENT_NAME"] = agentName
+	}
+
+	// Create swap token for the agent process
+	swapToken := makeSwapToken(ctx, logCtx, bc.BlockId, blockMeta, "", shellutil.ShellType_bash)
+	swapToken.Env = agentEnv
+
+	blocklogger.Infof(logCtx, "[agent] command: %s\n", cmdStr)
+	blocklogger.Debugf(logCtx, "[agent] env vars: %v\n", agentEnv)
+
+	// Build command opts
+	cmdOpts := shellexec.CommandOptsType{
+		Interactive: true,
+		SwapToken:   swapToken,
+	}
+
+	// Set working directory
+	cmdOpts.Cwd = blockMeta.GetString(waveobj.MetaKey_CmdCwd, "")
+	if cmdOpts.Cwd != "" {
+		cwdPath, err := wavebase.ExpandHomeDir(cmdOpts.Cwd)
+		if err != nil {
+			return nil, err
+		}
+		cmdOpts.Cwd = cwdPath
+	}
+
+	// Start the agent CLI process
+	shellProc, err := shellexec.StartLocalShellProc(logCtx, rc.TermSize, cmdStr, cmdOpts, "")
+	if err != nil {
+		return nil, fmt.Errorf("failed to start agent CLI: %w", err)
+	}
+
+	// Update controller status
+	bc.UpdateControllerAndSendUpdate(func() bool {
+		bc.ShellProc = shellProc
+		bc.ProcStatus = Status_Running
+		return true
+	})
+
+	blocklogger.Infof(logCtx, "[agent] agent CLI started successfully: %s\n", agentName)
+	return shellProc, nil
 }

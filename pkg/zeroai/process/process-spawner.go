@@ -15,8 +15,8 @@ func DefaultProcessManager() ProcessManager {
 	return NewWSHProcessManager()
 }
 
-// buildAcpCommand builds the ACP command line arguments for a given backend
-func buildAcpCommand(backend protocol.AcpBackend, sessionID string, forkSession bool, yoloMode bool) (string, []string) {
+// BuildAcpCommand builds the ACP command line arguments for a given backend
+func BuildAcpCommand(backend protocol.AcpBackend, sessionID string, forkSession bool, yoloMode bool) (string, []string) {
 	var cmd string
 	var args []string
 
@@ -78,8 +78,8 @@ func buildAcpCommand(backend protocol.AcpBackend, sessionID string, forkSession 
 	return cmd, args
 }
 
-// buildAgentEnv builds the environment variables for an agent process
-func buildAgentEnv(backend protocol.AcpBackend, yoloMode bool, model string, customEnv map[string]string) map[string]string {
+// BuildAgentEnv builds the environment variables for an agent process
+func BuildAgentEnv(backend protocol.AcpBackend, yoloMode bool, model string, customEnv map[string]string) map[string]string {
 	env := make(map[string]string)
 
 	// Add backend-specific environment variables
@@ -122,11 +122,11 @@ func BuildProcessSpec(backend protocol.AcpBackend, cliPath string, sessionID str
 	if cliPath != "" {
 		cmd = cliPath
 	} else {
-		cmd, args = buildAcpCommand(backend, sessionID, forkSession, yoloMode)
+		cmd, args = BuildAcpCommand(backend, sessionID, forkSession, yoloMode)
 	}
 
 	// Build environment
-	agentEnv := buildAgentEnv(backend, yoloMode, model, env)
+	agentEnv := BuildAgentEnv(backend, yoloMode, model, env)
 
 	return ProcessSpec{
 		Command:     cmd,
