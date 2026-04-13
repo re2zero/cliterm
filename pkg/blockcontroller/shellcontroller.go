@@ -950,20 +950,22 @@ func (bc *ShellController) startAgentProcess(
 	}
 
 	// Build CLI command based on backend
-	cliPath, cliArgs := zprocess.BuildAcpCommand(backend, "", false, false)
+	cliPath, cliArgs := zprocess.BuildAcpCommand(backend)
 	if cliPath == "" {
 		return nil, fmt.Errorf("unsupported agent backend: %q", agentBackend)
 	}
 
-	blocklogger.Infof(logCtx, "[agent] CLI path: %s\n", cliPath)
+	blocklogger.Infof(logCtx, "[agent] CLI path: %s, backend: %s\n", cliPath, backend)
 
-	// Construct command with system prompt for agent
+	// Construct command based on backend type
 	var cmdStr string
-	if agentSoul != "" {
-		// Escape the agent soul for shell command
+	if backend == protocol.AcpBackendClaude && agentSoul != "" {
+		// Claude CLI supports --system-prompt
 		escapedSoul := shellutil.HardQuote(agentSoul)
 		cmdStr = fmt.Sprintf("%s --system-prompt %s", cliPath, escapedSoul)
 	} else {
+		// Other CLIs (opencode, qwen, codex) don't support --system-prompt
+		// Start interactive CLI without arguments
 		cmdStr = cliPath
 	}
 
@@ -975,7 +977,7 @@ func (bc *ShellController) startAgentProcess(
 	// Build environment variables for agent
 	agentEnv := zprocess.BuildAgentEnv(backend, false, agentModel, nil)
 
-	// Inject agent metadata as environment variables
+	// Inject agent metadata as environment variables (for CLIs that support them)
 	if agentSoul != "" {
 		agentEnv["AGENT_SOUL"] = agentSoul
 	}
@@ -986,10 +988,14 @@ func (bc *ShellController) startAgentProcess(
 		agentEnv["AGENT_MODEL"] = agentModel
 	}
 
+	// For opencode, try to use --agent parameter if agent name is configured
+	if backend == protocol.AcpBackendOpenCode && agentName != "" {
+		// opencode supports --agent parameter to select agent
+		cmdStr += " --agent " + shellutil.HardQuote(agentName)
+	}
+
 	// Create swap token for the agent process
 	swapToken := makeSwapToken(ctx, logCtx, bc.BlockId, blockMeta, "", shellutil.ShellType_bash)
-	swapToken.Env = agentEnv
-	// Also add environment variables via SwapToken
 	swapToken.Env = agentEnv
 
 	blocklogger.Infof(logCtx, "[agent] command: %s\n", cmdStr)

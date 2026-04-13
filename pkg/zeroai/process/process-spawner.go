@@ -18,36 +18,31 @@ func DefaultProcessManager() ProcessManager {
 
 // BuildAcpCommand builds the CLI command and arguments for a given backend
 // Returns: (cliPath, cliArgs)
-// Note: CLI tools may not support all backends or arguments
-func BuildAcpCommand(backend protocol.AcpBackend, sessionID string, forkSession bool, yoloMode bool) (string, []string) {
+// Note: Different CLI tools have different command formats
+func BuildAcpCommand(backend protocol.AcpBackend) (string, []string) {
 	switch backend {
 	case protocol.AcpBackendClaude:
-		// claude CLI (standard Claude Code)
-		// Usage: claude --system-prompt "<prompt>" [options]
-		// Note: Claude Code does not have ACP protocol, we use --system-prompt instead
+		// claude CLI supports --system-prompt
 		return "claude", []string{}
 
 	case protocol.AcpBackendQwen:
-		// qwen CLI - check if acp subcommand is supported
+		// qwen CLI (standard interactive)
 		cmd, err := exec.LookPath("qwen")
 		if err == nil {
-			// Try to check if 'qwen acp' is supported by checking version or help
-			// For now, use standard qwen CLI
 			return cmd, []string{}
 		}
 		return "", nil
 
 	case protocol.AcpBackendCodex:
-		// codex CLI - standard usage
+		// codex CLI (standard interactive, no system-prompt)
 		cmd, err := exec.LookPath("codex")
-		if err != nil {
-			return "", nil
+		if err == nil {
+			return cmd, []string{}
 		}
-		return cmd, []string{}
+		return "", nil
 
 	case protocol.AcpBackendOpenCode:
-		// opencode CLI has 'acp' subcommand for ACP server, but not for running agents
-		// Standard usage: opencode [project]
+		// opencode CLI (TUI mode, no arguments needed)
 		cmd, err := exec.LookPath("opencode")
 		if err == nil {
 			return cmd, []string{}
@@ -56,7 +51,6 @@ func BuildAcpCommand(backend protocol.AcpBackend, sessionID string, forkSession 
 
 	case protocol.AcpBackendCustom:
 		// Custom backends use configurable command
-		// Caller must provide the command path
 		return "", nil
 
 	default:
@@ -108,7 +102,7 @@ func BuildProcessSpec(backend protocol.AcpBackend, cliPath string, sessionID str
 	if cliPath != "" {
 		cmd = cliPath
 	} else {
-		cmd, args = BuildAcpCommand(backend, sessionID, forkSession, yoloMode)
+		cmd, args = BuildAcpCommand(backend)
 	}
 
 	// Build environment
