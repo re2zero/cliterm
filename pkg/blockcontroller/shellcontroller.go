@@ -5,6 +5,7 @@ package blockcontroller
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/fs"
@@ -938,6 +939,33 @@ func (bc *ShellController) startAgentProcess(
 	agentSkillsJSON := blockMeta.GetString("agent-skills", "")
 	agentMcpToolsJSON := blockMeta.GetString("agent-mcp-tools", "")
 
+	// Parse MCP tools JSON for Claude CLI
+	var mcpTools []struct {
+		ID   string `json:"id"`
+		Name string `json:"name"`
+		URL  string `json:"url"`
+	} = nil
+	if agentMcpToolsJSON != "" {
+		if err := json.Unmarshal([]byte(agentMcpToolsJSON), &mcpTools); err != nil {
+			blocklogger.Debugf(logCtx, "[agent] failed to parse MCP tools JSON: %v\n", err)
+		} else {
+			blocklogger.Infof(logCtx, "[agent]   mcp tools=%d\n", len(mcpTools))
+		}
+	}
+
+	// Log skills count (for debugging)
+	if agentSkillsJSON != "" {
+		var skills []struct {
+			ID   string `json:"id"`
+			Name string `json:"name"`
+		}
+		if err := json.Unmarshal([]byte(agentSkillsJSON), &skills); err != nil {
+			blocklogger.Debugf(logCtx, "[agent] failed to parse skills JSON for logging: %v\n", err)
+		} else {
+			blocklogger.Infof(logCtx, "[agent]   skills=%d\n", len(skills))
+		}
+	}
+
 	blocklogger.Infof(logCtx, "[agent] starting agent:\n")
 	blocklogger.Infof(logCtx, "[agent]   name=%q\n", agentName)
 	blocklogger.Infof(logCtx, "[agent]   role=%q\n", agentRole)
@@ -968,19 +996,51 @@ func (bc *ShellController) startAgentProcess(
 
 	// Construct command based on backend type
 	var cmdStr string
-	if backend == protocol.AcpBackendClaude && agentSoul != "" {
-		// Claude CLI supports --system-prompt
-		escapedSoul := shellutil.HardQuote(agentSoul)
-		cmdStr = fmt.Sprintf("%s --system-prompt %s", cliPath, escapedSoul)
-	} else {
-		// Other CLIs (opencode, qwen, codex) don't support --system-prompt
-		// Start interactive CLI without arguments
-		cmdStr = cliPath
-	}
+	var additionalArgs []string
 
-	// Add any additional CLI arguments
-	for _, arg := range cliArgs {
-		cmdStr += " " + shellutil.HardQuote(arg)
+	if backend == protocol.AcpBackendClaude {
+		// Claude CLI supports advanced options
+		// 1. Set session name
+		if agentName != "" {
+			additionalArgs = append(additionalArgs, "-n", agentName)
+		}
+
+		// 2. Set system prompt
+		if agentSoul != "" {
+			additionalArgs = append(additionalArgs, "--system-prompt", agentSoul)
+		}
+
+		// 3. Set model if specified
+		if agentModel != "" {
+			additionalArgs = append(additionalArgs, "--model", agentModel)
+		}
+
+		// 4. Add MCP config if available
+		if len(mcpTools) > 0 {
+			for _ = range mcpTools {
+				// TODO: Add MCP config when available
+				// We need to construct proper MCP config strings
+			}
+		}
+
+		// 5. Build command with base path and args
+		if len(cliArgs) > 0 {
+			cmdStr = cliPath + " " + strings.Join(cliArgs, " ") + " " + strings.Join(additionalArgs, " ")
+		} else {
+			cmdStr = cliPath + " " + strings.Join(additionalArgs, " ")
+		}
+
+	} else if backend == protocol.AcpBackendOpenCode && agentName != "" {
+		// opencode supports --agent parameter to select agent
+		additionalArgs = append(additionalArgs, "--agent", agentName)
+		if len(cliArgs) > 0 {
+			cmdStr = cliPath + " " + strings.Join(cliArgs, " ") + " " + strings.Join(additionalArgs, " ")
+		} else {
+			cmdStr = cliPath + " " + strings.Join(additionalArgs, " ")
+		}
+	} else {
+		// Other CLIs (qwen, codex) - start with defaults
+		cmdStr = cliPath
 	}
 
 	// Build environment variables for agent
@@ -1014,20 +1074,6 @@ func (bc *ShellController) startAgentProcess(
 	}
 	if agentMcpToolsJSON != "" {
 		agentEnv["AGENT_MCP_TOOLS"] = agentMcpToolsJSON
-	}
-
-	// Log skills and MCP tools for debugging
-	if agentSkillsJSON != "" {
-		blocklogger.Debugf(logCtx, "[agent] skills: %s\n", agentSkillsJSON)
-	}
-	if agentMcpToolsJSON != "" {
-		blocklogger.Debugf(logCtx, "[agent] mcp tools: %s\n", agentMcpToolsJSON)
-	}
-
-	// For opencode, try to use --agent parameter if agent name is configured
-	if backend == protocol.AcpBackendOpenCode && agentName != "" {
-		// opencode supports --agent parameter to select agent
-		cmdStr += " --agent " + shellutil.HardQuote(agentName)
 	}
 
 	// Create swap token for the agent process
