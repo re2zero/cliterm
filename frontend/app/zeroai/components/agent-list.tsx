@@ -23,10 +23,12 @@ const AgentItem = React.memo(
         agent,
         isActive,
         onSelect,
+        onEdit,
     }: {
         agent: AgentDefinition;
         isActive: boolean;
         onSelect: () => void;
+        onEdit?: () => void;
     }) => {
         return (
             <div
@@ -49,6 +51,20 @@ const AgentItem = React.memo(
                             {agent.name}
                         </div>
                     </div>
+                    {onEdit && (
+                        <div className="agent-item-actions">
+                            <button
+                                className="agent-item-edit"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    onEdit();
+                                }}
+                                aria-label="Edit agent"
+                            >
+                                <i className="fa-solid fa-pen" />
+                            </button>
+                        </div>
+                    )}
                 </div>
             </div>
         );
@@ -265,6 +281,7 @@ export const AgentList = React.memo(
                                     agent={agent}
                                     isActive={agent.id === activeAgentId}
                                     onSelect={() => onSelectAgent(agent.id)}
+                                    onEdit={() => setEditingAgent(agent)}
                                 />
                             ))}
                         </div>
@@ -336,12 +353,13 @@ const EditAgentModal = React.memo(({ agent, onClose }: { agent: AgentDefinition;
         <div className="agent-create-overlay" onClick={onClose}>
             <div className="agent-create-modal agent-edit-modal" onClick={(e) => e.stopPropagation()}>
                 <div className="agent-create-header">
-                    <span>Edit Agent: {agent.role}</span>
+                    <span>Edit: {agent.name}</span>
                     <button className="agent-create-close" onClick={onClose}>
                         <i className="fa-solid fa-xmark" />
                     </button>
                 </div>
                 <div className="agent-create-body">
+                    {/* Basic Info */}
                     <div className="agent-create-row">
                         <label className="agent-create-label">
                             Name
@@ -354,77 +372,16 @@ const EditAgentModal = React.memo(({ agent, onClose }: { agent: AgentDefinition;
                     </div>
                     <label className="agent-create-label">
                         Description
-                        <input type="text" value={description} onChange={(e) => setDescription(e.target.value)} />
+                        <input type="text" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Brief agent description" />
                     </label>
+
+                    {/* Soul - Larger textarea for editing */}
                     <label className="agent-create-label">
                         Soul (System Prompt)
-                        <textarea value={soul} onChange={(e) => setSoul(e.target.value)} rows={3} />
+                        <textarea value={soul} onChange={(e) => setSoul(e.target.value)} rows={8} placeholder="Agent's system prompt and guidelines..." />
                     </label>
 
-                    <div className="agent-edit-section">
-                        <div className="agent-edit-section-header">
-                            <span>Skills ({skills.length})</span>
-                        </div>
-                        {skills.map((skill) => (
-                            <div key={skill.id} className="agent-edit-item">
-                                <span className="agent-edit-item-name">{skill.name}</span>
-                                <span className="agent-edit-item-desc">{skill.description}</span>
-                                <button className="agent-edit-item-remove" onClick={() => removeSkill(skill.id)}>
-                                    <i className="fa-solid fa-xmark" />
-                                </button>
-                            </div>
-                        ))}
-                        <div className="agent-edit-add-row">
-                            <input
-                                type="text"
-                                placeholder="Skill name"
-                                value={newSkillName}
-                                onChange={(e) => setNewSkillName(e.target.value)}
-                            />
-                            <input
-                                type="text"
-                                placeholder="Description"
-                                value={newSkillDesc}
-                                onChange={(e) => setNewSkillDesc(e.target.value)}
-                            />
-                            <button onClick={addSkill} disabled={!newSkillName.trim()}>
-                                <i className="fa-solid fa-plus" />
-                            </button>
-                        </div>
-                    </div>
-
-                    <div className="agent-edit-section">
-                        <div className="agent-edit-section-header">
-                            <span>MCP Tools ({mcpTools.length})</span>
-                        </div>
-                        {mcpTools.map((tool) => (
-                            <div key={tool.id} className="agent-edit-item">
-                                <span className="agent-edit-item-name">{tool.name}</span>
-                                <span className="agent-edit-item-desc">{tool.url}</span>
-                                <button className="agent-edit-item-remove" onClick={() => removeMcpTool(tool.id)}>
-                                    <i className="fa-solid fa-xmark" />
-                                </button>
-                            </div>
-                        ))}
-                        <div className="agent-edit-add-row">
-                            <input
-                                type="text"
-                                placeholder="MCP name"
-                                value={newMcpName}
-                                onChange={(e) => setNewMcpName(e.target.value)}
-                            />
-                            <input
-                                type="text"
-                                placeholder="Server URL"
-                                value={newMcpUrl}
-                                onChange={(e) => setNewMcpUrl(e.target.value)}
-                            />
-                            <button onClick={addMcpTool} disabled={!newMcpName.trim()}>
-                                <i className="fa-solid fa-plus" />
-                            </button>
-                        </div>
-                    </div>
-
+                    {/* Backend Configuration */}
                     <div className="agent-create-row">
                         <label className="agent-create-label">
                             Backend
@@ -438,8 +395,84 @@ const EditAgentModal = React.memo(({ agent, onClose }: { agent: AgentDefinition;
                         </label>
                         <label className="agent-create-label">
                             Model
-                            <input type="text" value={model} onChange={(e) => setModel(e.target.value)} />
+                            <input type="text" value={model} onChange={(e) => setModel(e.target.value)} placeholder="e.g. claude-3-5-sonnet-20241022" />
                         </label>
+                    </div>
+
+                    {/* Skills Section */}
+                    <div className="agent-edit-section">
+                        <div className="agent-edit-section-header">
+                            <span>Skills ({skills.length})</span>
+                            <span className="text-xs text-gray-400">Click + to add</span>
+                        </div>
+                        <div className="agent-edit-skills-list">
+                            {skills.map((skill) => (
+                                <div key={skill.id} className="agent-edit-item">
+                                    <span className="agent-edit-item-name">{skill.name}</span>
+                                    <span className="agent-edit-item-desc">{skill.description || ""}</span>
+                                    <button className="agent-edit-item-remove" onClick={() => removeSkill(skill.id)} title="Remove skill">
+                                        <i className="fa-solid fa-xmark" />
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                        <div className="agent-edit-add-row">
+                            <input
+                                type="text"
+                                placeholder="Skill name"
+                                value={newSkillName}
+                                onChange={(e) => setNewSkillName(e.target.value)}
+                                onKeyDown={(e) => e.key === "Enter" && addSkill()}
+                            />
+                            <input
+                                type="text"
+                                placeholder="Description (optional)"
+                                value={newSkillDesc}
+                                onChange={(e) => setNewSkillDesc(e.target.value)}
+                                onKeyDown={(e) => e.key === "Enter" && addSkill()}
+                            />
+                            <button onClick={addSkill} disabled={!newSkillName.trim()} title="Add skill">
+                                <i className="fa-solid fa-plus" />
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* MCP Tools Section */}
+                    <div className="agent-edit-section">
+                        <div className="agent-edit-section-header">
+                            <span>MCP Tools ({mcpTools.length})</span>
+                            <span className="text-xs text-gray-400">External tools and APIs</span>
+                        </div>
+                        <div className="agent-edit-mcp-list">
+                            {mcpTools.map((tool) => (
+                                <div key={tool.id} className="agent-edit-item">
+                                    <span className="agent-edit-item-name">{tool.name}</span>
+                                    <span className="agent-edit-item-desc">{tool.url || ""}</span>
+                                    <button className="agent-edit-item-remove" onClick={() => removeMcpTool(tool.id)} title="Remove MCP tool">
+                                        <i className="fa-solid fa-xmark" />
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                        <div className="agent-edit-add-row">
+                            <input
+                                type="text"
+                                placeholder="MCP name"
+                                value={newMcpName}
+                                onChange={(e) => setNewMcpName(e.target.value)}
+                                onKeyDown={(e) => e.key === "Enter" && addMcpTool()}
+                            />
+                            <input
+                                type="text"
+                                placeholder="Server URL (optional)"
+                                value={newMcpUrl}
+                                onChange={(e) => setNewMcpUrl(e.target.value)}
+                                onKeyDown={(e) => e.key === "Enter" && addMcpTool()}
+                            />
+                            <button onClick={addMcpTool} disabled={!newMcpName.trim()} title="Add MCP tool">
+                                <i className="fa-solid fa-plus" />
+                            </button>
+                        </div>
                     </div>
                 </div>
                 <div className="agent-create-footer">
