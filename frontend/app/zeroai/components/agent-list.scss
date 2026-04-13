@@ -376,7 +376,10 @@
 }
 
 .agent-create-modal {
-    width: 360px;
+    width: 560px;
+    min-height: 600px;
+    max-height: 90vh;
+    overflow-y: auto;
     background: var(--bg-secondary, #1a1a2e);
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 12px;
@@ -584,8 +587,9 @@
 }
 
 .agent-edit-modal {
-    width: 440px;
-    max-height: 80vh;
+    width: 640px;
+    min-height: 700px;
+    max-height: 90vh;
     overflow-y: auto;
 }
 
