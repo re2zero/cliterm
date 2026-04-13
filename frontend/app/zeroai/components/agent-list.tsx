@@ -4,8 +4,12 @@
 import { makeIconClass } from "@/util/util";
 import clsx from "clsx";
 import * as React from "react";
+import * as jotai from "jotai";
 import type { AgentDefinition, AgentMcpTool, AgentSkill } from "../models/agent-model";
 import { addAgent, defaultRoles, removeAgent, updateAgent } from "../models/agent-model";
+import { fetchSkills, skillsAtom, skillsLoadingAtom } from "../models/skills-model";
+import { fetchMCPServers, mcpServersAtom, mcpServersLoadingAtom } from "../models/mcp-model";
+import "@/types/gotypes"; // Import global types (SkillInfo, MCPServerInfo available globally)
 import "./agent-list.scss";
 
 export interface AgentListProps {
@@ -37,19 +41,12 @@ const AgentItem = React.memo(
             >
                 {isActive && <div className="agent-item-indicator" />}
                 <div className="agent-item-main">
-                    <div className="agent-item-avatar" style={{ color: agent.color }}>
+                    <div className="agent-item-avatar" style={{ backgroundColor: agent.color + "22", color: agent.color }}>
                         <i className={makeIconClass(agent.icon, false)} />
                     </div>
                     <div className="agent-item-details">
-                        <div className="agent-item-name">
-                            <span
-                                className="agent-role-badge"
-                                style={{ backgroundColor: agent.color + "33", color: agent.color }}
-                            >
-                                {agent.role}
-                            </span>
-                            {agent.name}
-                        </div>
+                        <div className="agent-item-name">{agent.name}</div>
+                        <div className="agent-item-role">{agent.role}</div>
                     </div>
                     {onEdit && (
                         <div className="agent-item-actions">
@@ -261,7 +258,33 @@ export const AgentList = React.memo(
                             </div>
                         </>
                     )}
-                    {collapsed && (
+                </div>
+
+                {/* Collapsed: Show agent avatars + create button */}
+                {collapsed && (
+                    <div className="agent-list-collapsed-content">
+                        <div className="agent-list-collapsed-icons">
+                            {agents.slice(0, 5).map((agent) => (
+                                <button
+                                    key={agent.id}
+                                    className={clsx("agent-list-collapsed-icon", { active: agent.id === activeAgentId })}
+                                    onClick={() => onSelectAgent(agent.id)}
+                                    title={agent.name}
+                                    style={{ color: agent.color }}
+                                >
+                                    <i className={makeIconClass(agent.icon, false)} />
+                                </button>
+                            ))}
+                            {agents.length > 5 && (
+                                <button
+                                    className="agent-list-collapsed-more"
+                                    onClick={onToggleCollapse}
+                                    title={`+${agents.length - 5} more agents`}
+                                >
+                                    +{agents.length - 5}
+                                </button>
+                            )}
+                        </div>
                         <button
                             className="agent-list-create-collapsed"
                             onClick={() => setShowCreate(true)}
@@ -269,9 +292,10 @@ export const AgentList = React.memo(
                         >
                             <i className="fa-solid fa-plus" />
                         </button>
-                    )}
-                </div>
+                    </div>
+                )}
 
+                {/* Expanded: Show agent list */}
                 {!collapsed && (
                     <div className="agent-list-content">
                         <div className="agent-list-grid">
@@ -303,36 +327,32 @@ const EditAgentModal = React.memo(({ agent, onClose }: { agent: AgentDefinition;
     const [soul, setSoul] = React.useState(agent.soul);
     const [backend, setBackend] = React.useState(agent.backend);
     const [model, setModel] = React.useState(agent.model);
-    const [skills, setSkills] = React.useState<AgentSkill[]>(agent.skills);
-    const [mcpTools, setMcpTools] = React.useState<AgentMcpTool[]>(agent.mcpTools);
-    const [newSkillName, setNewSkillName] = React.useState("");
-    const [newSkillDesc, setNewSkillDesc] = React.useState("");
-    const [newMcpName, setNewMcpName] = React.useState("");
-    const [newMcpUrl, setNewMcpUrl] = React.useState("");
+    const [selectedSkills, setSelectedSkills] = React.useState<string[]>(agent.skills.map(s => s.name));
+    const [selectedMCPs, setSelectedMCPs] = React.useState<string[]>(agent.mcpTools.map(t => t.name));
 
-    const addSkill = () => {
-        if (!newSkillName.trim()) return;
-        setSkills([
-            ...skills,
-            { id: "skill-" + Date.now(), name: newSkillName.trim(), description: newSkillDesc.trim(), enabled: true },
-        ]);
-        setNewSkillName("");
-        setNewSkillDesc("");
+    // Load skills and MCP servers from backend
+    React.useEffect(() => {
+        fetchSkills();
+        fetchMCPServers();
+    }, []);
+
+    // Get skills and MCP servers from global store
+    const skills = jotai.useAtomValue(skillsAtom);
+    const skillsLoading = jotai.useAtomValue(skillsLoadingAtom);
+    const mcpServers = jotai.useAtomValue(mcpServersAtom);
+    const mcpServersLoading = jotai.useAtomValue(mcpServersLoadingAtom);
+
+    const toggleSkill = (skillName: string) => {
+        setSelectedSkills((prev) =>
+            prev.includes(skillName) ? prev.filter((s) => s !== skillName) : [...prev, skillName]
+        );
     };
 
-    const removeSkill = (id: string) => setSkills(skills.filter((s) => s.id !== id));
-
-    const addMcpTool = () => {
-        if (!newMcpName.trim()) return;
-        setMcpTools([
-            ...mcpTools,
-            { id: "mcp-" + Date.now(), name: newMcpName.trim(), url: newMcpUrl.trim(), enabled: true },
-        ]);
-        setNewMcpName("");
-        setNewMcpUrl("");
+    const toggleMCP = (serverName: string) => {
+        setSelectedMCPs((prev) =>
+            prev.includes(serverName) ? prev.filter((m) => m !== serverName) : [...prev, serverName]
+        );
     };
-
-    const removeMcpTool = (id: string) => setMcpTools(mcpTools.filter((t) => t.id !== id));
 
     const handleSave = () => {
         if (!name.trim()) return;
@@ -343,8 +363,18 @@ const EditAgentModal = React.memo(({ agent, onClose }: { agent: AgentDefinition;
             soul: soul.trim(),
             backend,
             model: model.trim(),
-            skills,
-            mcpTools,
+            skills: selectedSkills.map((name, idx) => ({
+                id: `skill-${idx}`,
+                name,
+                description: "",
+                enabled: true,
+            })),
+            mcpTools: selectedMCPs.map((name, idx) => ({
+                id: `mcp-${idx}`,
+                name,
+                url: "",
+                enabled: true,
+            })),
         });
         onClose();
     };
@@ -399,80 +429,60 @@ const EditAgentModal = React.memo(({ agent, onClose }: { agent: AgentDefinition;
                         </label>
                     </div>
 
-                    {/* Skills Section */}
+                    {/* Skills Section - Multi-select from backend */}
                     <div className="agent-edit-section">
                         <div className="agent-edit-section-header">
-                            <span>Skills ({skills.length})</span>
-                            <span className="text-xs text-gray-400">Click + to add</span>
+                            <span>Skills ({selectedSkills.length}/{skills.length})</span>
+                            <span className="text-xs text-gray-400">Click to select/deselect</span>
                         </div>
-                        <div className="agent-edit-skills-list">
-                            {skills.map((skill) => (
-                                <div key={skill.id} className="agent-edit-item">
-                                    <span className="agent-edit-item-name">{skill.name}</span>
-                                    <span className="agent-edit-item-desc">{skill.description || ""}</span>
-                                    <button className="agent-edit-item-remove" onClick={() => removeSkill(skill.id)} title="Remove skill">
-                                        <i className="fa-solid fa-xmark" />
+                        {skillsLoading ? (
+                            <div className="text-xs text-gray-400 py-2">Loading skills...</div>
+                        ) : skills.length === 0 ? (
+                            <div className="text-xs text-gray-400 py-2">No skills configured. Add skills in Settings.</div>
+                        ) : (
+                            <div className="agent-tags-grid">
+                                {skills.map((skill) => (
+                                    <button
+                                        key={skill.id}
+                                        type="button"
+                                        className={clsx("agent-tag-button", {
+                                            "agent-tag-selected": selectedSkills.includes(skill.name),
+                                        })}
+                                        onClick={() => toggleSkill(skill.name)}
+                                    >
+                                        {skill.name}
                                     </button>
-                                </div>
-                            ))}
-                        </div>
-                        <div className="agent-edit-add-row">
-                            <input
-                                type="text"
-                                placeholder="Skill name"
-                                value={newSkillName}
-                                onChange={(e) => setNewSkillName(e.target.value)}
-                                onKeyDown={(e) => e.key === "Enter" && addSkill()}
-                            />
-                            <input
-                                type="text"
-                                placeholder="Description (optional)"
-                                value={newSkillDesc}
-                                onChange={(e) => setNewSkillDesc(e.target.value)}
-                                onKeyDown={(e) => e.key === "Enter" && addSkill()}
-                            />
-                            <button onClick={addSkill} disabled={!newSkillName.trim()} title="Add skill">
-                                <i className="fa-solid fa-plus" />
-                            </button>
-                        </div>
+                                ))}
+                            </div>
+                        )}
                     </div>
 
-                    {/* MCP Tools Section */}
+                    {/* MCP Section - Multi-select from backend */}
                     <div className="agent-edit-section">
                         <div className="agent-edit-section-header">
-                            <span>MCP Tools ({mcpTools.length})</span>
-                            <span className="text-xs text-gray-400">External tools and APIs</span>
+                            <span>MCP ({selectedMCPs.length}/{mcpServers.length})</span>
+                            <span className="text-xs text-gray-400">Click to select/deselect</span>
                         </div>
-                        <div className="agent-edit-mcp-list">
-                            {mcpTools.map((tool) => (
-                                <div key={tool.id} className="agent-edit-item">
-                                    <span className="agent-edit-item-name">{tool.name}</span>
-                                    <span className="agent-edit-item-desc">{tool.url || ""}</span>
-                                    <button className="agent-edit-item-remove" onClick={() => removeMcpTool(tool.id)} title="Remove MCP tool">
-                                        <i className="fa-solid fa-xmark" />
+                        {mcpServersLoading ? (
+                            <div className="text-xs text-gray-400 py-2">Loading MCP servers...</div>
+                        ) : mcpServers.length === 0 ? (
+                            <div className="text-xs text-gray-400 py-2">No MCP servers configured. Add servers in Settings.</div>
+                        ) : (
+                            <div className="agent-tags-grid">
+                                {mcpServers.map((mcp) => (
+                                    <button
+                                        key={mcp.id}
+                                        type="button"
+                                        className={clsx("agent-tag-button", {
+                                            "agent-tag-selected": selectedMCPs.includes(mcp.name),
+                                        })}
+                                        onClick={() => toggleMCP(mcp.name)}
+                                    >
+                                        {mcp.name}
                                     </button>
-                                </div>
-                            ))}
-                        </div>
-                        <div className="agent-edit-add-row">
-                            <input
-                                type="text"
-                                placeholder="MCP name"
-                                value={newMcpName}
-                                onChange={(e) => setNewMcpName(e.target.value)}
-                                onKeyDown={(e) => e.key === "Enter" && addMcpTool()}
-                            />
-                            <input
-                                type="text"
-                                placeholder="Server URL (optional)"
-                                value={newMcpUrl}
-                                onChange={(e) => setNewMcpUrl(e.target.value)}
-                                onKeyDown={(e) => e.key === "Enter" && addMcpTool()}
-                            />
-                            <button onClick={addMcpTool} disabled={!newMcpName.trim()} title="Add MCP tool">
-                                <i className="fa-solid fa-plus" />
-                            </button>
-                        </div>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 </div>
                 <div className="agent-create-footer">
