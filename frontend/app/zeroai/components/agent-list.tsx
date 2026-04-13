@@ -487,11 +487,35 @@ export const AgentList = React.memo(
             }
         };
 
-        const handleRunAgent = (agent: AgentDefinition) => {
-            console.log("[agent-list] run agent:", agent.name);
-            // TODO: Launch terminal block and inject agent characteristics
-            // This requires integration with block system and terminal creation
-            alert(`Running agent: ${agent.name}\n\nThis feature will create a terminal block and inject agent characteristics. (To be implemented)`);
+        const handleRunAgent = async (agent: AgentDefinition) => {
+            console.log("[agent-list] run agent:", agent.name, "backend:", agent.backend);
+
+            // Import block creation functions lazily to avoid circular dependencies
+            const { createBlock } = await import("@/store/global");
+
+            // Create terminal block with agent characteristics
+            const blockDef = {
+                meta: {
+                    view: "term",
+                    controller: "shell",
+                    // Inject agent id for CLI to read
+                    "agent-id": agent.id,
+                    "agent-name": agent.name,
+                    "agent-backend": agent.backend,
+                    "agent-model": agent.model,
+                    // Agent characteristics for CLI to use
+                    "agent-role": agent.role,
+                    "agent-soul": agent.soul,
+                    "agent-description": agent.description,
+                },
+            };
+
+            try {
+                await createBlock(blockDef);
+                console.log("[agent-list] terminal block created for agent:", agent.name);
+            } catch (err) {
+                console.error("[agent-list] failed to create terminal block:", err);
+            }
         };
 
         return (
