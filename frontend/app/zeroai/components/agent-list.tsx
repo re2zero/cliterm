@@ -498,6 +498,8 @@ export const AgentList = React.memo(
                 meta: {
                     view: "term",
                     controller: "shell",
+                    // Set block title to agent name
+                    "frame:title": agent.name,
                     // Inject agent id for CLI to read
                     "agent-id": agent.id,
                     "agent-name": agent.name,
