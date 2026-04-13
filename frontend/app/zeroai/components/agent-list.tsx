@@ -9,7 +9,7 @@ import type { AgentDefinition, AgentMcpTool, AgentSkill } from "../models/agent-
 import { addAgent, defaultRoles, removeAgent, updateAgent } from "../models/agent-model";
 import { fetchSkills, skillsAtom, skillsLoadingAtom } from "../models/skills-model";
 import { fetchMCPServers, mcpServersAtom, mcpServersLoadingAtom } from "../models/mcp-model";
-import "@/types/gotypes"; // Import global types (SkillInfo, MCPServerInfo available globally)
+// SkillInfo and MCPServerInfo are global types from frontend/types/gotypes.d.ts (declare global)
 import "./agent-list.scss";
 
 export interface AgentListProps {
