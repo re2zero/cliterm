@@ -1,0 +1,107 @@
+# Trellis Configuration
+# Project-level settings for the Trellis workflow system
+#
+# All values have sensible defaults. Only override what you need.
+
+#-------------------------------------------------------------------------------
+# Session Recording
+#-------------------------------------------------------------------------------
+
+# Commit message used when auto-committing journal/index changes
+# after running add_session.py
+session_commit_message: "chore: record journal"
+
+# Maximum lines per journal file before rotating to a new one
+max_journal_lines: 2000
+
+#-------------------------------------------------------------------------------
+# Task Lifecycle Hooks
+#-------------------------------------------------------------------------------
+
+# Shell commands to run after task lifecycle events.
+# Each hook receives TASK_JSON_PATH environment variable pointing to task.json.
+# Hook failures print a warning but do not block the main operation.
+#
+# hooks:
+#   after_create:
+#     - "echo 'Task created'"
+#   after_start:
+#     - "echo 'Task started'"
+#   after_finish:
+#     - "echo 'Task finished'"
+#   after_archive:
+#     - "echo 'Task archived'"
+
+#-------------------------------------------------------------------------------
+# Monorepo / Packages
+#-------------------------------------------------------------------------------
+
+# Declare packages for monorepo projects.
+# Trellis auto-detects workspaces during `trellis init`, but you can also
+# configure them manually here.
+#
+# packages:
+#   frontend:
+#     path: packages/frontend
+#   backend:
+#     path: packages/backend
+#   docs:
+#     path: docs-site
+#     type: submodule
+
+# Default package used when --package is not specified.
+# default_package: frontend
+
+# Auto-detected monorepo packages
+packages:
+  waveterm-docs:
+    path: docs
+  tsunami-frontend:
+    path: tsunami/frontend
+default_package: waveterm-docs
+
+#-------------------------------------------------------------------------------
+# Cowork (Parallel Agent Dispatch)
+#-------------------------------------------------------------------------------
+
+# Settings for /trellis:cowork — parallel task execution via ClawTeam.
+# All values have sensible defaults. Only override what you need.
+# Priority: CLI flags > task.json meta.cowork > values below > built-in defaults
+
+cowork:
+
+  # Worker profile routing.
+  # Route workers to specific AI model profiles (ClawTeam profiles).
+  # Profiles must be pre-created: see `clawteam profile list`
+  worker_profiles:
+    # Default profile for all workers.
+    # Set to a profile name (e.g. "claude-sonnet") or leave null for ClawTeam default.
+    default: null
+    # Map task dev_type to profile name.
+    # When a child task has dev_type matching a key here, that profile is used.
+    # Override per-task: set meta.profile in task.json.
+    map: {}
+    # Example:
+    # map:
+    #   backend: claude-sonnet
+    #   frontend: claude-haiku
+    #   review: claude-opus
+
+  # Auto-create Pull Request after all workers complete.
+  # Requires: git push access + gh CLI installed + non-default branch.
+  # Result file will include PR URL when successful.
+  auto_pr: false
+
+  # Babysit (background monitor) settings.
+  babysit:
+    # Polling interval in seconds (how often to check worker status)
+    interval: 10
+    # Maximum monitoring time in seconds before timeout
+    timeout: 300
+    # Auto-merge worker branches into current branch on completion.
+    # Set to false if you prefer manual merge review.
+    auto_merge: true
+
+  # Maximum number of parallel workers per dispatch batch.
+  # Workers beyond this limit wait in queue for the next batch.
+  max_workers: 4
