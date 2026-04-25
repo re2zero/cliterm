@@ -60,6 +60,7 @@ export class CoworkViewModel implements ViewModel {
                 failedtasks: failedTasks.length,
                 activeworkers: workers.filter((w) => w.status === "working").length,
                 idleworkers: workers.filter((w) => w.status === "idle").length,
+                totalworkers: workers.length,
             };
         });
     }

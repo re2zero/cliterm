@@ -80,17 +80,23 @@ export function CoworkWorkersPanel() {
                                         {safeWorkers.map((w) => (
                                             <div
                                                 key={w.workerid}
-                                                className="flex items-center gap-1.5 px-2 py-1 bg-gray-800 rounded text-xs"
+                                                className="flex flex-col gap-1 px-2 py-1.5 bg-gray-800 rounded text-xs"
                                             >
-                                                <span
-                                                    className={`w-1.5 h-1.5 rounded-full ${statusColors[w.status] ?? "bg-gray-400"}`}
-                                                />
-                                                <span className="text-gray-300">{w.name}</span>
-                                                <span className="text-gray-500">({w.tool})</span>
+                                                <div className="flex items-center gap-1.5">
+                                                    <span
+                                                        className={`w-1.5 h-1.5 rounded-full ${statusColors[w.status] ?? "bg-gray-400"}`}
+                                                    />
+                                                    <span className="text-gray-300 font-medium">{w.name}</span>
+                                                    <span className="text-gray-500">({w.tool})</span>
+                                                    {w.role && <span className="text-purple-400">[{w.role}]</span>}
+                                                </div>
+                                                {w.desc && (
+                                                    <div className="text-gray-500 text-[10px] pl-3">{w.desc}</div>
+                                                )}
                                                 {w.assignedtask && (
-                                                    <span className="text-blue-400">
+                                                    <div className="text-blue-400 pl-3">
                                                         → {w.assignedtask.substring(0, 15)}...
-                                                    </span>
+                                                    </div>
                                                 )}
                                             </div>
                                         ))}

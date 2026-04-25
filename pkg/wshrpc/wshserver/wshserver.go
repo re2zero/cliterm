@@ -1759,3 +1759,73 @@ func (ws *WshServer) CoworkGetStatusCommand(ctx context.Context) (*wshrpc.Cowork
 	}
 	return status, nil
 }
+
+func (ws *WshServer) CoworkExecuteTaskCommand(ctx context.Context, data wshrpc.CoworkExecuteTaskData) (*wshrpc.CoworkExecuteTaskResponse, error) {
+	worker, err := cowork.GetWorker(ctx, data.WorkerId)
+	if err != nil {
+		return nil, fmt.Errorf("error getting worker: %w", err)
+	}
+
+	task, err := cowork.GetTask(ctx, data.TaskId)
+	if err != nil {
+		return nil, fmt.Errorf("error getting task: %w", err)
+	}
+
+	var cmd string
+	if data.Command != "" {
+		cmd = data.Command
+	} else if worker.Tool == "custom" && worker.CustomCmd != "" {
+		cmd = worker.CustomCmd
+	} else {
+		cmd = worker.Tool
+	}
+
+	blockDef := &waveobj.BlockDef{
+		Meta: waveobj.MetaMapType{
+			"view":       "term",
+			"term:title": fmt.Sprintf("Worker: %s - Task: %s", worker.Name, task.Title),
+			"term:input": task.Description,
+			"cmd":        cmd,
+			"cmd:cwd":    "",
+			"cmd:shell":  false,
+		},
+	}
+
+	blockData, err := wcore.CreateBlock(ctx, worker.TabId, blockDef, nil)
+	if err != nil {
+		return nil, fmt.Errorf("error creating terminal block: %w", err)
+	}
+
+	time.Sleep(500 * time.Millisecond)
+
+	inputUnion := &blockcontroller.BlockInputUnion{
+		InputData: []byte(task.Description + "\n"),
+	}
+	err = blockcontroller.SendInput(blockData.OID, inputUnion)
+	if err != nil {
+		fmt.Printf("warning: failed to send initial input to worker terminal: %v\n", err)
+	}
+
+	worker.Status = "working"
+	worker.AssignedTask = task.TaskId
+	worker.BlockId = blockData.OID
+	err = cowork.UpdateWorker(ctx, worker)
+	if err != nil {
+		return nil, fmt.Errorf("error updating worker: %w", err)
+	}
+
+	task.Status = "working"
+	err = cowork.UpdateTask(ctx, task)
+	if err != nil {
+		return nil, fmt.Errorf("error updating task: %w", err)
+	}
+
+	cowork.PublishWorkerUpdate()
+	cowork.PublishTaskUpdate()
+
+	return &wshrpc.CoworkExecuteTaskResponse{
+		BlockId: blockData.OID,
+		TabId:   worker.TabId,
+		Success: true,
+	}, nil
+}

@@ -94,10 +94,10 @@ func RegisterWorker(ctx context.Context, worker *wshrpc.CoworkWorker) error {
 		worker.Status = "idle"
 	}
 	return wstore.WithTx(ctx, func(tx *wstore.TxWrap) error {
-		tx.Exec(`INSERT INTO cowork_workers (worker_id, name, tool, custom_cmd, status, assigned_task, block_id, tab_id, created_at, last_active_at, last_output_hash, error_msg)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-			worker.WorkerId, worker.Name, worker.Tool, worker.CustomCmd, worker.Status, worker.AssignedTask,
-			worker.BlockId, worker.TabId, worker.CreatedAt, worker.LastActiveAt, worker.LastOutputHash, worker.ErrorMsg)
+		tx.Exec(`INSERT INTO cowork_workers (worker_id, name, tool, custom_cmd, role, description, soul, skills, mcp_servers, status, assigned_task, block_id, tab_id, created_at, last_active_at, last_output_hash, error_msg)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			worker.WorkerId, worker.Name, worker.Tool, worker.CustomCmd, worker.Role, worker.Desc, worker.Soul, worker.Skills, worker.McpServers,
+			worker.Status, worker.AssignedTask, worker.BlockId, worker.TabId, worker.CreatedAt, worker.LastActiveAt, worker.LastOutputHash, worker.ErrorMsg)
 		return nil
 	})
 }
@@ -105,7 +105,7 @@ func RegisterWorker(ctx context.Context, worker *wshrpc.CoworkWorker) error {
 func GetWorker(ctx context.Context, workerId string) (*wshrpc.CoworkWorker, error) {
 	db := wstore.GetGlobalDB()
 	var worker wshrpc.CoworkWorker
-	err := db.Get(&worker, `SELECT worker_id as workerid, name, tool, custom_cmd as customcmd, status, assigned_task as assignedtask, block_id as blockid, tab_id as tabid, created_at as createdat, last_active_at as lastactiveat, last_output_hash as lastoutputhash, error_msg as errormsg FROM cowork_workers WHERE worker_id = ?`, workerId)
+	err := db.Get(&worker, `SELECT worker_id as workerid, name, tool, custom_cmd as customcmd, role, description as "desc", soul, skills, mcp_servers as mcpservers, status, assigned_task as assignedtask, block_id as blockid, tab_id as tabid, created_at as createdat, last_active_at as lastactiveat, last_output_hash as lastoutputhash, error_msg as errormsg FROM cowork_workers WHERE worker_id = ?`, workerId)
 	if err != nil {
 		return nil, err
 	}
@@ -115,9 +115,9 @@ func GetWorker(ctx context.Context, workerId string) (*wshrpc.CoworkWorker, erro
 func UpdateWorker(ctx context.Context, worker *wshrpc.CoworkWorker) error {
 	worker.LastActiveAt = time.Now().Unix()
 	return wstore.WithTx(ctx, func(tx *wstore.TxWrap) error {
-		tx.Exec(`UPDATE cowork_workers SET name=?, tool=?, custom_cmd=?, status=?, assigned_task=?, block_id=?, tab_id=?, last_active_at=?, last_output_hash=?, error_msg=? WHERE worker_id=?`,
-			worker.Name, worker.Tool, worker.CustomCmd, worker.Status, worker.AssignedTask,
-			worker.BlockId, worker.TabId, worker.LastActiveAt, worker.LastOutputHash, worker.ErrorMsg, worker.WorkerId)
+		tx.Exec(`UPDATE cowork_workers SET name=?, tool=?, custom_cmd=?, role=?, description=?, soul=?, skills=?, mcp_servers=?, status=?, assigned_task=?, block_id=?, tab_id=?, last_active_at=?, last_output_hash=?, error_msg=? WHERE worker_id=?`,
+			worker.Name, worker.Tool, worker.CustomCmd, worker.Role, worker.Desc, worker.Soul, worker.Skills, worker.McpServers,
+			worker.Status, worker.AssignedTask, worker.BlockId, worker.TabId, worker.LastActiveAt, worker.LastOutputHash, worker.ErrorMsg, worker.WorkerId)
 		return nil
 	})
 }
@@ -132,7 +132,7 @@ func DeleteWorker(ctx context.Context, workerId string) error {
 func ListWorkers(ctx context.Context) ([]*wshrpc.CoworkWorker, error) {
 	db := wstore.GetGlobalDB()
 	var workers []*wshrpc.CoworkWorker
-	err := db.Select(&workers, `SELECT worker_id as workerid, name, tool, custom_cmd as customcmd, status, assigned_task as assignedtask, block_id as blockid, tab_id as tabid, created_at as createdat, last_active_at as lastactiveat, last_output_hash as lastoutputhash, error_msg as errormsg FROM cowork_workers ORDER BY created_at DESC`)
+	err := db.Select(&workers, `SELECT worker_id as workerid, name, tool, custom_cmd as customcmd, role, description as "desc", soul, skills, mcp_servers as mcpservers, status, assigned_task as assignedtask, block_id as blockid, tab_id as tabid, created_at as createdat, last_active_at as lastactiveat, last_output_hash as lastoutputhash, error_msg as errormsg FROM cowork_workers ORDER BY created_at DESC`)
 	if err != nil {
 		return nil, err
 	}

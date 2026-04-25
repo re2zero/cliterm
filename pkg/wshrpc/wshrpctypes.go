@@ -196,6 +196,7 @@ type WshRpcInterface interface {
 	CoworkAddActivityCommand(ctx context.Context, data CoworkAddActivityData) error
 	CoworkListActivityCommand(ctx context.Context, data CoworkListActivityData) ([]*CoworkActivity, error)
 	CoworkGetStatusCommand(ctx context.Context) (*CoworkStatusData, error)
+	CoworkExecuteTaskCommand(ctx context.Context, data CoworkExecuteTaskData) (*CoworkExecuteTaskResponse, error)
 
 	// proc
 	VDomRenderCommand(ctx context.Context, data vdom.VDomFrontendUpdate) chan RespOrErrorUnion[*vdom.VDomBackendUpdate]
@@ -1002,6 +1003,11 @@ type CoworkWorker struct {
 	Name           string `json:"name"`
 	Tool           string `json:"tool"`
 	CustomCmd      string `json:"customcmd,omitempty"`
+	Role           string `json:"role,omitempty"`
+	Desc           string `json:"desc,omitempty"`
+	Soul           string `json:"soul,omitempty"`
+	Skills         string `json:"skills,omitempty"`
+	McpServers     string `json:"mcpservers,omitempty"`
 	Status         string `json:"status"`
 	AssignedTask   string `json:"assignedtask,omitempty"`
 	BlockId        string `json:"blockid"`
@@ -1046,12 +1052,17 @@ type CoworkListTasksData struct {
 }
 
 type CoworkRegisterWorkerData struct {
-	WorkerId  string `json:"workerid"`
-	Name      string `json:"name"`
-	Tool      string `json:"tool"`
-	CustomCmd string `json:"customcmd,omitempty"`
-	BlockId   string `json:"blockid"`
-	TabId     string `json:"tabid"`
+	WorkerId   string `json:"workerid"`
+	Name       string `json:"name"`
+	Tool       string `json:"tool"`
+	CustomCmd  string `json:"customcmd,omitempty"`
+	Role       string `json:"role,omitempty"`
+	Desc       string `json:"desc,omitempty"`
+	Soul       string `json:"soul,omitempty"`
+	Skills     string `json:"skills,omitempty"`
+	McpServers string `json:"mcpservers,omitempty"`
+	BlockId    string `json:"blockid"`
+	TabId      string `json:"tabid"`
 }
 
 type CoworkUpdateWorkerData struct {
@@ -1082,4 +1093,17 @@ type CoworkStatusData struct {
 	ActiveWorkers int `json:"activeworkers"`
 	IdleWorkers   int `json:"idleworkers"`
 	TotalWorkers  int `json:"totalworkers"`
+}
+
+type CoworkExecuteTaskData struct {
+	WorkerId string `json:"workerid"`
+	TaskId   string `json:"taskid"`
+	Command  string `json:"command"`
+}
+
+type CoworkExecuteTaskResponse struct {
+	BlockId string `json:"blockid"`
+	TabId   string `json:"tabid"`
+	Success bool   `json:"success"`
+	Error   string `json:"error,omitempty"`
 }

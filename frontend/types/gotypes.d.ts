@@ -907,6 +907,21 @@ declare global {
         priority: string;
     };
 
+    // wshrpc.CoworkExecuteTaskData
+    type CoworkExecuteTaskData = {
+        workerid: string;
+        taskid: string;
+        command: string;
+    };
+
+    // wshrpc.CoworkExecuteTaskResponse
+    type CoworkExecuteTaskResponse = {
+        blockid: string;
+        tabid: string;
+        success: boolean;
+        error?: string;
+    };
+
     // wshrpc.CoworkListActivityData
     type CoworkListActivityData = {
         limit?: number;
@@ -924,6 +939,11 @@ declare global {
         name: string;
         tool: string;
         customcmd?: string;
+        role?: string;
+        desc?: string;
+        soul?: string;
+        skills?: string;
+        mcpservers?: string;
         blockid: string;
         tabid: string;
     };
@@ -983,6 +1003,11 @@ declare global {
         name: string;
         tool: string;
         customcmd?: string;
+        role?: string;
+        desc?: string;
+        soul?: string;
+        skills?: string;
+        mcpservers?: string;
         status: string;
         assignedtask?: string;
         blockid: string;

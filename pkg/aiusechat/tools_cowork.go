@@ -1,20 +1,28 @@
 package aiusechat
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 
 	"github.com/wavetermdev/waveterm/pkg/aiusechat/uctypes"
+	"github.com/wavetermdev/waveterm/pkg/waveobj"
 	"github.com/wavetermdev/waveterm/pkg/wshrpc"
 	"github.com/wavetermdev/waveterm/pkg/wshrpc/wshclient"
+	"github.com/wavetermdev/waveterm/pkg/wstore"
 )
 
 type coworkCreateWorkerParams struct {
-	Name     string `json:"name,omitempty"`
-	Type     string `json:"type"`
-	Prompt   string `json:"prompt,omitempty"`
-	WorkDir  string `json:"workdir,omitempty"`
-	MaxTasks int    `json:"maxtasks,omitempty"`
+	Name       string `json:"name,omitempty"`
+	Type       string `json:"type"`
+	Role       string `json:"role,omitempty"`
+	Desc       string `json:"desc,omitempty"`
+	Soul       string `json:"soul,omitempty"`
+	Skills     string `json:"skills,omitempty"`
+	McpServers string `json:"mcpservers,omitempty"`
+	CustomCmd  string `json:"customcmd,omitempty"`
+	WorkDir    string `json:"workdir,omitempty"`
+	MaxTasks   int    `json:"maxtasks,omitempty"`
 }
 
 type coworkListWorkersParams struct{}
@@ -46,9 +54,25 @@ func coworkCreateWorkerCallback(input any, toolUseData *uctypes.UIMessageDataToo
 	}
 
 	data := wshrpc.CoworkRegisterWorkerData{
-		Name:    parsed.Name,
-		Tool:    parsed.Type,
-		BlockId: toolUseData.BlockId,
+		Name:       parsed.Name,
+		Tool:       parsed.Type,
+		Role:       parsed.Role,
+		Desc:       parsed.Desc,
+		Soul:       parsed.Soul,
+		Skills:     parsed.Skills,
+		McpServers: parsed.McpServers,
+		CustomCmd:  parsed.CustomCmd,
+		BlockId:    toolUseData.BlockId,
+	}
+
+	if toolUseData.BlockId != "" {
+		block, err := wstore.DBGet[*waveobj.Block](context.Background(), toolUseData.BlockId)
+		if err == nil && block != nil && block.ParentORef != "" {
+			oref, err := waveobj.ParseORef(block.ParentORef)
+			if err == nil && oref.OType == "tab" {
+				data.TabId = oref.OID
+			}
+		}
 	}
 
 	rpcClient := wshclient.GetBareRpcClient()
@@ -62,6 +86,7 @@ func coworkCreateWorkerCallback(input any, toolUseData *uctypes.UIMessageDataToo
 		"workerid": worker.WorkerId,
 		"name":     worker.Name,
 		"tool":     worker.Tool,
+		"role":     worker.Role,
 		"status":   worker.Status,
 		"created":  worker.CreatedAt,
 	}, nil
@@ -175,6 +200,44 @@ func coworkGetStatusCallback(input any, toolUseData *uctypes.UIMessageDataToolUs
 	}, nil
 }
 
+type coworkExecuteTaskParams struct {
+	WorkerId string `json:"workerid"`
+	TaskId   string `json:"taskid"`
+	Command  string `json:"command,omitempty"`
+}
+
+func coworkExecuteTaskCallback(input any, toolUseData *uctypes.UIMessageDataToolUse) (any, error) {
+	parsed := &coworkExecuteTaskParams{}
+	inputBytes, _ := json.Marshal(input)
+	json.Unmarshal(inputBytes, parsed)
+
+	if parsed.WorkerId == "" {
+		return nil, fmt.Errorf("workerid is required")
+	}
+	if parsed.TaskId == "" {
+		return nil, fmt.Errorf("taskid is required")
+	}
+
+	data := wshrpc.CoworkExecuteTaskData{
+		WorkerId: parsed.WorkerId,
+		TaskId:   parsed.TaskId,
+		Command:  parsed.Command,
+	}
+
+	rpcClient := wshclient.GetBareRpcClient()
+	resp, err := wshclient.CoworkExecuteTaskCommand(rpcClient, data, &wshrpc.RpcOpts{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute task: %w", err)
+	}
+
+	return map[string]any{
+		"success": resp.Success,
+		"blockid": resp.BlockId,
+		"tabid":   resp.TabId,
+		"error":   resp.Error,
+	}, nil
+}
+
 func coworkTerminateWorkerCallback(input any, toolUseData *uctypes.UIMessageDataToolUse) (any, error) {
 	parsed := &coworkTerminateWorkerParams{}
 	inputBytes, _ := json.Marshal(input)
@@ -209,17 +272,37 @@ func GetCoworkCreateWorkerToolDefinition() uctypes.ToolDefinition {
 			"properties": map[string]any{
 				"name": map[string]any{
 					"type":        "string",
-					"description": "Optional name for the worker",
+					"description": "Name for the worker",
 				},
 				"type": map[string]any{
 					"type":        "string",
-					"enum":        []string{"claude", "opencode", "cursor", "aider"},
+					"enum":        []string{"claude", "opencode", "cursor", "aider", "custom"},
 					"default":     "claude",
-					"description": "Type of AI worker: claude, opencode, cursor, or aider",
+					"description": "Type of AI worker: claude, opencode, cursor, aider, or custom (with custom_cmd)",
 				},
-				"prompt": map[string]any{
+				"role": map[string]any{
 					"type":        "string",
-					"description": "System prompt/instructions for the worker",
+					"description": "Worker role (e.g., 'frontend-dev', 'backend-dev', 'reviewer')",
+				},
+				"desc": map[string]any{
+					"type":        "string",
+					"description": "Description of what this worker does",
+				},
+				"soul": map[string]any{
+					"type":        "string",
+					"description": "Core personality/system prompt for the worker",
+				},
+				"skills": map[string]any{
+					"type":        "string",
+					"description": "Comma-separated skill names to equip the worker with",
+				},
+				"mcpservers": map[string]any{
+					"type":        "string",
+					"description": "Comma-separated MCP server names to attach to the worker",
+				},
+				"customcmd": map[string]any{
+					"type":        "string",
+					"description": "Custom CLI command to run (required when type=custom)",
 				},
 				"workdir": map[string]any{
 					"type":        "string",
@@ -238,7 +321,7 @@ func GetCoworkCreateWorkerToolDefinition() uctypes.ToolDefinition {
 			parsed := &coworkCreateWorkerParams{}
 			inputBytes, _ := json.Marshal(input)
 			json.Unmarshal(inputBytes, parsed)
-			return fmt.Sprintf("creating worker (type: %s)", parsed.Type)
+			return fmt.Sprintf("creating worker (type: %s, role: %s)", parsed.Type, parsed.Role)
 		},
 		ToolAnyCallback: coworkCreateWorkerCallback,
 	}
@@ -350,6 +433,42 @@ func GetCoworkGetStatusToolDefinition() uctypes.ToolDefinition {
 	}
 }
 
+func GetCoworkExecuteTaskToolDefinition() uctypes.ToolDefinition {
+	return uctypes.ToolDefinition{
+		Name:        "cowork_execute_task",
+		DisplayName: "Execute Task on Worker",
+		Description: "Execute a task by spawning a terminal block and running the worker's CLI with the task description.",
+		ToolLogName: "cowork:executetask",
+		Strict:      false,
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"workerid": map[string]any{
+					"type":        "string",
+					"description": "ID of the worker to execute the task",
+				},
+				"taskid": map[string]any{
+					"type":        "string",
+					"description": "ID of the task to execute",
+				},
+				"command": map[string]any{
+					"type":        "string",
+					"description": "Optional command override (default: worker's configured CLI)",
+				},
+			},
+			"required":             []string{"workerid", "taskid"},
+			"additionalProperties": false,
+		},
+		ToolCallDesc: func(input any, output any, toolUseData *uctypes.UIMessageDataToolUse) string {
+			parsed := &coworkExecuteTaskParams{}
+			inputBytes, _ := json.Marshal(input)
+			json.Unmarshal(inputBytes, parsed)
+			return fmt.Sprintf("executing task %s on worker %s", parsed.TaskId, parsed.WorkerId)
+		},
+		ToolAnyCallback: coworkExecuteTaskCallback,
+	}
+}
+
 func GetCoworkTerminateWorkerToolDefinition() uctypes.ToolDefinition {
 	return uctypes.ToolDefinition{
 		Name:        "cowork_terminate_worker",
@@ -386,5 +505,6 @@ func GetCoworkToolDefinitions() []uctypes.ToolDefinition {
 		GetCoworkAssignTaskToolDefinition(),
 		GetCoworkGetStatusToolDefinition(),
 		GetCoworkTerminateWorkerToolDefinition(),
+		GetCoworkExecuteTaskToolDefinition(),
 	}
 }
