@@ -824,6 +824,7 @@ declare global {
         title: string;
         description?: string;
         priority: string;
+        dependson?: string[];
     };
 
     // wshrpc.CoworkDetectRuntimesCommandReturn
@@ -901,6 +902,7 @@ declare global {
         error?: string;
         progress?: string;
         outputhistory?: CoworkTaskOutput[];
+        dependson?: string[];
     };
 
     // wshrpc.CoworkTaskOutput

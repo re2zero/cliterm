@@ -20,6 +20,7 @@ export function CoworkView({ model }: CoworkViewProps) {
     const workingTasks = jotai.useAtomValue(model.workingTasksAtom) ?? [];
     const doneTasks = jotai.useAtomValue(model.doneTasksAtom) ?? [];
     const failedTasks = jotai.useAtomValue(model.failedTasksAtom) ?? [];
+    const allTasks = [...pendingTasks, ...workingTasks, ...doneTasks, ...failedTasks];
     const workers = jotai.useAtomValue(model.workersAtom) ?? [];
     const activities = jotai.useAtomValue(model.activityLogAtom) ?? [];
     const isSupervising = jotai.useAtomValue(model.isSupervisingAtom) ?? false;
@@ -38,6 +39,7 @@ export function CoworkView({ model }: CoworkViewProps) {
     const [newTaskTitle, setNewTaskTitle] = React.useState("");
     const [newTaskDesc, setNewTaskDesc] = React.useState("");
     const [newTaskPriority, setNewTaskPriority] = React.useState("medium");
+    const [newTaskDependsOn, setNewTaskDependsOn] = React.useState<string[]>([]);
     const [showWorkerConfig, setShowWorkerConfig] = React.useState(false);
     const [showTabbedDialog, setShowTabbedDialog] = React.useState(false);
 
@@ -45,10 +47,11 @@ export function CoworkView({ model }: CoworkViewProps) {
         if (!newTaskTitle.trim()) {
             return;
         }
-        await model.createTask(newTaskTitle, newTaskDesc, newTaskPriority);
+        await model.createTask(newTaskTitle, newTaskDesc, newTaskPriority, newTaskDependsOn);
         setNewTaskTitle("");
         setNewTaskDesc("");
         setNewTaskPriority("medium");
+        setNewTaskDependsOn([]);
     };
 
     const handleDeleteTask = async (taskId: string) => {
@@ -174,6 +177,26 @@ export function CoworkView({ model }: CoworkViewProps) {
                     value={newTaskDesc}
                     onChange={(e) => setNewTaskDesc(e.target.value)}
                 />
+                <div className="mt-2">
+                    <label className="text-xs text-gray-600 mb-1 block">Depends on (optional):</label>
+                    <select
+                        className="w-full bg-base/50 border border-border/50 rounded px-2 py-1 text-sm"
+                        multiple
+                        size={3}
+                        value={newTaskDependsOn}
+                        onChange={(e) => {
+                            const selectedOptions = Array.from(e.target.selectedOptions, (option) => option.value);
+                            setNewTaskDependsOn(selectedOptions);
+                        }}
+                    >
+                        {allTasks.map((task) => (
+                            <option key={task.taskid} value={task.taskid}>
+                                {task.title} ({task.status})
+                            </option>
+                        ))}
+                    </select>
+                    <span className="text-xs text-gray-500">Hold Ctrl/Cmd to select multiple</span>
+                </div>
             </div>
 
             <div>
@@ -188,6 +211,7 @@ export function CoworkView({ model }: CoworkViewProps) {
                         onAssignTask={handleAssignTask}
                         onPauseTask={handlePauseTask}
                         onResumeTask={handleResumeTask}
+                        allTasks={allTasks}
                     />
                     <TaskColumn
                         title="Working"
@@ -198,6 +222,7 @@ export function CoworkView({ model }: CoworkViewProps) {
                         onAssignTask={handleAssignTask}
                         onPauseTask={handlePauseTask}
                         onResumeTask={handleResumeTask}
+                        allTasks={allTasks}
                     />
                     <TaskColumn
                         title="Done"
@@ -208,6 +233,7 @@ export function CoworkView({ model }: CoworkViewProps) {
                         onAssignTask={handleAssignTask}
                         onPauseTask={handlePauseTask}
                         onResumeTask={handleResumeTask}
+                        allTasks={allTasks}
                     />
                     <TaskColumn
                         title="Failed"
@@ -217,7 +243,8 @@ export function CoworkView({ model }: CoworkViewProps) {
                         workers={workers}
                         onAssignTask={handleAssignTask}
                         onPauseTask={handlePauseTask}
-                    onResumeTask={handleResumeTask}
+                        onResumeTask={handleResumeTask}
+                        allTasks={allTasks}
                 />
             </div>
         </div>
@@ -323,6 +350,7 @@ function TaskColumn({
     onAssignTask,
     onPauseTask,
     onResumeTask,
+    allTasks,
 }: {
     title: string;
     tasks: CoworkTask[];
@@ -332,6 +360,7 @@ function TaskColumn({
     onAssignTask: (taskId: string, workerId: string) => void;
     onPauseTask: (taskId: string) => void;
     onResumeTask: (taskId: string) => void;
+    allTasks: CoworkTask[];
 }) {
     return (
         <div className="rounded border border-border/50 bg-base p-2">
@@ -386,6 +415,14 @@ function TaskColumn({
                             </div>
                             {t.assignedworker && <div className="text-gray-500">→ {t.assignedworker}</div>}
                             {t.progress && <div className="text-gray-400">{t.progress}</div>}
+                            {t.dependson && t.dependson.length > 0 && (
+                                <div className="text-xs text-gray-500 mt-1">
+                                    Depends on: {t.dependson.map((depId) => {
+                                        const depTask = allTasks.find((task) => task.taskid === depId);
+                                        return depTask ? depTask.title : depId;
+                                    }).join(", ")}
+                                </div>
+                            )}
                         </div>
                     ))
                 )}

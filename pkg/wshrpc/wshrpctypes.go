@@ -971,6 +971,7 @@ type CoworkTask struct {
 	Error          string `json:"error,omitempty"`
 	Progress       string `json:"progress,omitempty"`
 	OutputHistory  []CoworkTaskOutput `json:"outputhistory,omitempty"`
+	DependsOn      []string `json:"dependson,omitempty"`
 }
 
 type CoworkTaskOutput struct {
@@ -1010,9 +1011,10 @@ type CoworkActivity struct {
 }
 
 type CoworkCreateTaskData struct {
-	Title       string `json:"title"`
-	Description string `json:"description,omitempty"`
-	Priority    string `json:"priority"`
+	Title       string   `json:"title"`
+	Description string   `json:"description,omitempty"`
+	Priority    string   `json:"priority"`
+	DependsOn   []string `json:"dependson,omitempty"`
 }
 
 type CoworkUpdateTaskData struct {

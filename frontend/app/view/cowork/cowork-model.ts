@@ -205,8 +205,8 @@ export class CoworkViewModel implements ViewModel {
         } catch {}
     }
 
-    async createTask(title: string, description: string, priority: string): Promise<void> {
-        await RpcApi.CoworkCreateTaskCommand(TabRpcClient, { title, description, priority });
+    async createTask(title: string, description: string, priority: string, dependsOn?: string[]): Promise<void> {
+        await RpcApi.CoworkCreateTaskCommand(TabRpcClient, { title, description, priority, dependson: dependsOn });
         await this.refreshAllData();
     }
 
