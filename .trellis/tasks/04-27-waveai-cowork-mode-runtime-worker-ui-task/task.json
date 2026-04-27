@@ -1,0 +1,55 @@
+{
+  "id": "waveai-cowork-mode-runtime-worker-ui-task",
+  "name": "waveai-cowork-mode-runtime-worker-ui-task",
+  "title": "WaveAI Cowork Mode 优化实施 - 包含Runtime检测、Worker配置UI、模板系统、Task手动分配、执行控制、输出历史等",
+  "description": "",
+  "status": "planning",
+  "dev_type": "backend",
+  "scope": null,
+  "package": "waveterm-docs",
+  "priority": "P2",
+  "creator": "re2zero",
+  "assignee": "re2zero",
+  "createdAt": "2026-04-27",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "cowork",
+  "worktree_path": null,
+  "current_phase": 0,
+  "next_action": [
+    {
+      "phase": 1,
+      "action": "brainstorm"
+    },
+    {
+      "phase": 2,
+      "action": "research"
+    },
+    {
+      "phase": 3,
+      "action": "implement"
+    },
+    {
+      "phase": 4,
+      "action": "check"
+    },
+    {
+      "phase": 5,
+      "action": "update-spec"
+    },
+    {
+      "phase": 6,
+      "action": "record-session"
+    }
+  ],
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "complexity": "complex"
+  }
+}

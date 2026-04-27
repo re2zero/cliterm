@@ -61,6 +61,14 @@ export function CoworkView({ model }: CoworkViewProps) {
         await model.assignTask(taskId, workerId);
     };
 
+    const handlePauseTask = async (taskId: string) => {
+        await model.pauseTask(taskId);
+    };
+
+    const handleResumeTask = async (taskId: string) => {
+        await model.resumeTask(taskId);
+    };
+
     const handleRefresh = async () => {
         await model.refreshAllData();
     };
@@ -176,6 +184,8 @@ export function CoworkView({ model }: CoworkViewProps) {
                         priorityColors={priorityColors}
                         workers={workers}
                         onAssignTask={handleAssignTask}
+                        onPauseTask={handlePauseTask}
+                        onResumeTask={handleResumeTask}
                     />
                     <TaskColumn
                         title="Working"
@@ -184,6 +194,8 @@ export function CoworkView({ model }: CoworkViewProps) {
                         priorityColors={priorityColors}
                         workers={workers}
                         onAssignTask={handleAssignTask}
+                        onPauseTask={handlePauseTask}
+                        onResumeTask={handleResumeTask}
                     />
                     <TaskColumn
                         title="Done"
@@ -192,6 +204,8 @@ export function CoworkView({ model }: CoworkViewProps) {
                         priorityColors={priorityColors}
                         workers={workers}
                         onAssignTask={handleAssignTask}
+                        onPauseTask={handlePauseTask}
+                        onResumeTask={handleResumeTask}
                     />
                     <TaskColumn
                         title="Failed"
@@ -200,6 +214,8 @@ export function CoworkView({ model }: CoworkViewProps) {
                         priorityColors={priorityColors}
                         workers={workers}
                         onAssignTask={handleAssignTask}
+                        onPauseTask={handlePauseTask}
+                        onResumeTask={handleResumeTask}
                     />
                 </div>
             </div>
@@ -285,6 +301,8 @@ function TaskColumn({
     priorityColors,
     workers,
     onAssignTask,
+    onPauseTask,
+    onResumeTask,
 }: {
     title: string;
     tasks: CoworkTask[];
@@ -292,6 +310,8 @@ function TaskColumn({
     priorityColors: Record<string, string>;
     workers: CoworkWorker[];
     onAssignTask: (taskId: string, workerId: string) => void;
+    onPauseTask: (taskId: string) => void;
+    onResumeTask: (taskId: string) => void;
 }) {
     return (
         <div className="rounded border border-border/50 bg-base p-2">
@@ -306,6 +326,23 @@ function TaskColumn({
                         <div key={t.taskid} className="text-xs p-1 rounded bg-base/30">
                             <div className="flex items-center gap-1">
                                 <span className={priorityColors[t.priority] ?? ""}>{t.title}</span>
+                                <span className="text-gray-400">[{t.status}]</span>
+                                {(t.status === "working" || t.status === "pending") && (
+                                    <button
+                                        className="text-xs text-blue-400 hover:text-blue-300 cursor-pointer"
+                                        onClick={() => onPauseTask(t.taskid)}
+                                    >
+                                        ⏸
+                                    </button>
+                                )}
+                                {t.status === "paused" && (
+                                    <button
+                                        className="text-xs text-green-400 hover:text-green-300 cursor-pointer"
+                                        onClick={() => onResumeTask(t.taskid)}
+                                    >
+                                        ▶
+                                    </button>
+                                )}
                                 {workers.length > 0 && (
                                     <select
                                         value={t.assignedworker || ""}

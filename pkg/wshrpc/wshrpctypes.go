@@ -198,36 +198,9 @@ type WshRpcInterface interface {
 	CoworkGetStatusCommand(ctx context.Context) (*CoworkStatusData, error)
 	CoworkExecuteTaskCommand(ctx context.Context, data CoworkExecuteTaskData) (*CoworkExecuteTaskResponse, error)
 	CoworkDetectRuntimesCommand(ctx context.Context) (*CoworkDetectRuntimesCommandReturn, error)
-
-	// proc
-	VDomRenderCommand(ctx context.Context, data vdom.VDomFrontendUpdate) chan RespOrErrorUnion[*vdom.VDomBackendUpdate]
-	VDomUrlRequestCommand(ctx context.Context, data VDomUrlRequestData) chan RespOrErrorUnion[VDomUrlRequestResponse]
-
-	// streams
-	StreamDataCommand(ctx context.Context, data CommandStreamData) error
-	StreamDataAckCommand(ctx context.Context, data CommandStreamAckData) error
-
-	// jobs
-	AuthenticateToJobManagerCommand(ctx context.Context, data CommandAuthenticateToJobData) error
-	StartJobCommand(ctx context.Context, data CommandStartJobData) (*CommandStartJobRtnData, error)
-	JobPrepareConnectCommand(ctx context.Context, data CommandJobPrepareConnectData) (*CommandJobConnectRtnData, error)
-	JobStartStreamCommand(ctx context.Context, data CommandJobStartStreamData) error
-	JobInputCommand(ctx context.Context, data CommandJobInputData) error
-	JobCmdExitedCommand(ctx context.Context, data CommandJobCmdExitedData) error // this is sent FROM the job manager => main server
-
-	// job controller
-	JobControllerDeleteJobCommand(ctx context.Context, jobId string) error
-	JobControllerListCommand(ctx context.Context) ([]*waveobj.Job, error)
-	JobControllerStartJobCommand(ctx context.Context, data CommandJobControllerStartJobData) (string, error)
-	JobControllerExitJobCommand(ctx context.Context, jobId string) error
-	JobControllerDisconnectJobCommand(ctx context.Context, jobId string) error
-	JobControllerReconnectJobCommand(ctx context.Context, jobId string) error
-	JobControllerReconnectJobsForConnCommand(ctx context.Context, connName string) error
-	JobControllerConnectedJobsCommand(ctx context.Context) ([]string, error)
-	JobControllerAttachJobCommand(ctx context.Context, data CommandJobControllerAttachJobData) error
-	JobControllerDetachJobCommand(ctx context.Context, jobId string) error
-	JobControllerGetAllJobManagerStatusCommand(ctx context.Context) ([]*JobManagerStatusUpdate, error)
-	BlockJobStatusCommand(ctx context.Context, blockId string) (*BlockJobStatusData, error)
+	CoworkPauseTaskCommand(ctx context.Context, taskId string) error
+	CoworkResumeTaskCommand(ctx context.Context, taskId string) error
+	CoworkGetTaskOutputHistoryCommand(ctx context.Context, taskId string) ([]CoworkTaskOutput, error)
 }
 
 // for frontend
@@ -997,6 +970,13 @@ type CoworkTask struct {
 	Result         string `json:"result,omitempty"`
 	Error          string `json:"error,omitempty"`
 	Progress       string `json:"progress,omitempty"`
+	OutputHistory  []CoworkTaskOutput `json:"outputhistory,omitempty"`
+}
+
+type CoworkTaskOutput struct {
+	Timestamp int64  `json:"timestamp"`
+	Content   string `json:"content"`
+	Type      string `json:"type,omitempty"`
 }
 
 type CoworkWorker struct {

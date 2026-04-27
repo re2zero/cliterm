@@ -249,11 +249,6 @@ declare global {
         rpccontext?: RpcContext;
     };
 
-    // wshrpc.CommandAuthenticateToJobData
-    type CommandAuthenticateToJobData = {
-        jobaccesstoken: string;
-    };
-
     // wshrpc.CommandAuthenticateTokenData
     type CommandAuthenticateTokenData = {
         token: string;
@@ -426,62 +421,6 @@ declare global {
     type CommandGetWaveAIChatData = {
         chatid: string;
     };
-
-    // wshrpc.CommandJobCmdExitedData
-    type CommandJobCmdExitedData = {
-        jobid: string;
-        exitcode?: number;
-        exitsignal?: string;
-        exiterr?: string;
-        exitts?: number;
-    };
-
-    // wshrpc.CommandJobConnectRtnData
-    type CommandJobConnectRtnData = {
-        seq: number;
-        streamdone?: boolean;
-        streamerror?: string;
-        hasexited?: boolean;
-        exitcode?: number;
-        exitsignal?: string;
-        exiterr?: string;
-    };
-
-    // wshrpc.CommandJobControllerAttachJobData
-    type CommandJobControllerAttachJobData = {
-        jobid: string;
-        blockid: string;
-    };
-
-    // wshrpc.CommandJobControllerStartJobData
-    type CommandJobControllerStartJobData = {
-        connname: string;
-        jobkind: string;
-        cmd: string;
-        args: string[];
-        env: {[key: string]: string};
-        termsize?: TermSize;
-    };
-
-    // wshrpc.CommandJobInputData
-    type CommandJobInputData = {
-        jobid: string;
-        inputsessionid?: string;
-        seqnum?: number;
-        inputdata64?: string;
-        signame?: string;
-        termsize?: TermSize;
-    };
-
-    // wshrpc.CommandJobPrepareConnectData
-    type CommandJobPrepareConnectData = {
-        streammeta: StreamMeta;
-        seq: number;
-        termsize: TermSize;
-    };
-
-    // wshrpc.CommandJobStartStreamData
-    type CommandJobStartStreamData = object;
 
     // wshrpc.CommandListAllAppFilesData
     type CommandListAllAppFilesData = {
@@ -662,41 +601,12 @@ declare global {
         builderid: string;
     };
 
-    // wshrpc.CommandStartJobData
-    type CommandStartJobData = {
-        cmd: string;
-        args: string[];
-        env: {[key: string]: string};
-        termsize: TermSize;
-        streammeta?: StreamMeta;
-    };
-
     // wshrpc.CommandStartJobRtnData
     type CommandStartJobRtnData = {
         cmdpid: number;
         cmdstartts: number;
         jobmanagerpid: number;
         jobmanagerstartts: number;
-    };
-
-    // wshrpc.CommandStreamAckData
-    type CommandStreamAckData = {
-        id: string;
-        seq: number;
-        rwnd: number;
-        fin?: boolean;
-        delay?: number;
-        cancel?: boolean;
-        error?: string;
-    };
-
-    // wshrpc.CommandStreamData
-    type CommandStreamData = {
-        id: string;
-        seq: number;
-        data64?: string;
-        eof?: boolean;
-        error?: string;
     };
 
     // wshrpc.CommandTermGetScrollbackLinesData
@@ -990,6 +900,14 @@ declare global {
         result?: string;
         error?: string;
         progress?: string;
+        outputhistory?: CoworkTaskOutput[];
+    };
+
+    // wshrpc.CoworkTaskOutput
+    type CoworkTaskOutput = {
+        timestamp: number;
+        content: string;
+        type?: string;
     };
 
     // wshrpc.CoworkUpdateTaskData
@@ -1204,12 +1122,6 @@ declare global {
         cmdexiterror?: string;
         streamdone?: boolean;
         streamerror?: string;
-    };
-
-    // wshrpc.JobManagerStatusUpdate
-    type JobManagerStatusUpdate = {
-        jobid: string;
-        jobmanagerstatus: string;
     };
 
     // waveobj.LayoutActionData
@@ -2120,21 +2032,6 @@ declare global {
         props?: {[key: string]: any};
         children?: string[];
         text?: string;
-    };
-
-    // wshrpc.VDomUrlRequestData
-    type VDomUrlRequestData = {
-        method: string;
-        url: string;
-        headers: {[key: string]: string};
-        body?: string;
-    };
-
-    // wshrpc.VDomUrlRequestResponse
-    type VDomUrlRequestResponse = {
-        statuscode?: number;
-        headers?: {[key: string]: string};
-        body?: string;
     };
 
     type WSCommandType = {

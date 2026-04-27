@@ -48,12 +48,6 @@ export class RpcApiType {
         return client.wshRpcCall("authenticatejobmanagerverify", data, opts);
     }
 
-    // command "authenticatetojobmanager" [call]
-    AuthenticateToJobManagerCommand(client: WshClient, data: CommandAuthenticateToJobData, opts?: RpcOpts): Promise<void> {
-        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "authenticatetojobmanager", data, opts);
-        return client.wshRpcCall("authenticatetojobmanager", data, opts);
-    }
-
     // command "authenticatetoken" [call]
     AuthenticateTokenCommand(client: WshClient, data: CommandAuthenticateTokenData, opts?: RpcOpts): Promise<CommandAuthenticateRtnData> {
         if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "authenticatetoken", data, opts);
@@ -76,12 +70,6 @@ export class RpcApiType {
     BlockInfoCommand(client: WshClient, data: string, opts?: RpcOpts): Promise<BlockInfoData> {
         if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "blockinfo", data, opts);
         return client.wshRpcCall("blockinfo", data, opts);
-    }
-
-    // command "blockjobstatus" [call]
-    BlockJobStatusCommand(client: WshClient, data: string, opts?: RpcOpts): Promise<BlockJobStatusData> {
-        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "blockjobstatus", data, opts);
-        return client.wshRpcCall("blockjobstatus", data, opts);
     }
 
     // command "blockslist" [call]
@@ -246,10 +234,28 @@ export class RpcApiType {
         return client.wshRpcCall("coworklistworkers", null, opts);
     }
 
+    // command "coworkpausetask" [call]
+    CoworkPauseTaskCommand(client: WshClient, data: string, opts?: RpcOpts): Promise<void> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "coworkpausetask", data, opts);
+        return client.wshRpcCall("coworkpausetask", data, opts);
+    }
+
     // command "coworkregisterworker" [call]
     CoworkRegisterWorkerCommand(client: WshClient, data: CoworkRegisterWorkerData, opts?: RpcOpts): Promise<CoworkWorker> {
         if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "coworkregisterworker", data, opts);
         return client.wshRpcCall("coworkregisterworker", data, opts);
+    }
+
+    // command "coworkresumetask" [call]
+    CoworkResumeTaskCommand(client: WshClient, data: string, opts?: RpcOpts): Promise<void> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "coworkresumetask", data, opts);
+        return client.wshRpcCall("coworkresumetask", data, opts);
+    }
+
+    // command "coworkgettaskoutputhistory" [call]
+    CoworkGetTaskOutputHistoryCommand(client: WshClient, data: string, opts?: RpcOpts): Promise<CoworkTaskOutput[]> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "coworkgettaskoutputhistory", data, opts);
+        return client.wshRpcCall("coworkgettaskoutputhistory", data, opts);
     }
 
     // command "coworkupdatetask" [call]
@@ -594,96 +600,6 @@ export class RpcApiType {
         return client.wshRpcCall("getwaveairatelimit", null, opts);
     }
 
-    // command "jobcmdexited" [call]
-    JobCmdExitedCommand(client: WshClient, data: CommandJobCmdExitedData, opts?: RpcOpts): Promise<void> {
-        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "jobcmdexited", data, opts);
-        return client.wshRpcCall("jobcmdexited", data, opts);
-    }
-
-    // command "jobcontrollerattachjob" [call]
-    JobControllerAttachJobCommand(client: WshClient, data: CommandJobControllerAttachJobData, opts?: RpcOpts): Promise<void> {
-        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "jobcontrollerattachjob", data, opts);
-        return client.wshRpcCall("jobcontrollerattachjob", data, opts);
-    }
-
-    // command "jobcontrollerconnectedjobs" [call]
-    JobControllerConnectedJobsCommand(client: WshClient, opts?: RpcOpts): Promise<string[]> {
-        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "jobcontrollerconnectedjobs", null, opts);
-        return client.wshRpcCall("jobcontrollerconnectedjobs", null, opts);
-    }
-
-    // command "jobcontrollerdeletejob" [call]
-    JobControllerDeleteJobCommand(client: WshClient, data: string, opts?: RpcOpts): Promise<void> {
-        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "jobcontrollerdeletejob", data, opts);
-        return client.wshRpcCall("jobcontrollerdeletejob", data, opts);
-    }
-
-    // command "jobcontrollerdetachjob" [call]
-    JobControllerDetachJobCommand(client: WshClient, data: string, opts?: RpcOpts): Promise<void> {
-        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "jobcontrollerdetachjob", data, opts);
-        return client.wshRpcCall("jobcontrollerdetachjob", data, opts);
-    }
-
-    // command "jobcontrollerdisconnectjob" [call]
-    JobControllerDisconnectJobCommand(client: WshClient, data: string, opts?: RpcOpts): Promise<void> {
-        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "jobcontrollerdisconnectjob", data, opts);
-        return client.wshRpcCall("jobcontrollerdisconnectjob", data, opts);
-    }
-
-    // command "jobcontrollerexitjob" [call]
-    JobControllerExitJobCommand(client: WshClient, data: string, opts?: RpcOpts): Promise<void> {
-        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "jobcontrollerexitjob", data, opts);
-        return client.wshRpcCall("jobcontrollerexitjob", data, opts);
-    }
-
-    // command "jobcontrollergetalljobmanagerstatus" [call]
-    JobControllerGetAllJobManagerStatusCommand(client: WshClient, opts?: RpcOpts): Promise<JobManagerStatusUpdate[]> {
-        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "jobcontrollergetalljobmanagerstatus", null, opts);
-        return client.wshRpcCall("jobcontrollergetalljobmanagerstatus", null, opts);
-    }
-
-    // command "jobcontrollerlist" [call]
-    JobControllerListCommand(client: WshClient, opts?: RpcOpts): Promise<Job[]> {
-        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "jobcontrollerlist", null, opts);
-        return client.wshRpcCall("jobcontrollerlist", null, opts);
-    }
-
-    // command "jobcontrollerreconnectjob" [call]
-    JobControllerReconnectJobCommand(client: WshClient, data: string, opts?: RpcOpts): Promise<void> {
-        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "jobcontrollerreconnectjob", data, opts);
-        return client.wshRpcCall("jobcontrollerreconnectjob", data, opts);
-    }
-
-    // command "jobcontrollerreconnectjobsforconn" [call]
-    JobControllerReconnectJobsForConnCommand(client: WshClient, data: string, opts?: RpcOpts): Promise<void> {
-        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "jobcontrollerreconnectjobsforconn", data, opts);
-        return client.wshRpcCall("jobcontrollerreconnectjobsforconn", data, opts);
-    }
-
-    // command "jobcontrollerstartjob" [call]
-    JobControllerStartJobCommand(client: WshClient, data: CommandJobControllerStartJobData, opts?: RpcOpts): Promise<string> {
-        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "jobcontrollerstartjob", data, opts);
-        return client.wshRpcCall("jobcontrollerstartjob", data, opts);
-    }
-
-    // command "jobinput" [call]
-    JobInputCommand(client: WshClient, data: CommandJobInputData, opts?: RpcOpts): Promise<void> {
-        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "jobinput", data, opts);
-        return client.wshRpcCall("jobinput", data, opts);
-    }
-
-    // command "jobprepareconnect" [call]
-    JobPrepareConnectCommand(client: WshClient, data: CommandJobPrepareConnectData, opts?: RpcOpts): Promise<CommandJobConnectRtnData> {
-        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "jobprepareconnect", data, opts);
-        return client.wshRpcCall("jobprepareconnect", data, opts);
-    }
-
-    // command "jobstartstream" [call]
-    JobStartStreamCommand(client: WshClient, data: CommandJobStartStreamData, opts?: RpcOpts): Promise<void> {
-        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "jobstartstream", data, opts);
-        return client.wshRpcCall("jobstartstream", data, opts);
-    }
-
     // command "listallappfiles" [call]
     ListAllAppFilesCommand(client: WshClient, data: CommandListAllAppFilesData, opts?: RpcOpts): Promise<CommandListAllAppFilesRtnData> {
         if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "listallappfiles", data, opts);
@@ -972,12 +888,6 @@ export class RpcApiType {
         return client.wshRpcCall("startbuilder", data, opts);
     }
 
-    // command "startjob" [call]
-    StartJobCommand(client: WshClient, data: CommandStartJobData, opts?: RpcOpts): Promise<CommandStartJobRtnData> {
-        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "startjob", data, opts);
-        return client.wshRpcCall("startjob", data, opts);
-    }
-
     // command "stopbuilder" [call]
     StopBuilderCommand(client: WshClient, data: string, opts?: RpcOpts): Promise<void> {
         if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "stopbuilder", data, opts);
@@ -988,18 +898,6 @@ export class RpcApiType {
 	StreamCpuDataCommand(client: WshClient, data: CpuDataRequest, opts?: RpcOpts): AsyncGenerator<TimeSeriesData, void, boolean> {
         if (this.mockClient) return this.mockClient.mockWshRpcStream(client, "streamcpudata", data, opts);
         return client.wshRpcStream("streamcpudata", data, opts);
-    }
-
-    // command "streamdata" [call]
-    StreamDataCommand(client: WshClient, data: CommandStreamData, opts?: RpcOpts): Promise<void> {
-        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "streamdata", data, opts);
-        return client.wshRpcCall("streamdata", data, opts);
-    }
-
-    // command "streamdataack" [call]
-    StreamDataAckCommand(client: WshClient, data: CommandStreamAckData, opts?: RpcOpts): Promise<void> {
-        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "streamdataack", data, opts);
-        return client.wshRpcCall("streamdataack", data, opts);
     }
 
     // command "streamtest" [responsestream]
@@ -1054,18 +952,6 @@ export class RpcApiType {
     VDomCreateContextCommand(client: WshClient, data: VDomCreateContext, opts?: RpcOpts): Promise<ORef> {
         if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "vdomcreatecontext", data, opts);
         return client.wshRpcCall("vdomcreatecontext", data, opts);
-    }
-
-    // command "vdomrender" [responsestream]
-	VDomRenderCommand(client: WshClient, data: VDomFrontendUpdate, opts?: RpcOpts): AsyncGenerator<VDomBackendUpdate, void, boolean> {
-        if (this.mockClient) return this.mockClient.mockWshRpcStream(client, "vdomrender", data, opts);
-        return client.wshRpcStream("vdomrender", data, opts);
-    }
-
-    // command "vdomurlrequest" [responsestream]
-	VDomUrlRequestCommand(client: WshClient, data: VDomUrlRequestData, opts?: RpcOpts): AsyncGenerator<VDomUrlRequestResponse, void, boolean> {
-        if (this.mockClient) return this.mockClient.mockWshRpcStream(client, "vdomurlrequest", data, opts);
-        return client.wshRpcStream("vdomurlrequest", data, opts);
     }
 
     // command "waitforroute" [call]

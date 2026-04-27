@@ -1878,3 +1878,44 @@ func (ws *WshServer) CoworkDetectRuntimesCommand(ctx context.Context) (*wshrpc.C
 		Runtimes: runtimes,
 	}, nil
 }
+
+func (ws *WshServer) CoworkPauseTaskCommand(ctx context.Context, taskId string) error {
+	task, err := cowork.GetTask(ctx, taskId)
+	if err != nil {
+		return fmt.Errorf("error getting cowork task: %w", err)
+	}
+
+	if task.Status != "working" && task.Status != "pending" {
+		return fmt.Errorf("cannot pause task with status: %s", task.Status)
+	}
+
+	task.Status = "paused"
+	task.UpdatedAt = time.Now().Unix()
+
+	return cowork.SaveTask(ctx, task)
+}
+
+func (ws *WshServer) CoworkResumeTaskCommand(ctx context.Context, taskId string) error {
+	task, err := cowork.GetTask(ctx, taskId)
+	if err != nil {
+		return fmt.Errorf("error getting cowork task: %w", err)
+	}
+
+	if task.Status != "paused" {
+		return fmt.Errorf("cannot resume task with status: %s", task.Status)
+	}
+
+	task.Status = "pending"
+	task.UpdatedAt = time.Now().Unix()
+
+	return cowork.SaveTask(ctx, task)
+}
+
+func (ws *WshServer) CoworkGetTaskOutputHistoryCommand(ctx context.Context, taskId string) ([]wshrpc.CoworkTaskOutput, error) {
+	task, err := cowork.GetTask(ctx, taskId)
+	if err != nil {
+		return nil, fmt.Errorf("error getting cowork task: %w", err)
+	}
+
+	return task.OutputHistory, nil
+}
