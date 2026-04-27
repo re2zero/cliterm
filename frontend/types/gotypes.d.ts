@@ -42,6 +42,15 @@ declare global {
         configs: {[key: string]: AIModeConfigType};
     };
 
+    // wshrpc.AIRuntime
+    type AIRuntime = {
+        name: string;
+        display_name: string;
+        command: string;
+        version: string;
+        status: string;
+    };
+
     // wshrpc.ActivityDisplayType
     type ActivityDisplayType = {
         width: number;
@@ -907,6 +916,11 @@ declare global {
         priority: string;
     };
 
+    // wshrpc.CoworkDetectRuntimesCommandReturn
+    type CoworkDetectRuntimesCommandReturn = {
+        runtimes: AIRuntime[];
+    };
+
     // wshrpc.CoworkExecuteTaskData
     type CoworkExecuteTaskData = {
         workerid: string;
@@ -946,6 +960,9 @@ declare global {
         mcpservers?: string;
         blockid: string;
         tabid: string;
+        concurrency?: number;
+        timeout?: number;
+        maxretries?: number;
     };
 
     // wshrpc.CoworkStatusData

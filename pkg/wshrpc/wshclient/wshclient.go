@@ -203,6 +203,12 @@ func CoworkDeleteWorkerCommand(w *wshutil.WshRpc, data string, opts *wshrpc.RpcO
 	return err
 }
 
+// command "coworkdetectruntimes", wshserver.CoworkDetectRuntimesCommand
+func CoworkDetectRuntimesCommand(w *wshutil.WshRpc, opts *wshrpc.RpcOpts) (*wshrpc.CoworkDetectRuntimesCommandReturn, error) {
+	resp, err := sendRpcRequestCallHelper[*wshrpc.CoworkDetectRuntimesCommandReturn](w, "coworkdetectruntimes", nil, opts)
+	return resp, err
+}
+
 // command "coworkexecutetask", wshserver.CoworkExecuteTaskCommand
 func CoworkExecuteTaskCommand(w *wshutil.WshRpc, data wshrpc.CoworkExecuteTaskData, opts *wshrpc.RpcOpts) (*wshrpc.CoworkExecuteTaskResponse, error) {
 	resp, err := sendRpcRequestCallHelper[*wshrpc.CoworkExecuteTaskResponse](w, "coworkexecutetask", data, opts)

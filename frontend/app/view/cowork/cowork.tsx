@@ -4,6 +4,8 @@
 import * as jotai from "jotai";
 import * as React from "react";
 import { CoworkViewModel } from "./cowork-model";
+import { RuntimeDetectionPanel } from "./runtime-detection-panel";
+import { WorkerConfigDialog } from "./worker-config-dialog";
 
 interface CoworkViewProps {
     blockId: string;
@@ -35,6 +37,7 @@ export function CoworkView({ model }: CoworkViewProps) {
     const [newTaskTitle, setNewTaskTitle] = React.useState("");
     const [newTaskDesc, setNewTaskDesc] = React.useState("");
     const [newTaskPriority, setNewTaskPriority] = React.useState("medium");
+    const [showWorkerConfig, setShowWorkerConfig] = React.useState(false);
 
     const handleCreateTask = async () => {
         if (!newTaskTitle.trim()) {
@@ -52,6 +55,10 @@ export function CoworkView({ model }: CoworkViewProps) {
 
     const handleDeleteWorker = async (workerId: string) => {
         await model.deleteWorker(workerId);
+    };
+
+    const handleAssignTask = async (taskId: string, workerId: string) => {
+        await model.assignTask(taskId, workerId);
     };
 
     const handleRefresh = async () => {
@@ -167,30 +174,48 @@ export function CoworkView({ model }: CoworkViewProps) {
                         tasks={pendingTasks}
                         onDelete={handleDeleteTask}
                         priorityColors={priorityColors}
+                        workers={workers}
+                        onAssignTask={handleAssignTask}
                     />
                     <TaskColumn
                         title="Working"
                         tasks={workingTasks}
                         onDelete={handleDeleteTask}
                         priorityColors={priorityColors}
+                        workers={workers}
+                        onAssignTask={handleAssignTask}
                     />
                     <TaskColumn
                         title="Done"
                         tasks={doneTasks}
                         onDelete={handleDeleteTask}
                         priorityColors={priorityColors}
+                        workers={workers}
+                        onAssignTask={handleAssignTask}
                     />
                     <TaskColumn
                         title="Failed"
                         tasks={failedTasks}
                         onDelete={handleDeleteTask}
                         priorityColors={priorityColors}
+                        workers={workers}
+                        onAssignTask={handleAssignTask}
                     />
                 </div>
             </div>
 
+            <RuntimeDetectionPanel className="rounded border border-border/50 bg-base" />
+
             <div>
-                <h3 className="text-sm font-semibold mb-2">Workers</h3>
+                <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-sm font-semibold">Workers</h3>
+                    <button
+                        className="text-xs text-accent hover:text-accent/80 cursor-pointer"
+                        onClick={() => setShowWorkerConfig(true)}
+                    >
+                        Config
+                    </button>
+                </div>
                 <div className="rounded border border-border/50 bg-base p-3">
                     {workers.length === 0 ? (
                         <span className="text-sm text-gray-500">No workers registered</span>
@@ -237,6 +262,18 @@ export function CoworkView({ model }: CoworkViewProps) {
                     )}
                 </div>
             </div>
+
+            {showWorkerConfig && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                    <WorkerConfigDialog
+                        className="bg-base rounded-lg shadow-xl max-w-md w-full"
+                        onWorkerCreated={(workerId) => {
+                            setShowWorkerConfig(false);
+                        }}
+                        onCancel={() => setShowWorkerConfig(false)}
+                    />
+                </div>
+            )}
         </div>
     );
 }
@@ -246,11 +283,15 @@ function TaskColumn({
     tasks,
     onDelete,
     priorityColors,
+    workers,
+    onAssignTask,
 }: {
     title: string;
     tasks: CoworkTask[];
     onDelete: (id: string) => void;
     priorityColors: Record<string, string>;
+    workers: CoworkWorker[];
+    onAssignTask: (taskId: string, workerId: string) => void;
 }) {
     return (
         <div className="rounded border border-border/50 bg-base p-2">
@@ -265,8 +306,22 @@ function TaskColumn({
                         <div key={t.taskid} className="text-xs p-1 rounded bg-base/30">
                             <div className="flex items-center gap-1">
                                 <span className={priorityColors[t.priority] ?? ""}>{t.title}</span>
+                                {workers.length > 0 && (
+                                    <select
+                                        value={t.assignedworker || ""}
+                                        onChange={(e) => e.target.value && onAssignTask(t.taskid, e.target.value)}
+                                        className="ml-auto text-xs bg-white border border-gray-300 rounded px-1 py-0.5"
+                                    >
+                                        <option value="">Unassigned</option>
+                                        {workers.map((w) => (
+                                            <option key={w.workerid} value={w.workerid}>
+                                               	{w.name}
+                                            </option>
+                                        ))}
+                                    </select>
+                                )}
                                 <button
-                                    className="ml-auto text-gray-500 hover:text-red-400 cursor-pointer"
+                                    className="text-gray-500 hover:text-red-400 cursor-pointer"
                                     onClick={() => onDelete(t.taskid)}
                                 >
                                     ×

@@ -30,6 +30,12 @@ export class CoworkViewModel implements ViewModel {
     failedTasksAtom = jotai.atom<CoworkTask[]>([]);
     workersAtom = jotai.atom<CoworkWorker[]>([]);
     activityLogAtom = jotai.atom<CoworkActivity[]>([]);
+    workerConfigAtom = jotai.atom({
+		runtime: "claude",
+		concurrency: 3,
+		timeout: 300,
+		maxRetries: 3,
+	});
     isSupervisingAtom = jotai.atom(false);
     supervisorInterval: number | null = null;
     lastLLMCallAtom = jotai.atom("");
@@ -211,6 +217,14 @@ export class CoworkViewModel implements ViewModel {
 
     async deleteWorker(workerId: string): Promise<void> {
         await RpcApi.CoworkDeleteWorkerCommand(TabRpcClient, workerId);
+        await this.refreshAllData();
+    }
+
+    async assignTask(taskId: string, workerId: string): Promise<void> {
+        await RpcApi.CoworkUpdateTaskCommand(TabRpcClient, {
+            taskid: taskId,
+            assignedworker: workerId,
+        });
         await this.refreshAllData();
     }
 

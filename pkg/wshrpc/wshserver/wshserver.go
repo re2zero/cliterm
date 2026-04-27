@@ -14,6 +14,7 @@ import (
 	"io/fs"
 	"log"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -1827,5 +1828,53 @@ func (ws *WshServer) CoworkExecuteTaskCommand(ctx context.Context, data wshrpc.C
 		BlockId: blockData.OID,
 		TabId:   worker.TabId,
 		Success: true,
+	}, nil
+}
+
+func (ws *WshServer) CoworkDetectRuntimesCommand(ctx context.Context) (*wshrpc.CoworkDetectRuntimesCommandReturn, error) {
+	providers := []struct {
+		name        string
+		displayName string
+		command     string
+		flag        string
+	}{
+		{"claude", "Claude Code", "claude", "--version"},
+		{"opencode", "OpenCode", "opencode", "--version"},
+		{"cursor", "Cursor Agent", "cursor-agent", "--version"},
+		{"aider", "Aider", "aider", "--version"},
+	}
+
+	var runtimes []wshrpc.AIRuntime
+
+	for _, p := range providers {
+		cmd := exec.Command(p.command, p.flag)
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			runtimes = append(runtimes, wshrpc.AIRuntime{
+				Name:        p.name,
+				DisplayName: p.displayName,
+				Command:     p.command,
+				Version:     "",
+				Status:      "offline",
+			})
+			continue
+		}
+
+		version := strings.TrimSpace(string(output))
+		if idx := strings.Index(version, "\n"); idx != -1 {
+			version = version[:idx]
+		}
+
+		runtimes = append(runtimes, wshrpc.AIRuntime{
+			Name:        p.name,
+			DisplayName: p.displayName,
+			Command:     p.command,
+			Version:     version,
+			Status:      "online",
+		})
+	}
+
+	return &wshrpc.CoworkDetectRuntimesCommandReturn{
+		Runtimes: runtimes,
 	}, nil
 }

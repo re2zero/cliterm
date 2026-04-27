@@ -204,6 +204,12 @@ export class RpcApiType {
         return client.wshRpcCall("coworkdeleteworker", data, opts);
     }
 
+    // command "coworkdetectruntimes" [call]
+    CoworkDetectRuntimesCommand(client: WshClient, opts?: RpcOpts): Promise<CoworkDetectRuntimesCommandReturn> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "coworkdetectruntimes", null, opts);
+        return client.wshRpcCall("coworkdetectruntimes", null, opts);
+    }
+
     // command "coworkexecutetask" [call]
     CoworkExecuteTaskCommand(client: WshClient, data: CoworkExecuteTaskData, opts?: RpcOpts): Promise<CoworkExecuteTaskResponse> {
         if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "coworkexecutetask", data, opts);

@@ -197,6 +197,7 @@ type WshRpcInterface interface {
 	CoworkListActivityCommand(ctx context.Context, data CoworkListActivityData) ([]*CoworkActivity, error)
 	CoworkGetStatusCommand(ctx context.Context) (*CoworkStatusData, error)
 	CoworkExecuteTaskCommand(ctx context.Context, data CoworkExecuteTaskData) (*CoworkExecuteTaskResponse, error)
+	CoworkDetectRuntimesCommand(ctx context.Context) (*CoworkDetectRuntimesCommandReturn, error)
 
 	// proc
 	VDomRenderCommand(ctx context.Context, data vdom.VDomFrontendUpdate) chan RespOrErrorUnion[*vdom.VDomBackendUpdate]
@@ -1052,17 +1053,20 @@ type CoworkListTasksData struct {
 }
 
 type CoworkRegisterWorkerData struct {
-	WorkerId   string `json:"workerid"`
-	Name       string `json:"name"`
-	Tool       string `json:"tool"`
-	CustomCmd  string `json:"customcmd,omitempty"`
-	Role       string `json:"role,omitempty"`
-	Desc       string `json:"desc,omitempty"`
-	Soul       string `json:"soul,omitempty"`
-	Skills     string `json:"skills,omitempty"`
-	McpServers string `json:"mcpservers,omitempty"`
-	BlockId    string `json:"blockid"`
-	TabId      string `json:"tabid"`
+	WorkerId    string `json:"workerid"`
+	Name        string `json:"name"`
+	Tool        string `json:"tool"`
+	CustomCmd   string `json:"customcmd,omitempty"`
+	Role        string `json:"role,omitempty"`
+	Desc        string `json:"desc,omitempty"`
+	Soul        string `json:"soul,omitempty"`
+	Skills      string `json:"skills,omitempty"`
+	McpServers  string `json:"mcpservers,omitempty"`
+	BlockId     string `json:"blockid"`
+	TabId       string `json:"tabid"`
+	Concurrency int    `json:"concurrency,omitempty"`
+	Timeout     int    `json:"timeout,omitempty"`
+	MaxRetries  int    `json:"maxretries,omitempty"`
 }
 
 type CoworkUpdateWorkerData struct {
@@ -1106,4 +1110,18 @@ type CoworkExecuteTaskResponse struct {
 	TabId   string `json:"tabid"`
 	Success bool   `json:"success"`
 	Error   string `json:"error,omitempty"`
+}
+
+// AIRuntime represents a detected AI CLI runtime
+type AIRuntime struct {
+	Name        string `json:"name"`        // claude, opencode, cursor, aider
+	DisplayName string `json:"display_name"` // Claude Code, OpenCode...
+	Command     string `json:"command"`     // detected full path
+	Version     string `json:"version"`     // version string
+	Status      string `json:"status"`      // online, offline
+}
+
+// CoworkDetectRuntimesCommandReturn is the return type for CoworkDetectRuntimesCommand
+type CoworkDetectRuntimesCommandReturn struct {
+	Runtimes []AIRuntime `json:"runtimes"`
 }
