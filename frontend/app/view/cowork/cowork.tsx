@@ -285,22 +285,33 @@ export function CoworkView({ model }: CoworkViewProps) {
                     ) : (
                         <div className="flex flex-col gap-2">
                             {workers.map((w) => (
-                                <div key={w.workerid} className="flex items-center gap-2 text-sm">
-                                    <span
-                                        className={`inline-block w-2 h-2 rounded-full ${statusColors[w.status] ?? "bg-gray-300"}`}
-                                    />
-                                    <span className="flex-1">{w.name}</span>
-                                    <span className="text-gray-400 text-xs">{w.tool}</span>
-                                    <span className="text-gray-400 text-xs">{w.status}</span>
-                                    {w.assignedtask && (
-                                        <span className="text-xs text-blue-400">→ {w.assignedtask}</span>
+                                <div key={w.workerid} className="flex flex-col gap-1 text-sm">
+                                    <div className="flex items-center gap-2">
+                                        <span
+                                            className={`inline-block w-2 h-2 rounded-full ${statusColors[w.status] ?? "bg-gray-300"}`}
+                                        />
+                                        <span className="flex-1">{w.name}</span>
+                                        <span className="text-gray-400 text-xs">{w.tool}</span>
+                                        <span className="text-gray-400 text-xs">{w.status}</span>
+                                        {w.assignedtask && (
+                                            <span className="text-xs text-blue-400">→ {w.assignedtask}</span>
+                                        )}
+                                        <button
+                                            className="text-xs text-red-400 hover:text-red-300 cursor-pointer"
+                                            onClick={() => handleDeleteWorker(w.workerid)}
+                                        >
+                                            Remove
+                                        </button>
+                                    </div>
+                                    {w.capabilities && w.capabilities.length > 0 && (
+                                        <div className="flex flex-wrap gap-1 ml-4">
+                                            {w.capabilities.map((cap) => (
+                                                <span key={cap} className="px-1.5 py-0.5 text-xs bg-accent/20 text-accent rounded">
+                                                    {cap}
+                                                </span>
+                                            ))}
+                                        </div>
                                     )}
-                                    <button
-                                        className="text-xs text-red-400 hover:text-red-300 cursor-pointer"
-                                        onClick={() => handleDeleteWorker(w.workerid)}
-                                    >
-                                        Remove
-                                    </button>
                                 </div>
                             ))}
                         </div>

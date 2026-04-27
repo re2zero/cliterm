@@ -874,6 +874,7 @@ declare global {
         concurrency?: number;
         timeout?: number;
         maxretries?: number;
+        capabilities?: string[];
     };
 
     // wshrpc.CoworkStatusData
@@ -953,6 +954,7 @@ declare global {
         lastactiveat: number;
         lastoutputhash?: string;
         errormsg?: string;
+        capabilities?: string[];
     };
 
     // wshrpc.CpuDataRequest

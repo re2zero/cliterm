@@ -19,6 +19,7 @@ interface WorkerConfig {
 	concurrency: number;
 	timeout: number;
 	maxRetries: number;
+	capabilities: string[];
 }
 
 const DEFAULT_CONFIG: WorkerConfig = {
@@ -27,9 +28,21 @@ const DEFAULT_CONFIG: WorkerConfig = {
 	concurrency: 3,
 	timeout: 300,
 	maxRetries: 3,
+	capabilities: [],
 };
 
-const WORKER_TEMPLATES: Record<string, Omit<WorkerConfig, "tool"> & { name: string; description: string }> = {
+const PREDEFINED_CAPABILITIES = [
+	"refactoring",
+	"debugging",
+	"testing",
+	"frontend",
+	"backend",
+	"documentation",
+	"review",
+	"optimization",
+];
+
+const WORKER_TEMPLATES: Record<string, Omit<WorkerConfig, "tool" | "capabilities"> & { name: string; description: string }> = {
 	standard: {
 		name: "Standard Worker",
 		description: "Balanced performance for general tasks",
@@ -76,6 +89,7 @@ export function WorkerConfigDialog({ className, onWorkerCreated, onCancel }: Wor
 				concurrency: template.concurrency,
 				timeout: template.timeout,
 				maxRetries: template.maxRetries,
+				capabilities: config.capabilities,
 			});
 		}
 	};
@@ -205,6 +219,35 @@ export function WorkerConfigDialog({ className, onWorkerCreated, onCancel }: Wor
 						disabled={loading}
 						className="px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-accent focus:outline-none"
 					/>
+				</div>
+			</div>
+
+			<div className="flex flex-col gap-1">
+				<label className="text-sm font-medium text-gray-700">Capabilities</label>
+				<div className="flex flex-wrap gap-1">
+					{PREDEFINED_CAPABILITIES.map((cap) => (
+						<button
+							key={cap}
+							type="button"
+							onClick={() => {
+								setConfig((prev) => ({
+									...prev,
+									capabilities: prev.capabilities.includes(cap)
+										? prev.capabilities.filter((c) => c !== cap)
+										: [...prev.capabilities, cap],
+								}));
+							}}
+							disabled={loading}
+							className={cn(
+								"px-2 py-1 text-xs rounded transition-colors cursor-pointer",
+								config.capabilities.includes(cap)
+									? "bg-accent/80 text-primary font-medium"
+									: "bg-gray-100 text-gray-600 hover:bg-gray-200"
+							)}
+						>
+							{cap}
+						</button>
+					))}
 				</div>
 			</div>
 
