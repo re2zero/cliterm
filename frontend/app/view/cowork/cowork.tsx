@@ -4,6 +4,7 @@
 import * as jotai from "jotai";
 import * as React from "react";
 import { CoworkViewModel } from "./cowork-model";
+import { CoworkTabbedDialog } from "./cowork-tabbed-dialog";
 import { RuntimeDetectionPanel } from "./runtime-detection-panel";
 import { WorkerConfigDialog } from "./worker-config-dialog";
 
@@ -38,6 +39,7 @@ export function CoworkView({ model }: CoworkViewProps) {
     const [newTaskDesc, setNewTaskDesc] = React.useState("");
     const [newTaskPriority, setNewTaskPriority] = React.useState("medium");
     const [showWorkerConfig, setShowWorkerConfig] = React.useState(false);
+    const [showTabbedDialog, setShowTabbedDialog] = React.useState(false);
 
     const handleCreateTask = async () => {
         if (!newTaskTitle.trim()) {
@@ -215,14 +217,32 @@ export function CoworkView({ model }: CoworkViewProps) {
                         workers={workers}
                         onAssignTask={handleAssignTask}
                         onPauseTask={handlePauseTask}
-                        onResumeTask={handleResumeTask}
-                    />
-                </div>
+                    onResumeTask={handleResumeTask}
+                />
             </div>
+        </div>
 
-            <RuntimeDetectionPanel className="rounded border border-border/50 bg-base" />
+        {showTabbedDialog && (
+            <CoworkTabbedDialog
+                className="mb-4 rounded border border-border/50 bg-base"
+                onClose={() => setShowTabbedDialog(false)}
+            />
+        )}
 
-            <div>
+        {!showTabbedDialog && (
+            <div className="mb-4">
+                <button
+                    className="px-3 py-1.5 text-sm bg-accent text-primary rounded hover:bg-accent/80 transition-colors cursor-pointer"
+                    onClick={() => setShowTabbedDialog(true)}
+                >
+                    Open Tools
+                </button>
+            </div>
+        )}
+
+        {!showTabbedDialog && <RuntimeDetectionPanel className="rounded border border-border/50 bg-base" />}
+
+        <div>
                 <div className="flex items-center justify-between mb-2">
                     <h3 className="text-sm font-semibold">Workers</h3>
                     <button
