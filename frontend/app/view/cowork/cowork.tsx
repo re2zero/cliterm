@@ -74,6 +74,10 @@ export function CoworkView({ model }: CoworkViewProps) {
         await model.resumeTask(taskId);
     };
 
+    const handleRetryTask = async (taskId: string) => {
+        await model.retryTask(taskId);
+    };
+
     const handleRefresh = async () => {
         await model.refreshAllData();
     };
@@ -211,6 +215,7 @@ export function CoworkView({ model }: CoworkViewProps) {
                         onAssignTask={handleAssignTask}
                         onPauseTask={handlePauseTask}
                         onResumeTask={handleResumeTask}
+                        onRetryTask={handleRetryTask}
                         allTasks={allTasks}
                     />
                     <TaskColumn
@@ -222,6 +227,7 @@ export function CoworkView({ model }: CoworkViewProps) {
                         onAssignTask={handleAssignTask}
                         onPauseTask={handlePauseTask}
                         onResumeTask={handleResumeTask}
+                        onRetryTask={handleRetryTask}
                         allTasks={allTasks}
                     />
                     <TaskColumn
@@ -233,6 +239,7 @@ export function CoworkView({ model }: CoworkViewProps) {
                         onAssignTask={handleAssignTask}
                         onPauseTask={handlePauseTask}
                         onResumeTask={handleResumeTask}
+                        onRetryTask={handleRetryTask}
                         allTasks={allTasks}
                     />
                     <TaskColumn
@@ -244,6 +251,7 @@ export function CoworkView({ model }: CoworkViewProps) {
                         onAssignTask={handleAssignTask}
                         onPauseTask={handlePauseTask}
                         onResumeTask={handleResumeTask}
+                        onRetryTask={handleRetryTask}
                         allTasks={allTasks}
                 />
             </div>
@@ -361,6 +369,7 @@ function TaskColumn({
     onAssignTask,
     onPauseTask,
     onResumeTask,
+    onRetryTask,
     allTasks,
 }: {
     title: string;
@@ -371,6 +380,7 @@ function TaskColumn({
     onAssignTask: (taskId: string, workerId: string) => void;
     onPauseTask: (taskId: string) => void;
     onResumeTask: (taskId: string) => void;
+    onRetryTask: (taskId: string) => void;
     allTasks: CoworkTask[];
 }) {
     return (
@@ -401,6 +411,15 @@ function TaskColumn({
                                         onClick={() => onResumeTask(t.taskid)}
                                     >
                                         ▶
+                                    </button>
+                                )}
+                                {t.status === "failed" && t.retrycount < t.maxretries && (
+                                    <button
+                                        className="text-xs text-orange-400 hover:text-orange-300 cursor-pointer"
+                                        onClick={() => onRetryTask(t.taskid)}
+                                        title={`Retry (${t.retrycount}/${t.maxretries})`}
+                                    >
+                                        ↻
                                     </button>
                                 )}
                                 {workers.length > 0 && (

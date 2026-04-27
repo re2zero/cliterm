@@ -258,6 +258,11 @@ export class RpcApiType {
         return client.wshRpcCall("coworkgettaskoutputhistory", data, opts);
     }
 
+    CoworkRetryTaskCommand(client: WshClient, data: string, opts?: RpcOpts): Promise<void> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "coworkretrytask", data, opts);
+        return client.wshRpcCall("coworkretrytask", data, opts);
+    }
+
     // command "coworkupdatetask" [call]
     CoworkUpdateTaskCommand(client: WshClient, data: CoworkUpdateTaskData, opts?: RpcOpts): Promise<CoworkTask> {
         if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "coworkupdatetask", data, opts);

@@ -238,6 +238,11 @@ export class CoworkViewModel implements ViewModel {
         await this.refreshAllData();
     }
 
+    async retryTask(taskId: string): Promise<void> {
+        await RpcApi.CoworkRetryTaskCommand(TabRpcClient, taskId);
+        await this.refreshAllData();
+    }
+
     private async collectWorkerOutputs(workers: CoworkWorker[]): Promise<Map<string, WorkerOutput>> {
         const outputs = new Map<string, WorkerOutput>();
         for (const worker of workers) {

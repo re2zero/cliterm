@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"io/fs"
 	"log"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -1918,4 +1919,32 @@ func (ws *WshServer) CoworkGetTaskOutputHistoryCommand(ctx context.Context, task
 	}
 
 	return task.OutputHistory, nil
+}
+
+func (ws *WshServer) CoworkRetryTaskCommand(ctx context.Context, taskId string) error {
+	task, err := cowork.GetTask(ctx, taskId)
+	if err != nil {
+		return fmt.Errorf("error getting cowork task: %w", err)
+	}
+
+	if task.Status != "failed" {
+		return fmt.Errorf("can only retry failed tasks, current status: %s", task.Status)
+	}
+
+	maxRetries := task.MaxRetries
+	if maxRetries == 0 {
+		maxRetries = 3
+	}
+
+	if task.RetryCount >= maxRetries {
+		return fmt.Errorf("task has exceeded max retries (%d/%d)", task.RetryCount, maxRetries)
+	}
+
+	task.RetryCount++
+	delaySeconds := math.Pow(2, float64(task.RetryCount))
+	task.NextRetryAt = time.Now().Add(time.Duration(delaySeconds) * time.Second).Unix()
+	task.Status = "pending"
+	task.Error = ""
+
+	return cowork.SaveTask(ctx, task)
 }

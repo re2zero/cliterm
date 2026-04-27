@@ -904,6 +904,9 @@ declare global {
         progress?: string;
         outputhistory?: CoworkTaskOutput[];
         dependson?: string[];
+        retrycount: number;
+        maxretries: number;
+        nextretryat?: number;
     };
 
     // wshrpc.CoworkTaskOutput

@@ -201,6 +201,7 @@ type WshRpcInterface interface {
 	CoworkPauseTaskCommand(ctx context.Context, taskId string) error
 	CoworkResumeTaskCommand(ctx context.Context, taskId string) error
 	CoworkGetTaskOutputHistoryCommand(ctx context.Context, taskId string) ([]CoworkTaskOutput, error)
+	CoworkRetryTaskCommand(ctx context.Context, taskId string) error
 }
 
 // for frontend
@@ -972,6 +973,9 @@ type CoworkTask struct {
 	Progress       string `json:"progress,omitempty"`
 	OutputHistory  []CoworkTaskOutput `json:"outputhistory,omitempty"`
 	DependsOn      []string `json:"dependson,omitempty"`
+	RetryCount     int      `json:"retrycount"`
+	MaxRetries     int      `json:"maxretries"`
+	NextRetryAt    int64    `json:"nextretryat,omitempty"`
 }
 
 type CoworkTaskOutput struct {
