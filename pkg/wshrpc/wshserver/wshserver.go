@@ -1893,7 +1893,7 @@ func (ws *WshServer) CoworkPauseTaskCommand(ctx context.Context, taskId string) 
 	task.Status = "paused"
 	task.UpdatedAt = time.Now().Unix()
 
-	return cowork.SaveTask(ctx, task)
+	return cowork.UpdateTask(ctx, task)
 }
 
 func (ws *WshServer) CoworkResumeTaskCommand(ctx context.Context, taskId string) error {
@@ -1909,7 +1909,7 @@ func (ws *WshServer) CoworkResumeTaskCommand(ctx context.Context, taskId string)
 	task.Status = "pending"
 	task.UpdatedAt = time.Now().Unix()
 
-	return cowork.SaveTask(ctx, task)
+	return cowork.UpdateTask(ctx, task)
 }
 
 func (ws *WshServer) CoworkGetTaskOutputHistoryCommand(ctx context.Context, taskId string) ([]wshrpc.CoworkTaskOutput, error) {
@@ -1946,5 +1946,5 @@ func (ws *WshServer) CoworkRetryTaskCommand(ctx context.Context, taskId string) 
 	task.Status = "pending"
 	task.Error = ""
 
-	return cowork.SaveTask(ctx, task)
+	return cowork.UpdateTask(ctx, task)
 }
