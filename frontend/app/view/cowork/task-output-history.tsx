@@ -47,7 +47,7 @@ export function TaskOutputHistory({ taskId, className }: TaskOutputHistoryProps)
 	if (loading) {
 		return (
 			<div className={cn("flex flex-col", className)}>
-				<div className="p-4 text-sm text-gray-500">Loading output history...</div>
+				<div className="p-4 text-sm text-tertiary">Loading output history...</div>
 			</div>
 		);
 	}
@@ -55,7 +55,7 @@ export function TaskOutputHistory({ taskId, className }: TaskOutputHistoryProps)
 	if (error) {
 		return (
 			<div className={cn("flex flex-col", className)}>
-				<div className="p-4 text-sm text-red-500">Error: {error}</div>
+				<div className="p-4 text-sm text-red-400">Error: {error}</div>
 			</div>
 		);
 	}
@@ -63,32 +63,32 @@ export function TaskOutputHistory({ taskId, className }: TaskOutputHistoryProps)
 	if (outputs.length === 0) {
 		return (
 			<div className={cn("flex flex-col", className)}>
-				<div className="p-4 text-sm text-gray-500">No output history available</div>
+				<div className="p-4 text-sm text-tertiary">No output history available</div>
 			</div>
 		);
 	}
 
 	return (
 		<div className={cn("flex flex-col", className)}>
-			<div className="p-3 border-b border-gray-200">
-				<h3 className="text-sm font-medium text-gray-700">Output History</h3>
+			<div className="p-3 border-b border-border/50">
+				<h3 className="text-sm font-medium text-secondary">Output History</h3>
 			</div>
 			<div className="flex-1 overflow-y-auto p-3">
 				<div className="flex flex-col gap-2">
 					{outputs.map((output, index) => (
 						<div
 							key={index}
-							className="flex flex-col gap-1 p-2 rounded bg-gray-50 border border-gray-200"
+							className="flex flex-col gap-1 p-2 rounded bg-base/50 border border-border/30"
 						>
 							<div className="flex items-center gap-2">
-								<span className="text-xs text-gray-500">{formatTime(output.timestamp)}</span>
+								<span className="text-xs text-tertiary">{formatTime(output.timestamp)}</span>
 								{output.type && (
-									<span className="text-xs px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded">
+									<span className="text-xs px-1.5 py-0.5 bg-blue-500/10 text-blue-400 rounded">
 										{output.type}
 									</span>
 								)}
 							</div>
-							<pre className="text-xs text-gray-700 whitespace-pre-wrap font-mono">
+							<pre className="text-xs text-secondary whitespace-pre-wrap font-mono">
 								{output.content}
 							</pre>
 						</div>

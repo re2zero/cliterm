@@ -37,7 +37,7 @@ export function RuntimeDetectionPanel({ className }: RuntimeDetectionPanelProps)
 	if (loading) {
 		return (
 			<div className={cn("flex flex-col", className)}>
-				<div className="p-4 text-sm text-gray-500">Detecting AI runtimes...</div>
+				<div className="p-4 text-sm text-tertiary">Detecting AI runtimes...</div>
 			</div>
 		);
 	}
@@ -45,7 +45,7 @@ export function RuntimeDetectionPanel({ className }: RuntimeDetectionPanelProps)
 	if (error) {
 		return (
 			<div className={cn("flex flex-col", className)}>
-				<div className="p-4 text-sm text-red-500">Error: {error}</div>
+				<div className="p-4 text-sm text-red-400">Error: {error}</div>
 			</div>
 		);
 	}
@@ -53,15 +53,15 @@ export function RuntimeDetectionPanel({ className }: RuntimeDetectionPanelProps)
 	if (runtimes.length === 0) {
 		return (
 			<div className={cn("flex flex-col", className)}>
-				<div className="p-4 text-sm text-gray-500">No AI runtimes detected</div>
+				<div className="p-4 text-sm text-tertiary">No AI runtimes detected</div>
 			</div>
 		);
 	}
 
 	return (
 		<div className={cn("flex flex-col", className)}>
-			<div className="p-3 border-b border-gray-200">
-				<h3 className="text-sm font-medium text-gray-700">Detected AI Runtimes</h3>
+			<div className="p-3 border-b border-border/50">
+				<h3 className="text-sm font-medium text-secondary">Detected AI Runtimes</h3>
 			</div>
 			<div className="flex-1 overflow-y-auto">
 				{runtimes.map((runtime, index) => (
@@ -69,22 +69,22 @@ export function RuntimeDetectionPanel({ className }: RuntimeDetectionPanelProps)
 						key={runtime.name}
 						className={cn(
 							"flex items-center justify-between p-3",
-							index !== runtimes.length - 1 && "border-b border-gray-100"
+							index !== runtimes.length - 1 && "border-b border-border/30"
 						)}
 					>
 						<div className="flex flex-col">
-							<span className="text-sm font-medium text-gray-900">{runtime.display_name}</span>
-							<span className="text-xs text-gray-500">{runtime.command}</span>
+							<span className="text-sm font-medium text-primary">{runtime.display_name}</span>
+							<span className="text-xs text-tertiary">{runtime.command}</span>
 							{runtime.version && (
-								<span className="text-xs text-gray-400">{runtime.version}</span>
+								<span className="text-xs text-secondary">{runtime.version}</span>
 							)}
 						</div>
 						<div
 							className={cn(
 								"px-2 py-1 text-xs font-medium rounded",
 								runtime.status === "online"
-									? "bg-green-100 text-green-700"
-									: "bg-gray-100 text-gray-500"
+									? "bg-green-500/10 text-green-400"
+									: "bg-base/50 text-tertiary"
 							)}
 						>
 							{runtime.status}

@@ -3,10 +3,16 @@
 
 import * as jotai from "jotai";
 import * as React from "react";
+import { RpcApi } from "@/app/store/wshclientapi";
+import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { CoworkViewModel } from "./cowork-model";
-import { CoworkTabbedDialog } from "./cowork-tabbed-dialog";
-import { RuntimeDetectionPanel } from "./runtime-detection-panel";
-import { WorkerConfigDialog } from "./worker-config-dialog";
+import { BoardView } from "./board-view";
+import { StatusStrip } from "./status-strip";
+import { RuntimeBar } from "./runtime-bar";
+import { TaskDetail } from "./task-detail";
+import { WorkerList, WorkerEditor } from "./worker-panel";
+import type { WorkerFormData } from "./worker-panel";
+import { cn } from "@/util/util";
 
 interface CoworkViewProps {
     blockId: string;
@@ -14,6 +20,8 @@ interface CoworkViewProps {
     contentRef: React.RefObject<HTMLDivElement>;
     model: CoworkViewModel;
 }
+
+type WorkerEditorTarget = { type: "new" } | { type: "edit"; workerId: string };
 
 export function CoworkView({ model }: CoworkViewProps) {
     const pendingTasks = jotai.useAtomValue(model.pendingTasksAtom) ?? [];
@@ -23,336 +31,167 @@ export function CoworkView({ model }: CoworkViewProps) {
     const allTasks = [...pendingTasks, ...workingTasks, ...doneTasks, ...failedTasks];
     const workers = jotai.useAtomValue(model.workersAtom) ?? [];
     const activities = jotai.useAtomValue(model.activityLogAtom) ?? [];
+    const status = jotai.useAtomValue(model.statusAtom);
     const isSupervising = jotai.useAtomValue(model.isSupervisingAtom) ?? false;
     const isProcessing = jotai.useAtomValue(model.isProcessingAtom) ?? false;
-    const lastLLMCall = jotai.useAtomValue(model.lastLLMCallAtom) ?? "";
     const error = jotai.useAtomValue(model.errorAtom) ?? null;
-    const status = jotai.useAtomValue(model.statusAtom) ?? {
-        pendingtasks: 0,
-        workingtasks: 0,
-        donetasks: 0,
-        failedtasks: 0,
-        activeworkers: 0,
-        idleworkers: 0,
+
+    const [selectedTask, setSelectedTask] = React.useState<CoworkTask | null>(null);
+    const [showCreateTask, setShowCreateTask] = React.useState(false);
+    const [showActivity, setShowActivity] = React.useState(false);
+    const [editorTarget, setEditorTarget] = React.useState<WorkerEditorTarget | null>(null);
+    const [editorVisible, setEditorVisible] = React.useState(false);
+
+    const editorWorker = editorTarget?.type === "edit" ? workers.find((w) => w.workerid === editorTarget.workerId) : undefined;
+
+    const openEditor = (target: WorkerEditorTarget) => {
+        setEditorTarget(target);
+        requestAnimationFrame(() => setEditorVisible(true));
     };
 
-    const [newTaskTitle, setNewTaskTitle] = React.useState("");
-    const [newTaskDesc, setNewTaskDesc] = React.useState("");
-    const [newTaskPriority, setNewTaskPriority] = React.useState("medium");
-    const [newTaskDependsOn, setNewTaskDependsOn] = React.useState<string[]>([]);
-    const [showWorkerConfig, setShowWorkerConfig] = React.useState(false);
-    const [showTabbedDialog, setShowTabbedDialog] = React.useState(false);
-
-    const handleCreateTask = async () => {
-        if (!newTaskTitle.trim()) {
-            return;
-        }
-        await model.createTask(newTaskTitle, newTaskDesc, newTaskPriority, newTaskDependsOn);
-        setNewTaskTitle("");
-        setNewTaskDesc("");
-        setNewTaskPriority("medium");
-        setNewTaskDependsOn([]);
+    const closeEditor = () => {
+        setEditorVisible(false);
+        setTimeout(() => setEditorTarget(null), 300);
     };
 
-    const handleDeleteTask = async (taskId: string) => {
-        await model.deleteTask(taskId);
-    };
-
-    const handleDeleteWorker = async (workerId: string) => {
-        await model.deleteWorker(workerId);
-    };
-
-    const handleAssignTask = async (taskId: string, workerId: string) => {
-        await model.assignTask(taskId, workerId);
-    };
-
-    const handlePauseTask = async (taskId: string) => {
-        await model.pauseTask(taskId);
-    };
-
-    const handleResumeTask = async (taskId: string) => {
-        await model.resumeTask(taskId);
-    };
-
-    const handleRetryTask = async (taskId: string) => {
-        await model.retryTask(taskId);
-    };
-
-    const handleRefresh = async () => {
-        await model.refreshAllData();
-    };
-
+    const handleRefresh = () => { model.refreshAllData(); };
     const toggleSupervision = () => {
-        if (isSupervising) {
-            model.stopSupervision();
-        } else {
-            model.startSupervision();
-        }
+        if (isSupervising) model.stopSupervision();
+        else model.startSupervision();
     };
-
-    const statusColors: Record<string, string> = {
-        working: "bg-green-500",
-        idle: "bg-gray-400",
-        offline: "bg-gray-300",
-        error: "bg-red-500",
-    };
-
-    const priorityColors: Record<string, string> = {
-        low: "text-gray-400",
-        medium: "text-blue-400",
-        high: "text-orange-400",
-        urgent: "text-red-500",
-    };
-
-    const formatTime = (ts: number) => {
-        if (!ts) {
-            return "";
-        }
-        return new Date(ts * 1000).toLocaleTimeString();
-    };
+    const handleTaskClick = (task: CoworkTask) => { setSelectedTask(task); };
+    const handleRetryTask = (taskId: string) => { model.retryTask(taskId); };
 
     return (
-        <div className="flex flex-col h-full p-3 gap-3 overflow-auto">
-            <div className="flex items-center gap-2">
-                <button
-                    className={`px-3 py-1 rounded text-sm transition-colors cursor-pointer ${
-                        isSupervising
-                            ? "bg-green-600 text-white hover:bg-green-700"
-                            : "bg-accent/80 text-primary hover:bg-accent"
-                    }`}
-                    onClick={toggleSupervision}
-                    disabled={isProcessing}
-                >
-                    {isSupervising ? "👑 Supervising" : "👑 Start Supervise"}
-                </button>
-                <button
-                    className="px-3 py-1 rounded bg-base/50 text-primary text-sm hover:bg-base/70 transition-colors cursor-pointer"
-                    onClick={handleRefresh}
-                >
-                    Refresh
-                </button>
-                {isProcessing && <span className="text-sm text-gray-400">Processing...</span>}
-                {lastLLMCall && (
-                    <span className="text-xs text-gray-500">
-                        Last LLM: {new Date(lastLLMCall).toLocaleTimeString()}
-                    </span>
+        <div className="flex flex-col h-full overflow-hidden" style={{ colorScheme: "dark" }}>
+            <div className="flex items-center justify-between px-4 py-2 border-b border-border/50">
+                <h2 className="text-sm font-semibold text-primary">Cowork</h2>
+                <div className="flex items-center gap-1.5">
+                    <button
+                        className={cn(
+                            "px-2.5 py-1 rounded text-xs font-medium transition-colors cursor-pointer",
+                            isSupervising
+                                ? "bg-green-600 text-white hover:bg-green-700"
+                                : "bg-accent/80 text-primary hover:bg-accent",
+                        )}
+                        onClick={toggleSupervision}
+                        disabled={isProcessing}
+                    >
+                        {isSupervising ? "👑 Supervising" : "👑 Auto"}
+                    </button>
+                    <button
+                        className="px-2 py-1 rounded text-secondary hover:text-primary transition-colors cursor-pointer text-xs"
+                        onClick={handleRefresh}
+                    >⟳</button>
+                    {isProcessing && <span className="text-[11px] text-muted-foreground animate-pulse">Processing...</span>}
+                    {error && <span className="text-[11px] text-red-400 truncate max-w-[200px]">{error}</span>}
+                    <span className="w-px h-4 bg-border/50 mx-1" />
+                    <button
+                        className="px-2.5 py-1 rounded bg-accent/80 text-primary hover:bg-accent transition-colors cursor-pointer text-xs font-medium"
+                        onClick={() => setShowCreateTask(true)}
+                    >+ Task</button>
+                </div>
+            </div>
+
+            <RuntimeBar />
+
+            <StatusStrip status={status} />
+
+            <div className="flex-1 flex min-h-0 relative overflow-hidden">
+                <WorkerList
+                    workers={workers}
+                    onEditWorker={(workerId) => openEditor({ type: "edit", workerId })}
+                    onDeleteWorker={(workerId) => { model.deleteWorker(workerId); }}
+                    onNewWorker={() => openEditor({ type: "new" })}
+                />
+
+                <div className={cn(
+                    "flex-1 min-w-0 flex transition-all duration-300 ease-in-out",
+                    editorVisible && "translate-x-full opacity-0 pointer-events-none",
+                )}>
+                    <div className="flex-1 min-w-0">
+                        <BoardView
+                            pendingTasks={pendingTasks}
+                            workingTasks={workingTasks}
+                            doneTasks={doneTasks}
+                            failedTasks={failedTasks}
+                            allTasks={allTasks}
+                            workers={workers}
+                            onTaskClick={handleTaskClick}
+                            onRetryTask={handleRetryTask}
+                        />
+                    </div>
+                    {selectedTask && (
+                        <TaskDetail
+                            task={selectedTask}
+                            workers={workers}
+                            allTasks={allTasks}
+                            outputHistory={[]}
+                            activities={activities}
+                            onClose={() => setSelectedTask(null)}
+                            onUpdate={(taskId, updates) => { model.updateTask(taskId, updates); }}
+                            onExecute={(taskId, command) => { model.executeTask(taskId, command); }}
+                            onPause={(taskId) => { model.pauseTask(taskId); }}
+                            onResume={(taskId) => { model.resumeTask(taskId); }}
+                            onRetry={(taskId) => { model.retryTask(taskId); }}
+                            onDelete={(taskId) => { model.deleteTask(taskId); setSelectedTask(null); }}
+                        />
+                    )}
+                </div>
+
+                {editorTarget && (
+                    <div className={cn(
+                        "absolute top-0 bottom-0 left-[140px] right-0 flex z-10 transition-transform duration-300 ease-in-out",
+                        editorVisible ? "translate-x-0" : "-translate-x-full",
+                    )}>
+                        <WorkerEditor
+                            worker={editorWorker}
+                            workers={workers}
+                            onClose={closeEditor}
+                            onSubmit={async (tool, config) => { await model.createWorker(tool, config as any); }}
+                        />
+                    </div>
                 )}
-                {error && <span className="text-xs text-red-400">Error: {error}</span>}
             </div>
 
-            <div className="flex gap-4 text-sm">
-                <span>Pending: {status.pendingtasks}</span>
-                <span>Working: {status.workingtasks}</span>
-                <span>Done: {status.donetasks}</span>
-                <span>Failed: {status.failedtasks}</span>
-                <span>Active Workers: {status.activeworkers}</span>
-                <span>Idle Workers: {status.idleworkers}</span>
-            </div>
-
-            <div className="rounded border border-border/50 bg-base p-3">
-                <h3 className="text-sm font-semibold mb-2">New Task</h3>
-                <div className="flex gap-2">
-                    <input
-                        className="flex-1 bg-base/50 border border-border/50 rounded px-2 py-1 text-sm"
-                        placeholder="Task title"
-                        value={newTaskTitle}
-                        onChange={(e) => setNewTaskTitle(e.target.value)}
-                    />
-                    <select
-                        className="bg-base/50 border border-border/50 rounded px-2 py-1 text-sm"
-                        value={newTaskPriority}
-                        onChange={(e) => setNewTaskPriority(e.target.value)}
-                    >
-                        <option value="low">Low</option>
-                        <option value="medium">Medium</option>
-                        <option value="high">High</option>
-                        <option value="urgent">Urgent</option>
-                    </select>
-                    <button
-                        className="px-3 py-1 rounded bg-accent/80 text-primary hover:bg-accent transition-colors cursor-pointer text-sm"
-                        onClick={handleCreateTask}
-                    >
-                        Create
-                    </button>
-                </div>
-                <input
-                    className="w-full mt-2 bg-base/50 border border-border/50 rounded px-2 py-1 text-sm"
-                    placeholder="Description (optional)"
-                    value={newTaskDesc}
-                    onChange={(e) => setNewTaskDesc(e.target.value)}
-                />
-                <div className="mt-2">
-                    <label className="text-xs text-gray-600 mb-1 block">Depends on (optional):</label>
-                    <select
-                        className="w-full bg-base/50 border border-border/50 rounded px-2 py-1 text-sm"
-                        multiple
-                        size={3}
-                        value={newTaskDependsOn}
-                        onChange={(e) => {
-                            const selectedOptions = Array.from(e.target.selectedOptions, (option) => option.value);
-                            setNewTaskDependsOn(selectedOptions);
-                        }}
-                    >
-                        {allTasks.map((task) => (
-                            <option key={task.taskid} value={task.taskid}>
-                                {task.title} ({task.status})
-                            </option>
-                        ))}
-                    </select>
-                    <span className="text-xs text-gray-500">Hold Ctrl/Cmd to select multiple</span>
-                </div>
-            </div>
-
-            <div>
-                <h3 className="text-sm font-semibold mb-2">Task Board</h3>
-                <div className="grid grid-cols-4 gap-2">
-                    <TaskColumn
-                        title="Pending"
-                        tasks={pendingTasks}
-                        onDelete={handleDeleteTask}
-                        priorityColors={priorityColors}
-                        workers={workers}
-                        onAssignTask={handleAssignTask}
-                        onPauseTask={handlePauseTask}
-                        onResumeTask={handleResumeTask}
-                        onRetryTask={handleRetryTask}
-                        allTasks={allTasks}
-                    />
-                    <TaskColumn
-                        title="Working"
-                        tasks={workingTasks}
-                        onDelete={handleDeleteTask}
-                        priorityColors={priorityColors}
-                        workers={workers}
-                        onAssignTask={handleAssignTask}
-                        onPauseTask={handlePauseTask}
-                        onResumeTask={handleResumeTask}
-                        onRetryTask={handleRetryTask}
-                        allTasks={allTasks}
-                    />
-                    <TaskColumn
-                        title="Done"
-                        tasks={doneTasks}
-                        onDelete={handleDeleteTask}
-                        priorityColors={priorityColors}
-                        workers={workers}
-                        onAssignTask={handleAssignTask}
-                        onPauseTask={handlePauseTask}
-                        onResumeTask={handleResumeTask}
-                        onRetryTask={handleRetryTask}
-                        allTasks={allTasks}
-                    />
-                    <TaskColumn
-                        title="Failed"
-                        tasks={failedTasks}
-                        onDelete={handleDeleteTask}
-                        priorityColors={priorityColors}
-                        workers={workers}
-                        onAssignTask={handleAssignTask}
-                        onPauseTask={handlePauseTask}
-                        onResumeTask={handleResumeTask}
-                        onRetryTask={handleRetryTask}
-                        allTasks={allTasks}
-                />
-            </div>
-        </div>
-
-        {showTabbedDialog && (
-            <CoworkTabbedDialog
-                className="mb-4 rounded border border-border/50 bg-base"
-                onClose={() => setShowTabbedDialog(false)}
-            />
-        )}
-
-        {!showTabbedDialog && (
-            <div className="mb-4">
+            <div className="border-t border-border/50">
                 <button
-                    className="px-3 py-1.5 text-sm bg-accent text-primary rounded hover:bg-accent/80 transition-colors cursor-pointer"
-                    onClick={() => setShowTabbedDialog(true)}
+                    className="flex items-center gap-1.5 w-full px-4 py-1.5 text-xs text-muted-foreground hover:text-primary transition-colors cursor-pointer"
+                    onClick={() => setShowActivity(!showActivity)}
                 >
-                    Open Tools
+                    <span className={cn("transition-transform", showActivity && "rotate-90")}>▸</span>
+                    <span>Activity ({activities.length})</span>
+                    {activities.length > 0 && (
+                        <span className="truncate max-w-[300px]">
+                            · Last: {activities[0].description}
+                        </span>
+                    )}
                 </button>
-            </div>
-        )}
-
-        {!showTabbedDialog && <RuntimeDetectionPanel className="rounded border border-border/50 bg-base" />}
-
-        <div>
-                <div className="flex items-center justify-between mb-2">
-                    <h3 className="text-sm font-semibold">Workers</h3>
-                    <button
-                        className="text-xs text-accent hover:text-accent/80 cursor-pointer"
-                        onClick={() => setShowWorkerConfig(true)}
-                    >
-                        Config
-                    </button>
-                </div>
-                <div className="rounded border border-border/50 bg-base p-3">
-                    {workers.length === 0 ? (
-                        <span className="text-sm text-gray-500">No workers registered</span>
-                    ) : (
-                        <div className="flex flex-col gap-2">
-                            {workers.map((w) => (
-                                <div key={w.workerid} className="flex flex-col gap-1 text-sm">
-                                    <div className="flex items-center gap-2">
-                                        <span
-                                            className={`inline-block w-2 h-2 rounded-full ${statusColors[w.status] ?? "bg-gray-300"}`}
-                                        />
-                                        <span className="flex-1">{w.name}</span>
-                                        <span className="text-gray-400 text-xs">{w.tool}</span>
-                                        <span className="text-gray-400 text-xs">{w.status}</span>
-                                        {w.assignedtask && (
-                                            <span className="text-xs text-blue-400">→ {w.assignedtask}</span>
-                                        )}
-                                        <button
-                                            className="text-xs text-red-400 hover:text-red-300 cursor-pointer"
-                                            onClick={() => handleDeleteWorker(w.workerid)}
-                                        >
-                                            Remove
-                                        </button>
-                                    </div>
-                                    {w.capabilities && w.capabilities.length > 0 && (
-                                        <div className="flex flex-wrap gap-1 ml-4">
-                                            {w.capabilities.map((cap) => (
-                                                <span key={cap} className="px-1.5 py-0.5 text-xs bg-accent/20 text-accent rounded">
-                                                    {cap}
-                                                </span>
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </div>
+                {showActivity && (
+                    <div className="max-h-[200px] overflow-auto px-4 pb-2 space-y-0.5">
+                        {activities.map((a) => (
+                            <div key={a.id} className="flex gap-2 text-[11px]">
+                                <span className="text-muted-foreground shrink-0 tabular-nums">
+                                    {new Date(a.createdat * 1000).toLocaleTimeString()}
+                                </span>
+                                <span className="text-secondary">[{a.type}]</span>
+                                <span className="text-primary truncate">{a.description}</span>
+                            </div>
+                        ))}
+                    </div>
+                )}
             </div>
 
-            <div>
-                <h3 className="text-sm font-semibold mb-2">Activity Log</h3>
-                <div className="rounded border border-border/50 bg-base p-3 max-h-48 overflow-auto">
-                    {activities.length === 0 ? (
-                        <span className="text-sm text-gray-500">No activity yet</span>
-                    ) : (
-                        <div className="flex flex-col gap-1">
-                            {activities.map((a) => (
-                                <div key={a.id} className="text-xs">
-                                    <span className="text-gray-500">{formatTime(a.createdat)}</span>{" "}
-                                    <span className="text-gray-400">[{a.type}]</span> <span>{a.description}</span>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </div>
-            </div>
-
-            {showWorkerConfig && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                    <WorkerConfigDialog
-                        className="bg-base rounded-lg shadow-xl max-w-md w-full"
-                        onWorkerCreated={(workerId) => {
-                            setShowWorkerConfig(false);
+            {showCreateTask && (
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50"
+                    onClick={(e) => e.target === e.currentTarget && setShowCreateTask(false)}>
+                    <CreateTaskInline
+                        allTasks={allTasks}
+                        onSubmit={async (title, desc, priority, deps) => {
+                            await model.createTask(title, desc, priority, deps);
+                            setShowCreateTask(false);
                         }}
-                        onCancel={() => setShowWorkerConfig(false)}
+                        onCancel={() => setShowCreateTask(false)}
                     />
                 </div>
             )}
@@ -360,102 +199,64 @@ export function CoworkView({ model }: CoworkViewProps) {
     );
 }
 
-function TaskColumn({
-    title,
-    tasks,
-    onDelete,
-    priorityColors,
-    workers,
-    onAssignTask,
-    onPauseTask,
-    onResumeTask,
-    onRetryTask,
-    allTasks,
-}: {
-    title: string;
-    tasks: CoworkTask[];
-    onDelete: (id: string) => void;
-    priorityColors: Record<string, string>;
-    workers: CoworkWorker[];
-    onAssignTask: (taskId: string, workerId: string) => void;
-    onPauseTask: (taskId: string) => void;
-    onResumeTask: (taskId: string) => void;
-    onRetryTask: (taskId: string) => void;
+function CreateTaskInline({ allTasks, onSubmit, onCancel }: {
     allTasks: CoworkTask[];
+    onSubmit: (title: string, desc: string, priority: string, deps?: string[]) => Promise<void>;
+    onCancel: () => void;
 }) {
+    const [title, setTitle] = React.useState("");
+    const [desc, setDesc] = React.useState("");
+    const [priority, setPriority] = React.useState("medium");
+    const [deps, setDeps] = React.useState<string[]>([]);
+    const [submitting, setSubmitting] = React.useState(false);
+
+    const handleSubmit = async () => {
+        if (!title.trim() || submitting) return;
+        setSubmitting(true);
+        await onSubmit(title, desc, priority, deps.length > 0 ? deps : undefined);
+    };
+
+    const inputCls = "w-full bg-base border border-border/50 rounded text-sm text-primary focus:outline-none focus:ring-1 focus:ring-accent px-2.5 py-1.5";
+
     return (
-        <div className="rounded border border-border/50 bg-base p-2">
-            <h4 className="text-xs font-semibold mb-2">
-                {title} ({tasks.length})
-            </h4>
-            <div className="flex flex-col gap-1">
-                {tasks.length === 0 ? (
-                    <span className="text-xs text-gray-500">None</span>
-                ) : (
-                    tasks.map((t) => (
-                        <div key={t.taskid} className="text-xs p-1 rounded bg-base/30">
-                            <div className="flex items-center gap-1">
-                                <span className={priorityColors[t.priority] ?? ""}>{t.title}</span>
-                                <span className="text-gray-400">[{t.status}]</span>
-                                {(t.status === "working" || t.status === "pending") && (
-                                    <button
-                                        className="text-xs text-blue-400 hover:text-blue-300 cursor-pointer"
-                                        onClick={() => onPauseTask(t.taskid)}
-                                    >
-                                        ⏸
-                                    </button>
+        <div className="bg-card border border-border/50 shadow-2xl rounded-lg w-full max-w-md p-5" style={{ colorScheme: "dark" }}>
+            <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-semibold text-primary">New Task</h3>
+                <button className="text-muted-foreground hover:text-primary cursor-pointer text-sm" onClick={onCancel}>✕</button>
+            </div>
+            <input className={inputCls} placeholder="Task title *" value={title} onChange={(e) => setTitle(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleSubmit()} autoFocus />
+            <textarea className={cn(inputCls, "mt-2 resize-none")} rows={2} placeholder="Description (optional)" value={desc} onChange={(e) => setDesc(e.target.value)} />
+            <div className="flex gap-2 mt-2">
+                <select className="bg-base border border-border/50 rounded text-sm text-primary px-2 py-1.5" value={priority} onChange={(e) => setPriority(e.target.value)}>
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high">High</option>
+                    <option value="urgent">Urgent</option>
+                </select>
+            </div>
+            {allTasks.length > 0 && (
+                <div className="mt-2">
+                    <label className="text-[11px] text-muted-foreground mb-1 block">Depends on:</label>
+                    <div className="flex flex-wrap gap-1">
+                        {allTasks.filter((t) => t.status !== "done").map((t) => (
+                            <button key={t.taskid}
+                                className={cn(
+                                    "px-1.5 py-0.5 text-[11px] rounded border cursor-pointer transition-colors",
+                                    deps.includes(t.taskid) ? "bg-accent/20 border-accent text-accent" : "border-border/50 text-muted-foreground hover:border-accent/50",
                                 )}
-                                {t.status === "paused" && (
-                                    <button
-                                        className="text-xs text-green-400 hover:text-green-300 cursor-pointer"
-                                        onClick={() => onResumeTask(t.taskid)}
-                                    >
-                                        ▶
-                                    </button>
-                                )}
-                                {t.status === "failed" && t.retrycount < t.maxretries && (
-                                    <button
-                                        className="text-xs text-orange-400 hover:text-orange-300 cursor-pointer"
-                                        onClick={() => onRetryTask(t.taskid)}
-                                        title={`Retry (${t.retrycount}/${t.maxretries})`}
-                                    >
-                                        ↻
-                                    </button>
-                                )}
-                                {workers.length > 0 && (
-                                    <select
-                                        value={t.assignedworker || ""}
-                                        onChange={(e) => e.target.value && onAssignTask(t.taskid, e.target.value)}
-                                        className="ml-auto text-xs bg-white border border-gray-300 rounded px-1 py-0.5"
-                                    >
-                                        <option value="">Unassigned</option>
-                                        {workers.map((w) => (
-                                            <option key={w.workerid} value={w.workerid}>
-                                               	{w.name}
-                                            </option>
-                                        ))}
-                                    </select>
-                                )}
-                                <button
-                                    className="text-gray-500 hover:text-red-400 cursor-pointer"
-                                    onClick={() => onDelete(t.taskid)}
-                                >
-                                    ×
-                                </button>
-                            </div>
-                            {t.assignedworker && <div className="text-gray-500">→ {t.assignedworker}</div>}
-                            {t.progress && <div className="text-gray-400">{t.progress}</div>}
-                            {t.dependson && t.dependson.length > 0 && (
-                                <div className="text-xs text-gray-500 mt-1">
-                                    Depends on: {t.dependson.map((depId) => {
-                                        const depTask = allTasks.find((task) => task.taskid === depId);
-                                        return depTask ? depTask.title : depId;
-                                    }).join(", ")}
-                                </div>
-                            )}
-                        </div>
-                    ))
-                )}
+                                onClick={() => setDeps((prev) => prev.includes(t.taskid) ? prev.filter((d) => d !== t.taskid) : [...prev, t.taskid])}
+                            >
+                                {t.title.slice(0, 20)}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            )}
+            <div className="flex justify-end gap-2 mt-4">
+                <button className="px-3 py-1.5 rounded text-sm text-muted-foreground hover:text-primary cursor-pointer" onClick={onCancel}>Cancel</button>
+                <button className="px-3 py-1.5 rounded bg-accent/80 text-primary hover:bg-accent text-sm font-medium cursor-pointer disabled:opacity-50" onClick={handleSubmit} disabled={!title.trim() || submitting}>
+                    {submitting ? "Creating..." : "Create Task"}
+                </button>
             </div>
         </div>
     );

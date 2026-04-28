@@ -243,6 +243,20 @@ export class CoworkViewModel implements ViewModel {
         await this.refreshAllData();
     }
 
+    async updateTask(taskId: string, updates: Record<string, any>): Promise<void> {
+        await RpcApi.CoworkUpdateTaskCommand(TabRpcClient, { taskid: taskId, ...updates });
+        await this.refreshAllData();
+    }
+
+    async executeTask(taskId: string, command: string): Promise<void> {
+        const workers = globalStore.get(this.workersAtom) ?? [];
+        const task = [...(globalStore.get(this.pendingTasksAtom) ?? []), ...(globalStore.get(this.workingTasksAtom) ?? [])].find((t) => t.taskid === taskId);
+        const workerId = task?.assignedworker ?? workers.find((w) => w.status === "idle")?.workerid;
+        if (!workerId) return;
+        await RpcApi.CoworkExecuteTaskCommand(TabRpcClient, { workerid: workerId, taskid: taskId, command });
+        await this.refreshAllData();
+    }
+
     private async collectWorkerOutputs(workers: CoworkWorker[]): Promise<Map<string, WorkerOutput>> {
         const outputs = new Map<string, WorkerOutput>();
         for (const worker of workers) {
@@ -442,7 +456,7 @@ export class CoworkViewModel implements ViewModel {
         }
     }
 
-    private async createWorkerBlock(tool: string, taskTitle: string): Promise<string> {
+    async createWorker(tool: string, config?: { name?: string; concurrency?: number; timeout?: number; maxRetries?: number; capabilities?: string[]; role?: string; desc?: string; soul?: string; skills?: string[] | string; mcpservers?: string[] | string; customcmd?: string }): Promise<string> {
         const blockInfo = await RpcApi.BlockInfoCommand(TabRpcClient, this.blockId);
         const tabId = blockInfo.tabid;
 
@@ -468,13 +482,27 @@ export class CoworkViewModel implements ViewModel {
 
         await RpcApi.CoworkRegisterWorkerCommand(TabRpcClient, {
             workerid: workerBlockId,
-            name: `${tool} (${taskTitle.substring(0, 30)})`,
+            name: config?.name ?? `${tool} worker`,
             tool,
             blockid: workerBlockId,
             tabid: tabId,
+            concurrency: config?.concurrency,
+            timeout: config?.timeout,
+            maxretries: config?.maxRetries,
+            capabilities: config?.capabilities,
+            role: config?.role,
+            desc: config?.desc,
+            soul: config?.soul,
+            skills: Array.isArray(config?.skills) ? config.skills.join(",") : config?.skills,
+            mcpservers: Array.isArray(config?.mcpservers) ? config.mcpservers.join(",") : config?.mcpservers,
+            customcmd: config?.customcmd,
         });
 
         return workerBlockId;
+    }
+
+    private async createWorkerBlock(tool: string, taskTitle: string): Promise<string> {
+        return this.createWorker(tool);
     }
 
     private getWorkerStartCommand(tool: string): string {
