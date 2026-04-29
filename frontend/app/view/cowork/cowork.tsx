@@ -10,7 +10,7 @@ import { BoardView } from "./board-view";
 import { StatusStrip } from "./status-strip";
 import { RuntimeBar } from "./runtime-bar";
 import { TaskDetail } from "./task-detail";
-import { WorkerList, WorkerEditor } from "./worker-panel";
+import { WorkerList, WorkerEditor, WorkerDetailPanel } from "./worker-panel";
 import type { WorkerFormData } from "./worker-panel";
 import { cn } from "@/util/util";
 
@@ -24,6 +24,11 @@ interface CoworkViewProps {
 type WorkerEditorTarget = { type: "new" } | { type: "edit"; workerId: string };
 
 export function CoworkView({ model }: CoworkViewProps) {
+    React.useEffect(() => {
+        model.init();
+        return () => model.dispose();
+    }, [model]);
+
     const pendingTasks = jotai.useAtomValue(model.pendingTasksAtom) ?? [];
     const workingTasks = jotai.useAtomValue(model.workingTasksAtom) ?? [];
     const doneTasks = jotai.useAtomValue(model.doneTasksAtom) ?? [];
@@ -37,6 +42,7 @@ export function CoworkView({ model }: CoworkViewProps) {
     const error = jotai.useAtomValue(model.errorAtom) ?? null;
 
     const [selectedTask, setSelectedTask] = React.useState<CoworkTask | null>(null);
+    const [selectedWorkerId, setSelectedWorkerId] = React.useState<string | null>(null);
     const [showCreateTask, setShowCreateTask] = React.useState(false);
     const [showActivity, setShowActivity] = React.useState(false);
     const [editorTarget, setEditorTarget] = React.useState<WorkerEditorTarget | null>(null);
@@ -100,14 +106,16 @@ export function CoworkView({ model }: CoworkViewProps) {
             <div className="flex-1 flex min-h-0 relative overflow-hidden">
                 <WorkerList
                     workers={workers}
-                    onEditWorker={(workerId) => openEditor({ type: "edit", workerId })}
-                    onDeleteWorker={(workerId) => { model.deleteWorker(workerId); }}
-                    onNewWorker={() => openEditor({ type: "new" })}
+                    selectedWorkerId={selectedWorkerId}
+                    onSelectWorker={(id) => setSelectedWorkerId(id === selectedWorkerId ? null : id)}
+                    onEditWorker={(workerId) => { setSelectedWorkerId(null); openEditor({ type: "edit", workerId }); }}
+                    onDeleteWorker={(workerId) => { model.deleteWorker(workerId); if (selectedWorkerId === workerId) setSelectedWorkerId(null); }}
+                    onNewWorker={() => { setSelectedWorkerId(null); openEditor({ type: "new" }); }}
                 />
 
                 <div className={cn(
                     "flex-1 min-w-0 flex transition-all duration-300 ease-in-out",
-                    editorVisible && "translate-x-full opacity-0 pointer-events-none",
+                    (editorVisible || selectedWorkerId) && "translate-x-full opacity-0 pointer-events-none",
                 )}>
                     <div className="flex-1 min-w-0">
                         <BoardView
@@ -126,7 +134,6 @@ export function CoworkView({ model }: CoworkViewProps) {
                             task={selectedTask}
                             workers={workers}
                             allTasks={allTasks}
-                            outputHistory={[]}
                             activities={activities}
                             onClose={() => setSelectedTask(null)}
                             onUpdate={(taskId, updates) => { model.updateTask(taskId, updates); }}
@@ -139,6 +146,25 @@ export function CoworkView({ model }: CoworkViewProps) {
                     )}
                 </div>
 
+                {selectedWorkerId && (() => {
+                    const w = workers.find((w) => w.workerid === selectedWorkerId);
+                    if (!w) return null;
+                    return (
+                        <div className={cn(
+                            "absolute top-0 bottom-0 left-[140px] right-0 flex z-10 transition-transform duration-300 ease-in-out",
+                            selectedWorkerId ? "translate-x-0" : "-translate-x-full",
+                        )}>
+                            <WorkerDetailPanel
+                                worker={w}
+                                allTasks={allTasks}
+                                onClose={() => setSelectedWorkerId(null)}
+                                onEdit={() => { setSelectedWorkerId(null); openEditor({ type: "edit", workerId: w.workerid }); }}
+                                onTaskClick={(task) => { setSelectedWorkerId(null); setSelectedTask(task); }}
+                            />
+                        </div>
+                    );
+                })()}
+
                 {editorTarget && (
                     <div className={cn(
                         "absolute top-0 bottom-0 left-[140px] right-0 flex z-10 transition-transform duration-300 ease-in-out",
@@ -148,7 +174,10 @@ export function CoworkView({ model }: CoworkViewProps) {
                             worker={editorWorker}
                             workers={workers}
                             onClose={closeEditor}
-                            onSubmit={async (tool, config) => { await model.createWorker(tool, config as any); }}
+                            onSubmit={editorTarget.type === "edit"
+                                ? async (_tool, config) => { await model.updateWorker(editorTarget.workerId, config as any); }
+                                : async (tool, config) => { await model.createWorker(tool, config as any); }
+                            }
                         />
                     </div>
                 )}

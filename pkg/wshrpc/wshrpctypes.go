@@ -985,24 +985,27 @@ type CoworkTaskOutput struct {
 }
 
 type CoworkWorker struct {
-	WorkerId       string `json:"workerid"`
-	Name           string `json:"name"`
-	Tool           string `json:"tool"`
-	CustomCmd      string `json:"customcmd,omitempty"`
-	Role           string `json:"role,omitempty"`
-	Desc           string `json:"desc,omitempty"`
-	Soul           string `json:"soul,omitempty"`
-	Skills         string `json:"skills,omitempty"`
-	McpServers     string `json:"mcpservers,omitempty"`
-	Status         string `json:"status"`
-	AssignedTask   string `json:"assignedtask,omitempty"`
-	BlockId        string `json:"blockid"`
-	TabId          string `json:"tabid"`
-	CreatedAt      int64  `json:"createdat"`
-	LastActiveAt   int64  `json:"lastactiveat"`
-	LastOutputHash string `json:"lastoutputhash,omitempty"`
-	ErrorMsg       string `json:"errormsg,omitempty"`
-	Capabilities   []string `json:"capabilities,omitempty"`
+	WorkerId       string   `json:"workerid"`
+	Name           string   `json:"name"`
+	Tool           string   `json:"tool"`
+	CustomCmd      string   `json:"customcmd,omitempty"`
+	Role           string   `json:"role,omitempty"`
+	Desc           string   `json:"desc,omitempty"`
+	Soul           string   `json:"soul,omitempty"`
+	Skills         string   `json:"skills,omitempty"`
+	McpServers     string   `json:"mcpservers,omitempty"`
+	Status         string   `json:"status"`
+	AssignedTask   string   `json:"assignedtask,omitempty"`
+	BlockId        string   `json:"blockid"`
+	TabId          string   `json:"tabid"`
+	CreatedAt      int64    `json:"createdat"`
+	LastActiveAt   int64    `json:"lastactiveat"`
+	LastOutputHash string   `json:"lastoutputhash,omitempty"`
+	ErrorMsg       string   `json:"errormsg,omitempty"`
+	Capabilities   string `json:"capabilities,omitempty"`
+	Concurrency    int    `json:"concurrency,omitempty"`
+	Timeout        int    `json:"timeout,omitempty"`
+	MaxRetries     int    `json:"maxretries,omitempty"`
 }
 
 type CoworkActivity struct {
@@ -1054,15 +1057,26 @@ type CoworkRegisterWorkerData struct {
 	Concurrency int    `json:"concurrency,omitempty"`
 	Timeout     int    `json:"timeout,omitempty"`
 	MaxRetries  int    `json:"maxretries,omitempty"`
-	Capabilities []string `json:"capabilities,omitempty"`
+	Capabilities string `json:"capabilities,omitempty"`
 }
 
 type CoworkUpdateWorkerData struct {
 	WorkerId       string `json:"workerid"`
 	Status         string `json:"status,omitempty"`
 	AssignedTask   string `json:"assignedtask,omitempty"`
-	LastOutputHash string `json:"lastoutputhash,omitempty"`
-	ErrorMsg       string `json:"errormsg,omitempty"`
+	LastOutputHash string   `json:"lastoutputhash,omitempty"`
+	ErrorMsg       string   `json:"errormsg,omitempty"`
+	Name           string   `json:"name,omitempty"`
+	Role           string   `json:"role,omitempty"`
+	Desc           string   `json:"desc,omitempty"`
+	Soul           string   `json:"soul,omitempty"`
+	Skills         string   `json:"skills,omitempty"`
+	McpServers     string   `json:"mcpservers,omitempty"`
+	CustomCmd      string   `json:"customcmd,omitempty"`
+	Concurrency    int      `json:"concurrency,omitempty"`
+	Timeout        int      `json:"timeout,omitempty"`
+	MaxRetries     int      `json:"maxretries,omitempty"`
+	Capabilities   string `json:"capabilities,omitempty"`
 }
 
 type CoworkAddActivityData struct {

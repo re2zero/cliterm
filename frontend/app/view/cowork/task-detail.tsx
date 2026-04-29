@@ -5,12 +5,13 @@ import * as React from "react";
 import { cn } from "@/util/util";
 import { PriorityBadge } from "./priority-badge";
 import { AssigneePicker } from "./assignee-picker";
+import { RpcApi } from "@/app/store/wshclientapi";
+import { TabRpcClient } from "@/app/store/wshrpcutil";
 
 interface TaskDetailProps {
     task: CoworkTask;
     workers: CoworkWorker[];
     allTasks: CoworkTask[];
-    outputHistory: string[];
     activities: CoworkActivity[];
     onClose: () => void;
     onUpdate: (taskId: string, updates: Record<string, any>) => void;
@@ -28,7 +29,6 @@ export function TaskDetail({
     task,
     workers,
     allTasks,
-    outputHistory,
     activities,
     onClose,
     onUpdate,
@@ -41,6 +41,13 @@ export function TaskDetail({
     const [confirmDelete, setConfirmDelete] = React.useState(false);
     const [executeCmd, setExecuteCmd] = React.useState("");
     const [showExecute, setShowExecute] = React.useState(false);
+    const [outputHistory, setOutputHistory] = React.useState<CoworkTaskOutput[]>([]);
+
+    React.useEffect(() => {
+        RpcApi.CoworkGetTaskOutputHistoryCommand(TabRpcClient, task.taskid)
+            .then((result) => setOutputHistory(result))
+            .catch(() => {});
+    }, [task.taskid]);
 
     const assignedWorker = task.assignedworker
         ? workers.find((w) => w.workerid === task.assignedworker)
@@ -189,9 +196,14 @@ export function TaskDetail({
                 {outputHistory.length > 0 && (
                     <div>
                         <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Output</div>
-                        <div className="max-h-[200px] overflow-auto rounded border border-border/50 bg-muted/30 p-2 space-y-0.5">
-                            {outputHistory.map((line, i) => (
-                                <p key={i} className="text-[11px] text-secondary font-mono leading-relaxed">{line}</p>
+                        <div className="max-h-[200px] overflow-auto rounded border border-border/50 bg-muted/30 p-2 space-y-1">
+                            {outputHistory.map((output, i) => (
+                                <div key={i} className="text-[11px]">
+                                    <span className="text-muted-foreground tabular-nums">
+                                        {output.timestamp ? new Date(output.timestamp * 1000).toLocaleTimeString() : ""}{" "}
+                                    </span>
+                                    <span className="text-secondary font-mono leading-relaxed">{output.content}</span>
+                                </div>
                             ))}
                         </div>
                     </div>

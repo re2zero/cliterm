@@ -156,19 +156,24 @@ export function WorkerSidebar({ workers, onClose, onCreateWorker, onDeleteWorker
     const handleSubmit = async () => {
         if (submitting) return;
         setSubmitting(true);
-        await onCreateWorker(tool, {
-            name: name || undefined,
-            concurrency, timeout, maxRetries,
-            capabilities: capabilities.length > 0 ? capabilities : undefined,
-            role: role || undefined,
-            desc: desc || undefined,
-            soul: soul || undefined,
-            skills: skills || undefined,
-            mcpservers: mcpServers || undefined,
-            customcmd: customCmd || undefined,
-        });
-        setSubmitting(false);
-        setIsNew(false);
+        try {
+            await onCreateWorker(tool, {
+                name: name || undefined,
+                concurrency, timeout, maxRetries,
+                capabilities: capabilities.length > 0 ? capabilities : undefined,
+                role: role || undefined,
+                desc: desc || undefined,
+                soul: soul || undefined,
+                skills: skills || undefined,
+                mcpservers: mcpServers || undefined,
+                customcmd: customCmd || undefined,
+            });
+            setIsNew(false);
+        } catch (e) {
+            console.error("Failed to create worker:", e);
+        } finally {
+            setSubmitting(false);
+        }
     };
 
     const selectedWorker = workers.find((w) => w.workerid === selectedWorkerId);
@@ -386,7 +391,7 @@ export function WorkerSidebar({ workers, onClose, onCreateWorker, onDeleteWorker
                             <div className="flex justify-end gap-2 pt-2">
                                 <button className="px-3 py-1.5 rounded text-sm text-muted-foreground hover:text-primary cursor-pointer" onClick={() => setIsNew(false)}>Cancel</button>
                                 <button className="px-3 py-1.5 rounded bg-accent/80 text-primary hover:bg-accent text-sm font-medium cursor-pointer disabled:opacity-50" onClick={handleSubmit} disabled={submitting}>
-                                    {submitting ? "Creating..." : "Create Worker"}
+                                    {submitting ? "Creating..." : "Create"}
                                 </button>
                             </div>
                         ) : selectedWorker && (

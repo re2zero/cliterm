@@ -67,7 +67,7 @@ export function WorkerConfigDialog({ className, onSubmit, onCancel }: WorkerConf
 	return (
 		<div className={cn("flex flex-col gap-4 p-5", className)}>
 			<div className="flex items-center justify-between">
-				<h2 className="text-base font-semibold text-primary">Create Worker</h2>
+				<h2 className="text-base font-semibold text-primary">Create</h2>
 				{onCancel && (
 					<button className="text-secondary hover:text-primary cursor-pointer text-lg leading-none" onClick={onCancel} disabled={loading}>
 						✕
@@ -185,7 +185,7 @@ export function WorkerConfigDialog({ className, onSubmit, onCancel }: WorkerConf
 					disabled={loading}
 					className="flex-1 px-4 py-2 bg-accent/80 text-primary rounded hover:bg-accent transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
 				>
-					{loading ? "Creating..." : "Create Worker"}
+					{loading ? "Creating..." : "Create"}
 				</button>
 				{onCancel && (
 					<button

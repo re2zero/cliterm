@@ -1700,6 +1700,39 @@ func (ws *WshServer) CoworkUpdateWorkerCommand(ctx context.Context, data wshrpc.
 	if data.ErrorMsg != "" {
 		worker.ErrorMsg = data.ErrorMsg
 	}
+	if data.Name != "" {
+		worker.Name = data.Name
+	}
+	if data.Role != "" {
+		worker.Role = data.Role
+	}
+	if data.Desc != "" {
+		worker.Desc = data.Desc
+	}
+	if data.Soul != "" {
+		worker.Soul = data.Soul
+	}
+	if data.Skills != "" {
+		worker.Skills = data.Skills
+	}
+	if data.McpServers != "" {
+		worker.McpServers = data.McpServers
+	}
+	if data.CustomCmd != "" {
+		worker.CustomCmd = data.CustomCmd
+	}
+	if data.Concurrency > 0 {
+		worker.Concurrency = data.Concurrency
+	}
+	if data.Timeout > 0 {
+		worker.Timeout = data.Timeout
+	}
+	if data.MaxRetries > 0 {
+		worker.MaxRetries = data.MaxRetries
+	}
+	if data.Capabilities != "" {
+		worker.Capabilities = data.Capabilities
+	}
 	worker.LastActiveAt = time.Now().Unix()
 	err = cowork.UpdateWorker(ctx, worker)
 	if err != nil {

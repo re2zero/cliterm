@@ -7,6 +7,7 @@ import type { TabModel } from "@/app/store/tab-model";
 import { waveEventSubscribeSingle } from "@/app/store/wps";
 import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
+import { splitORef } from "@/app/store/wos";
 import { getWebServerEndpoint } from "@/util/endpoints";
 import { fireAndForget, stringToBase64 } from "@/util/util";
 import * as jotai from "jotai";
@@ -217,6 +218,15 @@ export class CoworkViewModel implements ViewModel {
 
     async deleteWorker(workerId: string): Promise<void> {
         await RpcApi.CoworkDeleteWorkerCommand(TabRpcClient, workerId);
+        await this.refreshAllData();
+    }
+
+    async updateWorker(workerId: string, config: Record<string, any>): Promise<void> {
+        const payload: Record<string, any> = { ...config, workerid: workerId };
+        if (Array.isArray(payload.capabilities)) {
+            payload.capabilities = payload.capabilities.join(",");
+        }
+        await RpcApi.CoworkUpdateWorkerCommand(TabRpcClient, payload);
         await this.refreshAllData();
     }
 
@@ -463,6 +473,7 @@ export class CoworkViewModel implements ViewModel {
         const workerBlockDef: BlockDef = {
             meta: {
                 view: "term",
+                controller: "shell",
             } as Record<string, string>,
         };
         (workerBlockDef.meta as Record<string, string>)["cowork:worker"] = "true";
@@ -473,12 +484,7 @@ export class CoworkViewModel implements ViewModel {
             blockdef: workerBlockDef,
         });
 
-        const workerBlockId = oref as string;
-
-        await new Promise((resolve) => setTimeout(resolve, 2000));
-
-        const startCmd = this.getWorkerStartCommand(tool);
-        await this.sendToTerminal(workerBlockId, startCmd + "\n");
+        const [, workerBlockId] = splitORef(oref);
 
         await RpcApi.CoworkRegisterWorkerCommand(TabRpcClient, {
             workerid: workerBlockId,
@@ -489,7 +495,7 @@ export class CoworkViewModel implements ViewModel {
             concurrency: config?.concurrency,
             timeout: config?.timeout,
             maxretries: config?.maxRetries,
-            capabilities: config?.capabilities,
+            capabilities: Array.isArray(config?.capabilities) ? config.capabilities.join(",") : config?.capabilities,
             role: config?.role,
             desc: config?.desc,
             soul: config?.soul,
@@ -498,6 +504,19 @@ export class CoworkViewModel implements ViewModel {
             customcmd: config?.customcmd,
         });
 
+        try {
+            await RpcApi.ControllerResyncCommand(TabRpcClient, {
+                tabid: tabId,
+                blockid: workerBlockId,
+            });
+        } catch (e) {
+            console.warn("ControllerResync failed for worker block, will retry via sendToTerminal:", e);
+        }
+
+        const startCmd = this.getWorkerStartCommand(tool);
+        await this.sendToTerminalWithRetry(workerBlockId, startCmd + "\n");
+
+        await this.refreshAllData();
         return workerBlockId;
     }
 
@@ -526,6 +545,24 @@ export class CoworkViewModel implements ViewModel {
             blockid: blockId,
             inputdata64: b64data,
         });
+    }
+
+    private async sendToTerminalWithRetry(blockId: string, text: string, maxAttempts = 10, delayMs = 500): Promise<void> {
+        const b64data = stringToBase64(text);
+        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+            try {
+                await RpcApi.ControllerInputCommand(TabRpcClient, {
+                    blockid: blockId,
+                    inputdata64: b64data,
+                });
+                return;
+            } catch (e) {
+                if (attempt === maxAttempts) {
+                    throw e;
+                }
+                await new Promise((resolve) => setTimeout(resolve, delayMs));
+            }
+        }
     }
 
     private async logActivity(type: string, description: string): Promise<void> {

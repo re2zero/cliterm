@@ -53,12 +53,14 @@ function FieldRow({ label, children, className }: { label: string; children: Rea
 
 interface WorkerListProps {
     workers: CoworkWorker[];
+    selectedWorkerId: string | null;
+    onSelectWorker: (workerId: string | null) => void;
     onEditWorker: (workerId: string) => void;
     onDeleteWorker: (workerId: string) => void;
     onNewWorker: () => void;
 }
 
-export function WorkerList({ workers, onEditWorker, onDeleteWorker, onNewWorker }: WorkerListProps) {
+export function WorkerList({ workers, selectedWorkerId, onSelectWorker, onEditWorker, onDeleteWorker, onNewWorker }: WorkerListProps) {
     const [deleteTarget, setDeleteTarget] = React.useState<CoworkWorker | null>(null);
 
     const handleDelete = () => {
@@ -78,6 +80,8 @@ export function WorkerList({ workers, onEditWorker, onDeleteWorker, onNewWorker 
                     <WorkerItem
                         key={w.workerid}
                         worker={w}
+                        isSelected={selectedWorkerId === w.workerid}
+                        onSelect={() => onSelectWorker(w.workerid)}
                         onEdit={() => onEditWorker(w.workerid)}
                         onDelete={() => setDeleteTarget(w)}
                     />
@@ -117,8 +121,10 @@ export function WorkerList({ workers, onEditWorker, onDeleteWorker, onNewWorker 
     );
 }
 
-function WorkerItem({ worker, onEdit, onDelete }: {
+function WorkerItem({ worker, isSelected, onSelect, onEdit, onDelete }: {
     worker: CoworkWorker;
+    isSelected: boolean;
+    onSelect: () => void;
     onEdit: () => void;
     onDelete: () => void;
 }) {
@@ -137,8 +143,11 @@ function WorkerItem({ worker, onEdit, onDelete }: {
 
     return (
         <div
-            className="flex items-center gap-1.5 px-2 py-1.5 cursor-pointer hover:bg-accent/5 transition-colors group"
-            onClick={onEdit}
+            className={cn(
+                "flex items-center gap-1.5 px-2 py-1.5 cursor-pointer transition-colors group",
+                isSelected ? "bg-accent/10" : "hover:bg-accent/5",
+            )}
+            onClick={onSelect}
         >
             <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", status.dot)} title={status.label} />
             <div className="flex-1 min-w-0">
@@ -163,6 +172,118 @@ function WorkerItem({ worker, onEdit, onDelete }: {
     );
 }
 
+export interface WorkerDetailPanelProps {
+    worker: CoworkWorker;
+    allTasks: CoworkTask[];
+    onClose: () => void;
+    onEdit: () => void;
+    onTaskClick: (task: CoworkTask) => void;
+}
+
+const TASK_STATUS_LABEL: Record<string, string> = {
+    pending: "Pending",
+    assigned: "Assigned",
+    working: "Working",
+    done: "Done",
+    failed: "Failed",
+    paused: "Paused",
+};
+
+const TASK_STATUS_COLOR: Record<string, string> = {
+    pending: "bg-muted-foreground/30",
+    assigned: "bg-blue-400",
+    working: "bg-yellow-400",
+    done: "bg-green-500",
+    failed: "bg-red-500",
+    paused: "bg-orange-400",
+};
+
+export function WorkerDetailPanel({ worker, allTasks, onClose, onEdit, onTaskClick }: WorkerDetailPanelProps) {
+    const status = STATUS_ICON[worker.status] ?? STATUS_ICON["offline"];
+    const workerTasks = allTasks.filter((t) => t.assignedworker === worker.workerid);
+
+    const activeTasks = workerTasks.filter((t) => t.status === "working" || t.status === "assigned");
+    const historyTasks = workerTasks.filter((t) => t.status === "done" || t.status === "failed");
+    const pendingTasks = workerTasks.filter((t) => t.status === "pending" || t.status === "paused");
+
+    return (
+        <div className="w-[320px] min-w-[280px] border-l border-border/50 flex flex-col bg-card overflow-hidden" style={{ colorScheme: "dark" }}>
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border/50">
+                <div className="flex items-center gap-2">
+                    <span className={cn("w-2 h-2 rounded-full", status.dot)} />
+                    <h3 className="text-sm font-semibold text-primary">{worker.name}</h3>
+                </div>
+                <div className="flex items-center gap-2">
+                    <button className="text-[11px] text-muted-foreground hover:text-primary cursor-pointer" onClick={onEdit}>Edit</button>
+                    <button className="text-muted-foreground hover:text-primary cursor-pointer text-sm" onClick={onClose}>✕</button>
+                </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto">
+                <div className="px-4 py-3 border-b border-border/30 space-y-2">
+                    <div className="flex items-center gap-3 text-xs">
+                        <span className={cn("px-1.5 py-0.5 rounded text-[10px] font-medium", worker.status === "idle" ? "bg-green-500/10 text-green-400" : worker.status === "working" ? "bg-yellow-500/10 text-yellow-400" : "bg-muted text-muted-foreground")}>
+                            {status.label}
+                        </span>
+                        <span className="text-muted-foreground">{worker.tool}</span>
+                    </div>
+                    {worker.role && <p className="text-[11px] text-secondary">{worker.role}</p>}
+                </div>
+
+                {activeTasks.length > 0 && (
+                    <div className="px-4 py-3 border-b border-border/30">
+                        <h4 className="text-[10px] text-muted-foreground uppercase tracking-wider mb-2">Active ({activeTasks.length})</h4>
+                        <div className="space-y-1">
+                            {activeTasks.map((t) => (
+                                <button key={t.taskid} className="w-full text-left px-2 py-1.5 rounded hover:bg-accent/10 cursor-pointer transition-colors" onClick={() => onTaskClick(t)}>
+                                    <div className="flex items-center gap-1.5">
+                                        <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", TASK_STATUS_COLOR[t.status] ?? "bg-muted-foreground/30")} />
+                                        <span className="text-xs text-primary truncate">{t.title}</span>
+                                    </div>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {pendingTasks.length > 0 && (
+                    <div className="px-4 py-3 border-b border-border/30">
+                        <h4 className="text-[10px] text-muted-foreground uppercase tracking-wider mb-2">Queued ({pendingTasks.length})</h4>
+                        <div className="space-y-1">
+                            {pendingTasks.map((t) => (
+                                <button key={t.taskid} className="w-full text-left px-2 py-1.5 rounded hover:bg-accent/10 cursor-pointer transition-colors" onClick={() => onTaskClick(t)}>
+                                    <div className="flex items-center gap-1.5">
+                                        <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", TASK_STATUS_COLOR[t.status] ?? "bg-muted-foreground/30")} />
+                                        <span className="text-xs text-primary truncate">{t.title}</span>
+                                    </div>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                <div className="px-4 py-3">
+                    <h4 className="text-[10px] text-muted-foreground uppercase tracking-wider mb-2">History ({historyTasks.length})</h4>
+                    {historyTasks.length === 0 ? (
+                        <p className="text-[11px] text-muted-foreground italic">No completed tasks yet</p>
+                    ) : (
+                        <div className="space-y-1">
+                            {historyTasks.map((t) => (
+                                <button key={t.taskid} className="w-full text-left px-2 py-1.5 rounded hover:bg-accent/10 cursor-pointer transition-colors" onClick={() => onTaskClick(t)}>
+                                    <div className="flex items-center gap-1.5">
+                                        <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", TASK_STATUS_COLOR[t.status] ?? "bg-muted-foreground/30")} />
+                                        <span className="text-xs text-primary truncate">{t.title}</span>
+                                    </div>
+                                </button>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+}
+
 interface WorkerEditorProps {
     worker?: CoworkWorker;
     workers: CoworkWorker[];
@@ -174,6 +295,7 @@ export function WorkerEditor({ worker, onClose, onSubmit }: WorkerEditorProps) {
     const isCreating = !worker;
     const [submitting, setSubmitting] = React.useState(false);
     const [runtimes, setRuntimes] = React.useState<AIRuntime[]>([]);
+    const [nameDirty, setNameDirty] = React.useState(false);
 
     const [tool, setTool] = React.useState(worker?.tool ?? "claude");
     const [name, setName] = React.useState(worker?.name ?? "");
@@ -195,27 +317,37 @@ export function WorkerEditor({ worker, onClose, onSubmit }: WorkerEditorProps) {
     }, []);
 
     React.useEffect(() => {
-        if (isCreating) {
+        if (isCreating && !nameDirty) {
             setName(tool === "opencode" ? "OpenCode Worker" : `${tool.charAt(0).toUpperCase() + tool.slice(1)} Worker`);
         }
-    }, [tool, isCreating]);
+    }, [tool, isCreating, nameDirty]);
+
+    const handleNameChange = (value: string) => {
+        setNameDirty(true);
+        setName(value);
+    };
 
     const handleSubmit = async () => {
         if (submitting) return;
         setSubmitting(true);
-        await onSubmit(tool, {
-            name: name || undefined,
-            concurrency, timeout, maxRetries,
-            capabilities: capabilities.length > 0 ? capabilities : undefined,
-            role: role || undefined,
-            desc: desc || undefined,
-            soul: soul || undefined,
-            skills: skills.length > 0 ? skills : undefined,
-            mcpservers: mcpServers.length > 0 ? mcpServers : undefined,
-            customcmd: customCmd || undefined,
-        });
-        setSubmitting(false);
-        onClose();
+        try {
+            await onSubmit(tool, {
+                name: name || undefined,
+                concurrency, timeout, maxRetries,
+                capabilities: capabilities.length > 0 ? capabilities : undefined,
+                role: role || undefined,
+                desc: desc || undefined,
+                soul: soul || undefined,
+                skills: skills.length > 0 ? skills : undefined,
+                mcpservers: mcpServers.length > 0 ? mcpServers : undefined,
+                customcmd: customCmd || undefined,
+            });
+            onClose();
+        } catch (e) {
+            console.error("Failed to create worker:", e);
+        } finally {
+            setSubmitting(false);
+        }
     };
 
     const inputCls = "w-full bg-base border border-border/50 rounded text-sm text-primary focus:outline-none focus:ring-1 focus:ring-accent px-2.5 py-1.5";
@@ -253,7 +385,7 @@ export function WorkerEditor({ worker, onClose, onSubmit }: WorkerEditorProps) {
             <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
                 <Section title="Identity">
                     <FieldRow label="Name">
-                        <input className={inputCls} value={name} onChange={(e) => setName(e.target.value)} disabled={!isCreating} />
+                        <input className={inputCls} value={name} onChange={(e) => handleNameChange(e.target.value)} disabled={!isCreating} />
                     </FieldRow>
                     <FieldRow label="Role">
                         <input className={inputCls} placeholder="e.g. Frontend specialist" value={role} onChange={(e) => setRole(e.target.value)} />
@@ -351,14 +483,12 @@ export function WorkerEditor({ worker, onClose, onSubmit }: WorkerEditorProps) {
 
             <div className="flex justify-end gap-2 px-5 py-3 border-t border-border/50 shrink-0">
                 <button className="px-4 py-1.5 rounded text-sm text-muted-foreground hover:text-primary cursor-pointer" onClick={onClose}>
-                    {isCreating ? "Cancel" : "Close"}
+                    Cancel
                 </button>
-                {isCreating && (
-                    <button className="px-4 py-1.5 rounded bg-accent/80 text-primary hover:bg-accent text-sm font-medium cursor-pointer disabled:opacity-50"
-                        onClick={handleSubmit} disabled={submitting}>
-                        {submitting ? "Creating..." : "Create Worker"}
-                    </button>
-                )}
+                <button className="px-4 py-1.5 rounded bg-accent/80 text-primary hover:bg-accent text-sm font-medium cursor-pointer disabled:opacity-50"
+                    onClick={handleSubmit} disabled={submitting}>
+                    {submitting ? (isCreating ? "Creating..." : "Saving...") : (isCreating ? "Create" : "Save")}
+                </button>
             </div>
         </div>
     );
