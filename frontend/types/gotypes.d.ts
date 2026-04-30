@@ -799,181 +799,6 @@ declare global {
         keepalivesenttime?: number;
     };
 
-    // wshrpc.CoworkActivity
-    type CoworkActivity = {
-        id: number;
-        taskid?: string;
-        workerid?: string;
-        type: string;
-        description: string;
-        meta?: string;
-        createdat: number;
-    };
-
-    // wshrpc.CoworkAddActivityData
-    type CoworkAddActivityData = {
-        taskid?: string;
-        workerid?: string;
-        type: string;
-        description: string;
-        meta?: string;
-    };
-
-    // wshrpc.CoworkCreateTaskData
-    type CoworkCreateTaskData = {
-        title: string;
-        description?: string;
-        priority: string;
-        dependson?: string[];
-    };
-
-    // wshrpc.CoworkDetectRuntimesCommandReturn
-    type CoworkDetectRuntimesCommandReturn = {
-        runtimes: AIRuntime[];
-    };
-
-    // wshrpc.CoworkExecuteTaskData
-    type CoworkExecuteTaskData = {
-        workerid: string;
-        taskid: string;
-        command: string;
-    };
-
-    // wshrpc.CoworkExecuteTaskResponse
-    type CoworkExecuteTaskResponse = {
-        blockid: string;
-        tabid: string;
-        success: boolean;
-        error?: string;
-    };
-
-    // wshrpc.CoworkListActivityData
-    type CoworkListActivityData = {
-        limit?: number;
-    };
-
-    // wshrpc.CoworkListTasksData
-    type CoworkListTasksData = {
-        status?: string;
-        priority?: string;
-    };
-
-    // wshrpc.CoworkRegisterWorkerData
-    type CoworkRegisterWorkerData = {
-        workerid: string;
-        name: string;
-        tool: string;
-        customcmd?: string;
-        role?: string;
-        desc?: string;
-        soul?: string;
-        skills?: string;
-        mcpservers?: string;
-        blockid: string;
-        tabid: string;
-        concurrency?: number;
-        timeout?: number;
-        maxretries?: number;
-        capabilities?: string;
-    };
-
-    // wshrpc.CoworkStatusData
-    type CoworkStatusData = {
-        pendingtasks: number;
-        workingtasks: number;
-        donetasks: number;
-        failedtasks: number;
-        activeworkers: number;
-        idleworkers: number;
-        totalworkers: number;
-    };
-
-    // wshrpc.CoworkTask
-    type CoworkTask = {
-        taskid: string;
-        title: string;
-        description?: string;
-        priority: string;
-        status: string;
-        assignedworker?: string;
-        createdat: number;
-        updatedat: number;
-        completedat?: number;
-        result?: string;
-        error?: string;
-        progress?: string;
-        outputhistory?: CoworkTaskOutput[];
-        dependson?: string[];
-        retrycount: number;
-        maxretries: number;
-        nextretryat?: number;
-    };
-
-    // wshrpc.CoworkTaskOutput
-    type CoworkTaskOutput = {
-        timestamp: number;
-        content: string;
-        type?: string;
-    };
-
-    // wshrpc.CoworkUpdateTaskData
-    type CoworkUpdateTaskData = {
-        taskid: string;
-        title?: string;
-        description?: string;
-        priority?: string;
-        status?: string;
-        assignedworker?: string;
-        result?: string;
-        error?: string;
-        progress?: string;
-    };
-
-    // wshrpc.CoworkUpdateWorkerData
-    type CoworkUpdateWorkerData = {
-        workerid: string;
-        status?: string;
-        assignedtask?: string;
-        lastoutputhash?: string;
-        errormsg?: string;
-        name?: string;
-        role?: string;
-        desc?: string;
-        soul?: string;
-        skills?: string;
-        mcpservers?: string;
-        customcmd?: string;
-        concurrency?: number;
-        timeout?: number;
-        maxretries?: number;
-        capabilities?: string;
-    };
-
-    // wshrpc.CoworkWorker
-    type CoworkWorker = {
-        workerid: string;
-        name: string;
-        tool: string;
-        customcmd?: string;
-        role?: string;
-        desc?: string;
-        soul?: string;
-        skills?: string;
-        mcpservers?: string;
-        status: string;
-        assignedtask?: string;
-        blockid: string;
-        tabid: string;
-        createdat: number;
-        lastactiveat: number;
-        lastoutputhash?: string;
-        errormsg?: string;
-        capabilities?: string;
-        concurrency?: number;
-        timeout?: number;
-        maxretries?: number;
-    };
-
     // wshrpc.CpuDataRequest
     type CpuDataRequest = {
         id: string;
@@ -1768,6 +1593,221 @@ declare global {
         name: string;
         layoutstate: string;
         blockids: string[];
+    };
+
+    // wshrpc.TeamActivity
+    type TeamActivity = {
+        id: number;
+        taskid?: string;
+        workerid?: string;
+        memberid?: string;
+        type: string;
+        description: string;
+        meta?: string;
+        createdat: number;
+    };
+
+    // wshrpc.TeamAddActivityData
+    type TeamAddActivityData = {
+        taskid?: string;
+        workerid?: string;
+        memberid?: string;
+        type: string;
+        description: string;
+        meta?: string;
+    };
+
+    // wshrpc.TeamCreateMemberData
+    type TeamCreateMemberData = {
+        name: string;
+        tool?: string;
+        customcmd?: string;
+        description?: string;
+        persona?: string;
+        personapath?: string;
+        skills?: string[];
+        mcpservers?: TeamMCPConfig[];
+        capabilities?: string[];
+        model?: string;
+        maxconcurrency?: number;
+        maxretries?: number;
+        memory?: string;
+        color?: string;
+    };
+
+    // wshrpc.TeamCreateTaskData
+    type TeamCreateTaskData = {
+        title: string;
+        description?: string;
+        priority?: string;
+        dependson?: string[];
+    };
+
+    // wshrpc.TeamDetectRuntimesReturn
+    type TeamDetectRuntimesReturn = {
+        runtimes: AIRuntime[];
+    };
+
+    // wshrpc.TeamExecuteTaskData
+    type TeamExecuteTaskData = {
+        workerid: string;
+        taskid: string;
+        command?: string;
+    };
+
+    // wshrpc.TeamExecuteTaskResponse
+    type TeamExecuteTaskResponse = {
+        blockid: string;
+        tabid: string;
+        success: boolean;
+        error?: string;
+    };
+
+    // wshrpc.TeamListActivityData
+    type TeamListActivityData = {
+        limit?: number;
+        taskid?: string;
+        workerid?: string;
+        memberid?: string;
+    };
+
+    // wshrpc.TeamListTasksData
+    type TeamListTasksData = {
+        status?: string;
+        priority?: string;
+        memberid?: string;
+    };
+
+    // wshrpc.TeamMCPConfig
+    type TeamMCPConfig = {
+        name: string;
+        type: string;
+        command?: string;
+        args?: string[];
+        env?: {[key: string]: string};
+        url?: string;
+        headers?: {[key: string]: string};
+    };
+
+    // wshrpc.TeamMember
+    type TeamMember = {
+        memberid: string;
+        name: string;
+        tool: string;
+        customcmd?: string;
+        description?: string;
+        persona?: string;
+        personapath?: string;
+        skills?: string[];
+        mcpservers?: TeamMCPConfig[];
+        capabilities?: string[];
+        model?: string;
+        maxconcurrency?: number;
+        maxretries?: number;
+        memory?: string;
+        color?: string;
+        createdat: number;
+        updatedat: number;
+    };
+
+    // wshrpc.TeamStatusData
+    type TeamStatusData = {
+        totalmembers: number;
+        activeworkers: number;
+        idleworkers: number;
+        offlineworkers: number;
+        pendingtasks: number;
+        workingtasks: number;
+        donetasks: number;
+        failedtasks: number;
+        pausedtasks: number;
+    };
+
+    // wshrpc.TeamTask
+    type TeamTask = {
+        taskid: string;
+        title: string;
+        description?: string;
+        priority: string;
+        status: string;
+        assignedmemberid?: string;
+        assignedworkerid?: string;
+        dependson?: string[];
+        result?: string;
+        error?: string;
+        outputhistory?: TeamTaskOutput[];
+        progress?: number;
+        retrycount: number;
+        maxretries: number;
+        nextretryat?: number;
+        createdat: number;
+        updatedat: number;
+        completedat?: number;
+    };
+
+    // wshrpc.TeamTaskOutput
+    type TeamTaskOutput = {
+        timestamp: string;
+        type?: string;
+        content: string;
+    };
+
+    // wshrpc.TeamUpdateMemberData
+    type TeamUpdateMemberData = {
+        memberid: string;
+        name?: string;
+        tool?: string;
+        customcmd?: string;
+        description?: string;
+        persona?: string;
+        personapath?: string;
+        skills?: string[];
+        mcpservers?: TeamMCPConfig[];
+        capabilities?: string[];
+        model?: string;
+        maxconcurrency?: number;
+        maxretries?: number;
+        memory?: string;
+        color?: string;
+    };
+
+    // wshrpc.TeamUpdateTaskData
+    type TeamUpdateTaskData = {
+        taskid: string;
+        title?: string;
+        description?: string;
+        priority?: string;
+        status?: string;
+        assignedmemberid?: string;
+        assignedworkerid?: string;
+        result?: string;
+        error?: string;
+        progress?: number;
+    };
+
+    // wshrpc.TeamUpdateWorkerData
+    type TeamUpdateWorkerData = {
+        workerid: string;
+        status?: string;
+        assignedtaskid?: string;
+        blockid?: string;
+        tabid?: string;
+        pid?: number;
+    };
+
+    // wshrpc.TeamWorker
+    type TeamWorker = {
+        workerid: string;
+        memberid?: string;
+        name: string;
+        status: string;
+        assignedtaskid?: string;
+        blockid?: string;
+        tabid?: string;
+        pid?: number;
+        createdat: number;
+        updatedat: number;
+        lastheartbeat?: number;
     };
 
     // waveobj.TermSize

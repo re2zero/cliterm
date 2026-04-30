@@ -30,7 +30,7 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/blockcontroller"
 	"github.com/wavetermdev/waveterm/pkg/blocklogger"
 	"github.com/wavetermdev/waveterm/pkg/buildercontroller"
-	"github.com/wavetermdev/waveterm/pkg/cowork"
+	"github.com/wavetermdev/waveterm/pkg/team"
 	"github.com/wavetermdev/waveterm/pkg/filebackup"
 	"github.com/wavetermdev/waveterm/pkg/filestore"
 	"github.com/wavetermdev/waveterm/pkg/genconn"
@@ -1582,244 +1582,234 @@ func (ws *WshServer) BlockJobStatusCommand(ctx context.Context, blockId string) 
 	return jobcontroller.GetBlockJobStatus(ctx, blockId)
 }
 
-func (ws *WshServer) CoworkCreateTaskCommand(ctx context.Context, data wshrpc.CoworkCreateTaskData) (*wshrpc.CoworkTask, error) {
-	task := &wshrpc.CoworkTask{
+func (ws *WshServer) TeamCreateMemberCommand(ctx context.Context, data wshrpc.TeamCreateMemberData) (*wshrpc.TeamMember, error) {
+	m := convertRpcMemberToDb(&data)
+	err := team.CreateMember(ctx, m)
+	if err != nil {
+		return nil, fmt.Errorf("error creating team member: %w", err)
+	}
+	team.PublishMemberUpdate()
+	return convertDbMemberToRpc(m), nil
+}
+
+func (ws *WshServer) TeamGetMemberCommand(ctx context.Context, memberId string) (*wshrpc.TeamMember, error) {
+	m, err := team.GetMember(ctx, memberId)
+	if err != nil {
+		return nil, fmt.Errorf("error getting team member: %w", err)
+	}
+	return convertDbMemberToRpc(m), nil
+}
+
+func (ws *WshServer) TeamUpdateMemberCommand(ctx context.Context, data wshrpc.TeamUpdateMemberData) (*wshrpc.TeamMember, error) {
+	m, err := team.GetMember(ctx, data.MemberID)
+	if err != nil {
+		return nil, fmt.Errorf("error getting team member: %w", err)
+	}
+	applyMemberUpdate(m, &data)
+	err = team.UpdateMember(ctx, m)
+	if err != nil {
+		return nil, fmt.Errorf("error updating team member: %w", err)
+	}
+	team.PublishMemberUpdate()
+	return convertDbMemberToRpc(m), nil
+}
+
+func (ws *WshServer) TeamDeleteMemberCommand(ctx context.Context, memberId string) error {
+	err := team.DeleteMember(ctx, memberId)
+	if err != nil {
+		return fmt.Errorf("error deleting team member: %w", err)
+	}
+	team.PublishMemberUpdate()
+	return nil
+}
+
+func (ws *WshServer) TeamListMembersCommand(ctx context.Context) ([]*wshrpc.TeamMember, error) {
+	members, err := team.ListMembers(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("error listing team members: %w", err)
+	}
+	var result []*wshrpc.TeamMember
+	for _, m := range members {
+		result = append(result, convertDbMemberToRpc(m))
+	}
+	return result, nil
+}
+
+func (ws *WshServer) TeamForkWorkerCommand(ctx context.Context, memberId string) (*wshrpc.TeamWorker, error) {
+	w, err := team.ForkWorker(ctx, memberId)
+	if err != nil {
+		return nil, fmt.Errorf("error forking worker: %w", err)
+	}
+	team.PublishWorkerUpdate()
+	return convertDbWorkerToRpc(w), nil
+}
+
+func (ws *WshServer) TeamGetWorkerCommand(ctx context.Context, workerId string) (*wshrpc.TeamWorker, error) {
+	w, err := team.GetWorker(ctx, workerId)
+	if err != nil {
+		return nil, fmt.Errorf("error getting team worker: %w", err)
+	}
+	return convertDbWorkerToRpc(w), nil
+}
+
+func (ws *WshServer) TeamUpdateWorkerCommand(ctx context.Context, data wshrpc.TeamUpdateWorkerData) (*wshrpc.TeamWorker, error) {
+	w, err := team.GetWorker(ctx, data.WorkerID)
+	if err != nil {
+		return nil, fmt.Errorf("error getting team worker: %w", err)
+	}
+	if data.Status != "" {
+		if err := team.ValidateWorkerTransition(w.Status, data.Status); err != nil {
+			return nil, err
+		}
+		w.Status = data.Status
+	}
+	if data.AssignedTaskID != "" {
+		w.AssignedTaskID = data.AssignedTaskID
+	}
+	if data.BlockID != "" {
+		w.BlockID = data.BlockID
+	}
+	if data.TabID != "" {
+		w.TabID = data.TabID
+	}
+	if data.PID > 0 {
+		w.PID = data.PID
+	}
+	err = team.UpdateWorker(ctx, w)
+	if err != nil {
+		return nil, fmt.Errorf("error updating team worker: %w", err)
+	}
+	team.PublishWorkerUpdate()
+	return convertDbWorkerToRpc(w), nil
+}
+
+func (ws *WshServer) TeamDeleteWorkerCommand(ctx context.Context, workerId string) error {
+	err := team.DeleteWorker(ctx, workerId)
+	if err != nil {
+		return fmt.Errorf("error deleting team worker: %w", err)
+	}
+	team.PublishWorkerUpdate()
+	return nil
+}
+
+func (ws *WshServer) TeamListWorkersCommand(ctx context.Context, memberId string) ([]*wshrpc.TeamWorker, error) {
+	workers, err := team.ListWorkers(ctx, memberId)
+	if err != nil {
+		return nil, fmt.Errorf("error listing team workers: %w", err)
+	}
+	var result []*wshrpc.TeamWorker
+	for _, w := range workers {
+		result = append(result, convertDbWorkerToRpc(w))
+	}
+	return result, nil
+}
+
+func (ws *WshServer) TeamRecycleWorkerCommand(ctx context.Context, workerId string) error {
+	err := team.RecycleWorker(ctx, workerId)
+	if err != nil {
+		return fmt.Errorf("error recycling worker: %w", err)
+	}
+	team.PublishWorkerUpdate()
+	return nil
+}
+
+func (ws *WshServer) TeamCreateTaskCommand(ctx context.Context, data wshrpc.TeamCreateTaskData) (*wshrpc.TeamTask, error) {
+	t := &team.TeamTask{
 		Title:       data.Title,
 		Description: data.Description,
 		Priority:    data.Priority,
-		Status:      "pending",
+		DependsOn:   data.DependsOn,
 	}
-	err := cowork.CreateTask(ctx, task)
+	err := team.CreateTask(ctx, t)
 	if err != nil {
-		return nil, fmt.Errorf("error creating cowork task: %w", err)
+		return nil, fmt.Errorf("error creating team task: %w", err)
 	}
-	cowork.PublishTaskUpdate()
-	return task, nil
+	team.PublishTaskUpdate()
+	return convertDbTaskToRpc(t), nil
 }
 
-func (ws *WshServer) CoworkGetTaskCommand(ctx context.Context, taskId string) (*wshrpc.CoworkTask, error) {
-	task, err := cowork.GetTask(ctx, taskId)
+func (ws *WshServer) TeamGetTaskCommand(ctx context.Context, taskId string) (*wshrpc.TeamTask, error) {
+	t, err := team.GetTask(ctx, taskId)
 	if err != nil {
-		return nil, fmt.Errorf("error getting cowork task: %w", err)
+		return nil, fmt.Errorf("error getting team task: %w", err)
 	}
-	return task, nil
+	return convertDbTaskToRpc(t), nil
 }
 
-func (ws *WshServer) CoworkUpdateTaskCommand(ctx context.Context, data wshrpc.CoworkUpdateTaskData) (*wshrpc.CoworkTask, error) {
-	task, err := cowork.GetTask(ctx, data.TaskId)
+func (ws *WshServer) TeamUpdateTaskCommand(ctx context.Context, data wshrpc.TeamUpdateTaskData) (*wshrpc.TeamTask, error) {
+	t, err := team.GetTask(ctx, data.TaskID)
 	if err != nil {
-		return nil, fmt.Errorf("error getting cowork task: %w", err)
+		return nil, fmt.Errorf("error getting team task: %w", err)
 	}
 	if data.Title != "" {
-		task.Title = data.Title
-	}
-	if data.Priority != "" {
-		task.Priority = data.Priority
-	}
-	if data.Status != "" {
-		task.Status = data.Status
-		if data.Status == "done" || data.Status == "failed" {
-			task.CompletedAt = time.Now().Unix()
-		}
-	}
-	if data.AssignedWorker != "" {
-		task.AssignedWorker = data.AssignedWorker
-	}
-	if data.Result != "" {
-		task.Result = data.Result
-	}
-	if data.Error != "" {
-		task.Error = data.Error
-	}
-	if data.Progress != "" {
-		task.Progress = data.Progress
+		t.Title = data.Title
 	}
 	if data.Description != "" {
-		task.Description = data.Description
+		t.Description = data.Description
 	}
-	task.UpdatedAt = time.Now().Unix()
-	err = cowork.UpdateTask(ctx, task)
-	if err != nil {
-		return nil, fmt.Errorf("error updating cowork task: %w", err)
-	}
-	cowork.PublishTaskUpdate()
-	return task, nil
-}
-
-func (ws *WshServer) CoworkDeleteTaskCommand(ctx context.Context, taskId string) error {
-	err := cowork.DeleteTask(ctx, taskId)
-	if err != nil {
-		return fmt.Errorf("error deleting cowork task: %w", err)
-	}
-	cowork.PublishTaskUpdate()
-	return nil
-}
-
-func (ws *WshServer) CoworkListTasksCommand(ctx context.Context, data wshrpc.CoworkListTasksData) ([]*wshrpc.CoworkTask, error) {
-	tasks, err := cowork.ListTasks(ctx, data.Status, data.Priority)
-	if err != nil {
-		return nil, fmt.Errorf("error listing cowork tasks: %w", err)
-	}
-	return tasks, nil
-}
-
-func (ws *WshServer) CoworkRegisterWorkerCommand(ctx context.Context, data wshrpc.CoworkRegisterWorkerData) (*wshrpc.CoworkWorker, error) {
-	worker := &wshrpc.CoworkWorker{
-		WorkerId:     data.WorkerId,
-		Name:         data.Name,
-		Tool:         data.Tool,
-		CustomCmd:    data.CustomCmd,
-		Status:       "idle",
-		BlockId:      data.BlockId,
-		TabId:        data.TabId,
-		CreatedAt:    time.Now().Unix(),
-		LastActiveAt: time.Now().Unix(),
-	}
-	err := cowork.RegisterWorker(ctx, worker)
-	if err != nil {
-		return nil, fmt.Errorf("error registering cowork worker: %w", err)
-	}
-	cowork.PublishWorkerUpdate()
-	return worker, nil
-}
-
-func (ws *WshServer) CoworkUpdateWorkerCommand(ctx context.Context, data wshrpc.CoworkUpdateWorkerData) (*wshrpc.CoworkWorker, error) {
-	worker, err := cowork.GetWorker(ctx, data.WorkerId)
-	if err != nil {
-		return nil, fmt.Errorf("error getting cowork worker: %w", err)
+	if data.Priority != "" {
+		t.Priority = data.Priority
 	}
 	if data.Status != "" {
-		worker.Status = data.Status
+		if err := team.ValidateTaskTransition(t.Status, data.Status); err != nil {
+			return nil, err
+		}
+		t.Status = data.Status
+		if data.Status == team.TaskStatusDone || data.Status == team.TaskStatusFailed {
+			t.CompletedAt = time.Now().Unix()
+		}
 	}
-	if data.AssignedTask != "" {
-		worker.AssignedTask = data.AssignedTask
+	if data.AssignedMemberID != "" {
+		t.AssignedMemberID = data.AssignedMemberID
 	}
-	if data.LastOutputHash != "" {
-		worker.LastOutputHash = data.LastOutputHash
+	if data.AssignedWorkerID != "" {
+		t.AssignedWorkerID = data.AssignedWorkerID
 	}
-	if data.ErrorMsg != "" {
-		worker.ErrorMsg = data.ErrorMsg
+	if data.Result != "" {
+		t.Result = data.Result
 	}
-	if data.Name != "" {
-		worker.Name = data.Name
+	if data.Error != "" {
+		t.Error = data.Error
 	}
-	if data.Role != "" {
-		worker.Role = data.Role
+	if data.Progress > 0 {
+		t.Progress = data.Progress
 	}
-	if data.Desc != "" {
-		worker.Desc = data.Desc
-	}
-	if data.Soul != "" {
-		worker.Soul = data.Soul
-	}
-	if data.Skills != "" {
-		worker.Skills = data.Skills
-	}
-	if data.McpServers != "" {
-		worker.McpServers = data.McpServers
-	}
-	if data.CustomCmd != "" {
-		worker.CustomCmd = data.CustomCmd
-	}
-	if data.Concurrency > 0 {
-		worker.Concurrency = data.Concurrency
-	}
-	if data.Timeout > 0 {
-		worker.Timeout = data.Timeout
-	}
-	if data.MaxRetries > 0 {
-		worker.MaxRetries = data.MaxRetries
-	}
-	if data.Capabilities != "" {
-		worker.Capabilities = data.Capabilities
-	}
-	if data.CompletedTasks != "" {
-		worker.CompletedTasks = data.CompletedTasks
-	}
-	worker.LastActiveAt = time.Now().Unix()
-	err = cowork.UpdateWorker(ctx, worker)
+	err = team.UpdateTask(ctx, t)
 	if err != nil {
-		return nil, fmt.Errorf("error updating cowork worker: %w", err)
+		return nil, fmt.Errorf("error updating team task: %w", err)
 	}
-	cowork.PublishWorkerUpdate()
-	return worker, nil
+	team.PublishTaskUpdate()
+	return convertDbTaskToRpc(t), nil
 }
 
-func (ws *WshServer) CoworkListWorkersCommand(ctx context.Context) ([]*wshrpc.CoworkWorker, error) {
-	workers, err := cowork.ListWorkers(ctx)
+func (ws *WshServer) TeamDeleteTaskCommand(ctx context.Context, taskId string) error {
+	err := team.DeleteTask(ctx, taskId)
 	if err != nil {
-		return nil, fmt.Errorf("error listing cowork workers: %w", err)
+		return fmt.Errorf("error deleting team task: %w", err)
 	}
-	return workers, nil
-}
-
-func (ws *WshServer) CoworkDeleteWorkerCommand(ctx context.Context, workerId string) error {
-	err := cowork.DeleteWorker(ctx, workerId)
-	if err != nil {
-		return fmt.Errorf("error deleting cowork worker: %w", err)
-	}
-	cowork.PublishWorkerUpdate()
+	team.PublishTaskUpdate()
 	return nil
 }
 
-func (ws *WshServer) CoworkAddActivityCommand(ctx context.Context, data wshrpc.CoworkAddActivityData) error {
-	activity := &wshrpc.CoworkActivity{
-		TaskId:      data.TaskId,
-		WorkerId:    data.WorkerId,
-		Type:        data.Type,
-		Description: data.Description,
-		Meta:        data.Meta,
-		CreatedAt:   time.Now().Unix(),
-	}
-	err := cowork.AddActivity(ctx, activity)
+func (ws *WshServer) TeamListTasksCommand(ctx context.Context, data wshrpc.TeamListTasksData) ([]*wshrpc.TeamTask, error) {
+	tasks, err := team.ListTasks(ctx, data.Status, data.Priority, data.MemberID)
 	if err != nil {
-		return fmt.Errorf("error adding cowork activity: %w", err)
+		return nil, fmt.Errorf("error listing team tasks: %w", err)
 	}
-	return nil
+	var result []*wshrpc.TeamTask
+	for _, t := range tasks {
+		result = append(result, convertDbTaskToRpc(t))
+	}
+	return result, nil
 }
 
-func (ws *WshServer) CoworkListActivityCommand(ctx context.Context, data wshrpc.CoworkListActivityData) ([]*wshrpc.CoworkActivity, error) {
-	limit := data.Limit
-	if limit <= 0 {
-		limit = 100
-	}
-	activities, err := cowork.ListActivities(ctx, limit)
-	if err != nil {
-		return nil, fmt.Errorf("error listing cowork activities: %w", err)
-	}
-	return activities, nil
-}
-
-func (ws *WshServer) CoworkGetStatusCommand(ctx context.Context) (*wshrpc.CoworkStatusData, error) {
-	status, err := cowork.GetStatus(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("error getting cowork status: %w", err)
-	}
-	return status, nil
-}
-
-func getWorkerStartCommand(tool string) string {
-	switch tool {
-	case "claude":
-		return "claude"
-	case "opencode":
-		return "opencode"
-	case "cursor":
-		return "cursor-agent"
-	case "aider":
-		return "aider"
-	default:
-		return tool
-	}
-}
-
-func (ws *WshServer) CoworkExecuteTaskCommand(ctx context.Context, data wshrpc.CoworkExecuteTaskData) (*wshrpc.CoworkExecuteTaskResponse, error) {
-	worker, err := cowork.GetWorker(ctx, data.WorkerId)
+func (ws *WshServer) TeamExecuteTaskCommand(ctx context.Context, data wshrpc.TeamExecuteTaskData) (*wshrpc.TeamExecuteTaskResponse, error) {
+	worker, err := team.GetWorker(ctx, data.WorkerID)
 	if err != nil {
 		return nil, fmt.Errorf("error getting worker: %w", err)
 	}
 
-	task, err := cowork.GetTask(ctx, data.TaskId)
+	task, err := team.GetTask(ctx, data.TaskID)
 	if err != nil {
 		return nil, fmt.Errorf("error getting task: %w", err)
 	}
@@ -1827,10 +1817,13 @@ func (ws *WshServer) CoworkExecuteTaskCommand(ctx context.Context, data wshrpc.C
 	var cmd string
 	if data.Command != "" {
 		cmd = data.Command
-	} else if worker.Tool == "custom" && worker.CustomCmd != "" {
-		cmd = worker.CustomCmd
 	} else {
-		cmd = getWorkerStartCommand(worker.Tool)
+		member, _ := team.GetMember(ctx, worker.MemberID)
+		tool := team.ToolClaude
+		if member != nil && member.Tool != "" {
+			tool = member.Tool
+		}
+		cmd = getWorkerStartCommand(tool)
 	}
 
 	blockDef := &waveobj.BlockDef{
@@ -1842,7 +1835,7 @@ func (ws *WshServer) CoworkExecuteTaskCommand(ctx context.Context, data wshrpc.C
 	}
 
 	blockRef, err := ws.CreateBlockCommand(ctx, wshrpc.CommandCreateBlockData{
-		TabId:    worker.TabId,
+		TabId:    worker.TabID,
 		BlockDef: blockDef,
 		Focused:  true,
 	})
@@ -1881,31 +1874,104 @@ func (ws *WshServer) CoworkExecuteTaskCommand(ctx context.Context, data wshrpc.C
 		}()
 	}
 
-	worker.Status = "working"
-	worker.AssignedTask = task.TaskId
-	worker.BlockId = blockId
-	err = cowork.UpdateWorker(ctx, worker)
+	if err := team.ValidateWorkerTransition(worker.Status, team.WorkerStatusWorking); err != nil {
+		return nil, fmt.Errorf("cannot set worker to working: %w", err)
+	}
+	worker.Status = team.WorkerStatusWorking
+	worker.AssignedTaskID = task.TaskID
+	worker.BlockID = blockId
+	err = team.UpdateWorker(ctx, worker)
 	if err != nil {
 		return nil, fmt.Errorf("error updating worker: %w", err)
 	}
 
-	task.Status = "working"
-	err = cowork.UpdateTask(ctx, task)
+	if err := team.ValidateTaskTransition(task.Status, team.TaskStatusWorking); err != nil {
+		return nil, fmt.Errorf("cannot set task to working: %w", err)
+	}
+	task.Status = team.TaskStatusWorking
+	err = team.UpdateTask(ctx, task)
 	if err != nil {
 		return nil, fmt.Errorf("error updating task: %w", err)
 	}
 
-	cowork.PublishWorkerUpdate()
-	cowork.PublishTaskUpdate()
+	team.PublishWorkerUpdate()
+	team.PublishTaskUpdate()
 
-	return &wshrpc.CoworkExecuteTaskResponse{
-		BlockId: blockId,
-		TabId:   worker.TabId,
+	return &wshrpc.TeamExecuteTaskResponse{
+		BlockID: blockId,
+		TabID:   worker.TabID,
 		Success: true,
 	}, nil
 }
 
-func (ws *WshServer) CoworkDetectRuntimesCommand(ctx context.Context) (*wshrpc.CoworkDetectRuntimesCommandReturn, error) {
+func (ws *WshServer) TeamPauseTaskCommand(ctx context.Context, taskId string) error {
+	task, err := team.GetTask(ctx, taskId)
+	if err != nil {
+		return fmt.Errorf("error getting team task: %w", err)
+	}
+	if err := team.ValidateTaskTransition(task.Status, team.TaskStatusPaused); err != nil {
+		return err
+	}
+	task.Status = team.TaskStatusPaused
+	return team.UpdateTask(ctx, task)
+}
+
+func (ws *WshServer) TeamResumeTaskCommand(ctx context.Context, taskId string) error {
+	task, err := team.GetTask(ctx, taskId)
+	if err != nil {
+		return fmt.Errorf("error getting team task: %w", err)
+	}
+	if err := team.ValidateTaskTransition(task.Status, team.TaskStatusPending); err != nil {
+		return err
+	}
+	task.Status = team.TaskStatusPending
+	return team.UpdateTask(ctx, task)
+}
+
+func (ws *WshServer) TeamRetryTaskCommand(ctx context.Context, taskId string) error {
+	task, err := team.GetTask(ctx, taskId)
+	if err != nil {
+		return fmt.Errorf("error getting team task: %w", err)
+	}
+	if task.Status != team.TaskStatusFailed {
+		return fmt.Errorf("can only retry failed tasks, current status: %s", task.Status)
+	}
+	if task.RetryCount >= task.MaxRetries {
+		return fmt.Errorf("task has exceeded max retries (%d/%d)", task.RetryCount, task.MaxRetries)
+	}
+	task.RetryCount++
+	delaySeconds := math.Pow(2, float64(task.RetryCount))
+	task.NextRetryAt = time.Now().Add(time.Duration(delaySeconds) * time.Second).Unix()
+	task.Status = team.TaskStatusPending
+	task.Error = ""
+	return team.UpdateTask(ctx, task)
+}
+
+func (ws *WshServer) TeamGetTaskOutputHistoryCommand(ctx context.Context, taskId string) ([]wshrpc.TeamTaskOutput, error) {
+	task, err := team.GetTask(ctx, taskId)
+	if err != nil {
+		return nil, fmt.Errorf("error getting team task: %w", err)
+	}
+	var result []wshrpc.TeamTaskOutput
+	for _, o := range task.OutputHistory {
+		result = append(result, wshrpc.TeamTaskOutput{
+			Timestamp: o.Timestamp,
+			Type:      o.Type,
+			Content:   o.Content,
+		})
+	}
+	return result, nil
+}
+
+func (ws *WshServer) TeamGetStatusCommand(ctx context.Context) (*wshrpc.TeamStatusData, error) {
+	status, err := team.GetStatus(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("error getting team status: %w", err)
+	}
+	return (*wshrpc.TeamStatusData)(status), nil
+}
+
+func (ws *WshServer) TeamDetectRuntimesCommand(ctx context.Context) (*wshrpc.TeamDetectRuntimesReturn, error) {
 	providers := []struct {
 		name        string
 		displayName string
@@ -1919,105 +1985,238 @@ func (ws *WshServer) CoworkDetectRuntimesCommand(ctx context.Context) (*wshrpc.C
 	}
 
 	var runtimes []wshrpc.AIRuntime
-
 	for _, p := range providers {
 		cmd := exec.Command(p.command, p.flag)
 		output, err := cmd.CombinedOutput()
 		if err != nil {
 			runtimes = append(runtimes, wshrpc.AIRuntime{
-				Name:        p.name,
-				DisplayName: p.displayName,
-				Command:     p.command,
-				Version:     "",
-				Status:      "offline",
+				Name: p.name, DisplayName: p.displayName,
+				Command: p.command, Version: "", Status: "offline",
 			})
 			continue
 		}
-
 		version := strings.TrimSpace(string(output))
 		if idx := strings.Index(version, "\n"); idx != -1 {
 			version = version[:idx]
 		}
-
 		runtimes = append(runtimes, wshrpc.AIRuntime{
-			Name:        p.name,
-			DisplayName: p.displayName,
-			Command:     p.command,
-			Version:     version,
-			Status:      "online",
+			Name: p.name, DisplayName: p.displayName,
+			Command: p.command, Version: version, Status: "online",
 		})
 	}
 
-	return &wshrpc.CoworkDetectRuntimesCommandReturn{
-		Runtimes: runtimes,
-	}, nil
+	return &wshrpc.TeamDetectRuntimesReturn{Runtimes: runtimes}, nil
 }
 
-func (ws *WshServer) CoworkPauseTaskCommand(ctx context.Context, taskId string) error {
-	task, err := cowork.GetTask(ctx, taskId)
+func (ws *WshServer) TeamAddActivityCommand(ctx context.Context, data wshrpc.TeamAddActivityData) error {
+	a := &team.TeamActivity{
+		TaskID:      data.TaskID,
+		WorkerID:    data.WorkerID,
+		MemberID:    data.MemberID,
+		Type:        data.Type,
+		Description: data.Description,
+		Meta:        data.Meta,
+	}
+	err := team.AddActivity(ctx, a)
 	if err != nil {
-		return fmt.Errorf("error getting cowork task: %w", err)
+		return fmt.Errorf("error adding team activity: %w", err)
 	}
-
-	if task.Status != "working" && task.Status != "pending" {
-		return fmt.Errorf("cannot pause task with status: %s", task.Status)
-	}
-
-	task.Status = "paused"
-	task.UpdatedAt = time.Now().Unix()
-
-	return cowork.UpdateTask(ctx, task)
+	return nil
 }
 
-func (ws *WshServer) CoworkResumeTaskCommand(ctx context.Context, taskId string) error {
-	task, err := cowork.GetTask(ctx, taskId)
+func (ws *WshServer) TeamListActivityCommand(ctx context.Context, data wshrpc.TeamListActivityData) ([]*wshrpc.TeamActivity, error) {
+	activities, err := team.ListActivities(ctx, data.Limit, data.TaskID, data.WorkerID, data.MemberID)
 	if err != nil {
-		return fmt.Errorf("error getting cowork task: %w", err)
+		return nil, fmt.Errorf("error listing team activities: %w", err)
 	}
-
-	if task.Status != "paused" {
-		return fmt.Errorf("cannot resume task with status: %s", task.Status)
+	var result []*wshrpc.TeamActivity
+	for _, a := range activities {
+		result = append(result, convertDbActivityToRpc(a))
 	}
-
-	task.Status = "pending"
-	task.UpdatedAt = time.Now().Unix()
-
-	return cowork.UpdateTask(ctx, task)
+	return result, nil
 }
 
-func (ws *WshServer) CoworkGetTaskOutputHistoryCommand(ctx context.Context, taskId string) ([]wshrpc.CoworkTaskOutput, error) {
-	task, err := cowork.GetTask(ctx, taskId)
-	if err != nil {
-		return nil, fmt.Errorf("error getting cowork task: %w", err)
-	}
+// --- Conversion helpers between pkg/team and wshrpc types ---
 
-	return task.OutputHistory, nil
+func getWorkerStartCommand(tool string) string {
+	switch tool {
+	case "claude":
+		return "claude"
+	case "opencode":
+		return "opencode"
+	case "cursor":
+		return "cursor-agent"
+	case "aider":
+		return "aider"
+	default:
+		return tool
+	}
 }
 
-func (ws *WshServer) CoworkRetryTaskCommand(ctx context.Context, taskId string) error {
-	task, err := cowork.GetTask(ctx, taskId)
-	if err != nil {
-		return fmt.Errorf("error getting cowork task: %w", err)
+func convertRpcMemberToDb(data *wshrpc.TeamCreateMemberData) *team.TeamMember {
+	return &team.TeamMember{
+		Name:           data.Name,
+		Tool:           data.Tool,
+		CustomCmd:      data.CustomCmd,
+		Description:    data.Description,
+		Persona:        data.Persona,
+		PersonaPath:    data.PersonaPath,
+		Skills:         data.Skills,
+		McpServers:     convertRpcMcpServers(data.McpServers),
+		Capabilities:   data.Capabilities,
+		Model:          data.Model,
+		MaxConcurrency: data.MaxConcurrency,
+		MaxRetries:     data.MaxRetries,
+		Memory:         data.Memory,
+		Color:          data.Color,
 	}
+}
 
-	if task.Status != "failed" {
-		return fmt.Errorf("can only retry failed tasks, current status: %s", task.Status)
+func applyMemberUpdate(m *team.TeamMember, data *wshrpc.TeamUpdateMemberData) {
+	if data.Name != "" {
+		m.Name = data.Name
 	}
-
-	maxRetries := task.MaxRetries
-	if maxRetries == 0 {
-		maxRetries = 3
+	if data.Tool != "" {
+		m.Tool = data.Tool
 	}
-
-	if task.RetryCount >= maxRetries {
-		return fmt.Errorf("task has exceeded max retries (%d/%d)", task.RetryCount, maxRetries)
+	if data.CustomCmd != "" {
+		m.CustomCmd = data.CustomCmd
 	}
+	if data.Description != "" {
+		m.Description = data.Description
+	}
+	if data.Persona != "" {
+		m.Persona = data.Persona
+	}
+	if data.PersonaPath != "" {
+		m.PersonaPath = data.PersonaPath
+	}
+	if len(data.Skills) > 0 {
+		m.Skills = data.Skills
+	}
+	if len(data.McpServers) > 0 {
+		m.McpServers = convertRpcMcpServers(data.McpServers)
+	}
+	if len(data.Capabilities) > 0 {
+		m.Capabilities = data.Capabilities
+	}
+	if data.Model != "" {
+		m.Model = data.Model
+	}
+	if data.MaxConcurrency > 0 {
+		m.MaxConcurrency = data.MaxConcurrency
+	}
+	if data.MaxRetries > 0 {
+		m.MaxRetries = data.MaxRetries
+	}
+	if data.Memory != "" {
+		m.Memory = data.Memory
+	}
+	if data.Color != "" {
+		m.Color = data.Color
+	}
+}
 
-	task.RetryCount++
-	delaySeconds := math.Pow(2, float64(task.RetryCount))
-	task.NextRetryAt = time.Now().Add(time.Duration(delaySeconds) * time.Second).Unix()
-	task.Status = "pending"
-	task.Error = ""
+func convertRpcMcpServers(servers []wshrpc.TeamMCPConfig) []team.MCPConfig {
+	var result []team.MCPConfig
+	for _, s := range servers {
+		result = append(result, team.MCPConfig{
+			Name: s.Name, Type: s.Type,
+			Command: s.Command, Args: s.Args,
+			Env: s.Env, URL: s.URL, Headers: s.Headers,
+		})
+	}
+	return result
+}
 
-	return cowork.UpdateTask(ctx, task)
+func convertDbMemberToRpc(m *team.TeamMember) *wshrpc.TeamMember {
+	return &wshrpc.TeamMember{
+		MemberID:       m.MemberID,
+		Name:           m.Name,
+		Tool:           m.Tool,
+		CustomCmd:      m.CustomCmd,
+		Description:    m.Description,
+		Persona:        m.Persona,
+		PersonaPath:    m.PersonaPath,
+		Skills:         m.Skills,
+		McpServers:     convertDbMcpServers(m.McpServers),
+		Capabilities:   m.Capabilities,
+		Model:          m.Model,
+		MaxConcurrency: m.MaxConcurrency,
+		MaxRetries:     m.MaxRetries,
+		Memory:         m.Memory,
+		Color:          m.Color,
+		CreatedAt:      m.CreatedAt,
+		UpdatedAt:      m.UpdatedAt,
+	}
+}
+
+func convertDbMcpServers(servers []team.MCPConfig) []wshrpc.TeamMCPConfig {
+	var result []wshrpc.TeamMCPConfig
+	for _, s := range servers {
+		result = append(result, wshrpc.TeamMCPConfig{
+			Name: s.Name, Type: s.Type,
+			Command: s.Command, Args: s.Args,
+			Env: s.Env, URL: s.URL, Headers: s.Headers,
+		})
+	}
+	return result
+}
+
+func convertDbWorkerToRpc(w *team.TeamWorker) *wshrpc.TeamWorker {
+	return &wshrpc.TeamWorker{
+		WorkerID:       w.WorkerID,
+		MemberID:       w.MemberID,
+		Name:           w.Name,
+		Status:         w.Status,
+		AssignedTaskID: w.AssignedTaskID,
+		BlockID:        w.BlockID,
+		TabID:          w.TabID,
+		PID:            w.PID,
+		CreatedAt:      w.CreatedAt,
+		UpdatedAt:      w.UpdatedAt,
+		LastHeartbeat:  w.LastHeartbeat,
+	}
+}
+
+func convertDbTaskToRpc(t *team.TeamTask) *wshrpc.TeamTask {
+	var outputHistory []wshrpc.TeamTaskOutput
+	for _, o := range t.OutputHistory {
+		outputHistory = append(outputHistory, wshrpc.TeamTaskOutput{
+			Timestamp: o.Timestamp, Type: o.Type, Content: o.Content,
+		})
+	}
+	return &wshrpc.TeamTask{
+		TaskID:           t.TaskID,
+		Title:            t.Title,
+		Description:      t.Description,
+		Priority:         t.Priority,
+		Status:           t.Status,
+		AssignedMemberID: t.AssignedMemberID,
+		AssignedWorkerID: t.AssignedWorkerID,
+		DependsOn:        t.DependsOn,
+		Result:           t.Result,
+		Error:            t.Error,
+		OutputHistory:    outputHistory,
+		Progress:         t.Progress,
+		RetryCount:       t.RetryCount,
+		MaxRetries:       t.MaxRetries,
+		NextRetryAt:      t.NextRetryAt,
+		CreatedAt:        t.CreatedAt,
+		UpdatedAt:        t.UpdatedAt,
+		CompletedAt:      t.CompletedAt,
+	}
+}
+
+func convertDbActivityToRpc(a *team.TeamActivity) *wshrpc.TeamActivity {
+	return &wshrpc.TeamActivity{
+		Id:          a.Id,
+		TaskID:      a.TaskID,
+		WorkerID:    a.WorkerID,
+		MemberID:    a.MemberID,
+		Type:        a.Type,
+		Description: a.Description,
+		Meta:        a.Meta,
+		CreatedAt:   a.CreatedAt,
+	}
 }

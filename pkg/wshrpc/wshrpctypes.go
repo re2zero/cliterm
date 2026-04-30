@@ -183,25 +183,32 @@ type WshRpcInterface interface {
 	// builder
 	WshRpcBuilderInterface
 
-	// cowork
-	CoworkCreateTaskCommand(ctx context.Context, data CoworkCreateTaskData) (*CoworkTask, error)
-	CoworkGetTaskCommand(ctx context.Context, taskId string) (*CoworkTask, error)
-	CoworkUpdateTaskCommand(ctx context.Context, data CoworkUpdateTaskData) (*CoworkTask, error)
-	CoworkDeleteTaskCommand(ctx context.Context, taskId string) error
-	CoworkListTasksCommand(ctx context.Context, data CoworkListTasksData) ([]*CoworkTask, error)
-	CoworkRegisterWorkerCommand(ctx context.Context, data CoworkRegisterWorkerData) (*CoworkWorker, error)
-	CoworkUpdateWorkerCommand(ctx context.Context, data CoworkUpdateWorkerData) (*CoworkWorker, error)
-	CoworkListWorkersCommand(ctx context.Context) ([]*CoworkWorker, error)
-	CoworkDeleteWorkerCommand(ctx context.Context, workerId string) error
-	CoworkAddActivityCommand(ctx context.Context, data CoworkAddActivityData) error
-	CoworkListActivityCommand(ctx context.Context, data CoworkListActivityData) ([]*CoworkActivity, error)
-	CoworkGetStatusCommand(ctx context.Context) (*CoworkStatusData, error)
-	CoworkExecuteTaskCommand(ctx context.Context, data CoworkExecuteTaskData) (*CoworkExecuteTaskResponse, error)
-	CoworkDetectRuntimesCommand(ctx context.Context) (*CoworkDetectRuntimesCommandReturn, error)
-	CoworkPauseTaskCommand(ctx context.Context, taskId string) error
-	CoworkResumeTaskCommand(ctx context.Context, taskId string) error
-	CoworkGetTaskOutputHistoryCommand(ctx context.Context, taskId string) ([]CoworkTaskOutput, error)
-	CoworkRetryTaskCommand(ctx context.Context, taskId string) error
+	// team
+	TeamCreateMemberCommand(ctx context.Context, data TeamCreateMemberData) (*TeamMember, error)
+	TeamGetMemberCommand(ctx context.Context, memberId string) (*TeamMember, error)
+	TeamUpdateMemberCommand(ctx context.Context, data TeamUpdateMemberData) (*TeamMember, error)
+	TeamDeleteMemberCommand(ctx context.Context, memberId string) error
+	TeamListMembersCommand(ctx context.Context) ([]*TeamMember, error)
+	TeamForkWorkerCommand(ctx context.Context, memberId string) (*TeamWorker, error)
+	TeamGetWorkerCommand(ctx context.Context, workerId string) (*TeamWorker, error)
+	TeamUpdateWorkerCommand(ctx context.Context, data TeamUpdateWorkerData) (*TeamWorker, error)
+	TeamDeleteWorkerCommand(ctx context.Context, workerId string) error
+	TeamListWorkersCommand(ctx context.Context, memberId string) ([]*TeamWorker, error)
+	TeamRecycleWorkerCommand(ctx context.Context, workerId string) error
+	TeamCreateTaskCommand(ctx context.Context, data TeamCreateTaskData) (*TeamTask, error)
+	TeamGetTaskCommand(ctx context.Context, taskId string) (*TeamTask, error)
+	TeamUpdateTaskCommand(ctx context.Context, data TeamUpdateTaskData) (*TeamTask, error)
+	TeamDeleteTaskCommand(ctx context.Context, taskId string) error
+	TeamListTasksCommand(ctx context.Context, data TeamListTasksData) ([]*TeamTask, error)
+	TeamExecuteTaskCommand(ctx context.Context, data TeamExecuteTaskData) (*TeamExecuteTaskResponse, error)
+	TeamPauseTaskCommand(ctx context.Context, taskId string) error
+	TeamResumeTaskCommand(ctx context.Context, taskId string) error
+	TeamRetryTaskCommand(ctx context.Context, taskId string) error
+	TeamGetTaskOutputHistoryCommand(ctx context.Context, taskId string) ([]TeamTaskOutput, error)
+	TeamGetStatusCommand(ctx context.Context) (*TeamStatusData, error)
+	TeamDetectRuntimesCommand(ctx context.Context) (*TeamDetectRuntimesReturn, error)
+	TeamAddActivityCommand(ctx context.Context, data TeamAddActivityData) error
+	TeamListActivityCommand(ctx context.Context, data TeamListActivityData) ([]*TeamActivity, error)
 }
 
 // for frontend
@@ -958,162 +965,199 @@ type CommandRemoteProcessSignalData struct {
 	Signal string `json:"signal"`
 }
 
-type CoworkTask struct {
-	TaskId         string `json:"taskid"`
-	Title          string `json:"title"`
-	Description    string `json:"description,omitempty"`
-	Priority       string `json:"priority"`
+// Team RPC types — mirrors pkg/team/team_types.go for wire serialization.
+
+type TeamMember struct {
+	MemberID       string          `json:"memberid"`
+	Name           string          `json:"name"`
+	Tool           string          `json:"tool"`
+	CustomCmd      string          `json:"customcmd,omitempty"`
+	Description    string          `json:"description,omitempty"`
+	Persona        string          `json:"persona,omitempty"`
+	PersonaPath    string          `json:"personapath,omitempty"`
+	Skills         []string        `json:"skills,omitempty"`
+	McpServers     []TeamMCPConfig `json:"mcpservers,omitempty"`
+	Capabilities   []string        `json:"capabilities,omitempty"`
+	Model          string          `json:"model,omitempty"`
+	MaxConcurrency int             `json:"maxconcurrency,omitempty"`
+	MaxRetries     int             `json:"maxretries,omitempty"`
+	Memory         string          `json:"memory,omitempty"`
+	Color          string          `json:"color,omitempty"`
+	CreatedAt      int64           `json:"createdat"`
+	UpdatedAt      int64           `json:"updatedat"`
+}
+
+type TeamMCPConfig struct {
+	Name    string            `json:"name"`
+	Type    string            `json:"type"`
+	Command string            `json:"command,omitempty"`
+	Args    []string          `json:"args,omitempty"`
+	Env     map[string]string `json:"env,omitempty"`
+	URL     string            `json:"url,omitempty"`
+	Headers map[string]string `json:"headers,omitempty"`
+}
+
+type TeamWorker struct {
+	WorkerID       string `json:"workerid"`
+	MemberID       string `json:"memberid,omitempty"`
+	Name           string `json:"name"`
 	Status         string `json:"status"`
-	AssignedWorker string `json:"assignedworker,omitempty"`
+	AssignedTaskID string `json:"assignedtaskid,omitempty"`
+	BlockID        string `json:"blockid,omitempty"`
+	TabID          string `json:"tabid,omitempty"`
+	PID            int    `json:"pid,omitempty"`
 	CreatedAt      int64  `json:"createdat"`
 	UpdatedAt      int64  `json:"updatedat"`
-	CompletedAt    int64  `json:"completedat,omitempty"`
-	Result         string `json:"result,omitempty"`
-	Error          string `json:"error,omitempty"`
-	Progress       string `json:"progress,omitempty"`
-	OutputHistory  []CoworkTaskOutput `json:"outputhistory,omitempty"`
-	DependsOn      []string `json:"dependson,omitempty"`
-	RetryCount     int      `json:"retrycount"`
-	MaxRetries     int      `json:"maxretries"`
-	NextRetryAt    int64    `json:"nextretryat,omitempty"`
+	LastHeartbeat  int64  `json:"lastheartbeat,omitempty"`
 }
 
-type CoworkTaskOutput struct {
-	Timestamp int64  `json:"timestamp"`
-	Content   string `json:"content"`
+type TeamTask struct {
+	TaskID           string           `json:"taskid"`
+	Title            string           `json:"title"`
+	Description      string           `json:"description,omitempty"`
+	Priority         string           `json:"priority"`
+	Status           string           `json:"status"`
+	AssignedMemberID string           `json:"assignedmemberid,omitempty"`
+	AssignedWorkerID string           `json:"assignedworkerid,omitempty"`
+	DependsOn        []string         `json:"dependson,omitempty"`
+	Result           string           `json:"result,omitempty"`
+	Error            string           `json:"error,omitempty"`
+	OutputHistory    []TeamTaskOutput `json:"outputhistory,omitempty"`
+	Progress         int              `json:"progress,omitempty"`
+	RetryCount       int              `json:"retrycount"`
+	MaxRetries       int              `json:"maxretries"`
+	NextRetryAt      int64            `json:"nextretryat,omitempty"`
+	CreatedAt        int64            `json:"createdat"`
+	UpdatedAt        int64            `json:"updatedat"`
+	CompletedAt      int64            `json:"completedat,omitempty"`
+}
+
+type TeamTaskOutput struct {
+	Timestamp string `json:"timestamp"`
 	Type      string `json:"type,omitempty"`
+	Content   string `json:"content"`
 }
 
-type CoworkWorker struct {
-	WorkerId       string   `json:"workerid"`
-	Name           string   `json:"name"`
-	Tool           string   `json:"tool"`
-	CustomCmd      string   `json:"customcmd,omitempty"`
-	Role           string   `json:"role,omitempty"`
-	Desc           string   `json:"desc,omitempty"`
-	Soul           string   `json:"soul,omitempty"`
-	Skills         string   `json:"skills,omitempty"`
-	McpServers     string   `json:"mcpservers,omitempty"`
-	Status         string   `json:"status"`
-	AssignedTask   string   `json:"assignedtask,omitempty"`
-	BlockId        string   `json:"blockid"`
-	TabId          string   `json:"tabid"`
-	CreatedAt      int64    `json:"createdat"`
-	LastActiveAt   int64    `json:"lastactiveat"`
-	LastOutputHash string   `json:"lastoutputhash,omitempty"`
-	ErrorMsg       string   `json:"errormsg,omitempty"`
-	Capabilities   string   `json:"capabilities,omitempty"`
-	Concurrency    int      `json:"concurrency,omitempty"`
-	Timeout        int      `json:"timeout,omitempty"`
-	MaxRetries     int      `json:"maxretries,omitempty"`
-	CompletedTasks string   `json:"completedtasks,omitempty"`
-}
-
-type CoworkActivity struct {
+type TeamActivity struct {
 	Id          int64  `json:"id"`
-	TaskId      string `json:"taskid,omitempty"`
-	WorkerId    string `json:"workerid,omitempty"`
+	TaskID      string `json:"taskid,omitempty"`
+	WorkerID    string `json:"workerid,omitempty"`
+	MemberID    string `json:"memberid,omitempty"`
 	Type        string `json:"type"`
 	Description string `json:"description"`
 	Meta        string `json:"meta,omitempty"`
 	CreatedAt   int64  `json:"createdat"`
 }
 
-type CoworkCreateTaskData struct {
+type TeamCreateMemberData struct {
+	Name           string          `json:"name"`
+	Tool           string          `json:"tool,omitempty"`
+	CustomCmd      string          `json:"customcmd,omitempty"`
+	Description    string          `json:"description,omitempty"`
+	Persona        string          `json:"persona,omitempty"`
+	PersonaPath    string          `json:"personapath,omitempty"`
+	Skills         []string        `json:"skills,omitempty"`
+	McpServers     []TeamMCPConfig `json:"mcpservers,omitempty"`
+	Capabilities   []string        `json:"capabilities,omitempty"`
+	Model          string          `json:"model,omitempty"`
+	MaxConcurrency int             `json:"maxconcurrency,omitempty"`
+	MaxRetries     int             `json:"maxretries,omitempty"`
+	Memory         string          `json:"memory,omitempty"`
+	Color          string          `json:"color,omitempty"`
+}
+
+type TeamUpdateMemberData struct {
+	MemberID       string          `json:"memberid"`
+	Name           string          `json:"name,omitempty"`
+	Tool           string          `json:"tool,omitempty"`
+	CustomCmd      string          `json:"customcmd,omitempty"`
+	Description    string          `json:"description,omitempty"`
+	Persona        string          `json:"persona,omitempty"`
+	PersonaPath    string          `json:"personapath,omitempty"`
+	Skills         []string        `json:"skills,omitempty"`
+	McpServers     []TeamMCPConfig `json:"mcpservers,omitempty"`
+	Capabilities   []string        `json:"capabilities,omitempty"`
+	Model          string          `json:"model,omitempty"`
+	MaxConcurrency int             `json:"maxconcurrency,omitempty"`
+	MaxRetries     int             `json:"maxretries,omitempty"`
+	Memory         string          `json:"memory,omitempty"`
+	Color          string          `json:"color,omitempty"`
+}
+
+type TeamUpdateWorkerData struct {
+	WorkerID       string `json:"workerid"`
+	Status         string `json:"status,omitempty"`
+	AssignedTaskID string `json:"assignedtaskid,omitempty"`
+	BlockID        string `json:"blockid,omitempty"`
+	TabID          string `json:"tabid,omitempty"`
+	PID            int    `json:"pid,omitempty"`
+}
+
+type TeamCreateTaskData struct {
 	Title       string   `json:"title"`
 	Description string   `json:"description,omitempty"`
-	Priority    string   `json:"priority"`
+	Priority    string   `json:"priority,omitempty"`
 	DependsOn   []string `json:"dependson,omitempty"`
 }
 
-type CoworkUpdateTaskData struct {
-	TaskId         string `json:"taskid"`
-	Title          string `json:"title,omitempty"`
-	Description    string `json:"description,omitempty"`
-	Priority       string `json:"priority,omitempty"`
-	Status         string `json:"status,omitempty"`
-	AssignedWorker string `json:"assignedworker,omitempty"`
-	Result         string `json:"result,omitempty"`
-	Error          string `json:"error,omitempty"`
-	Progress       string `json:"progress,omitempty"`
+type TeamUpdateTaskData struct {
+	TaskID           string `json:"taskid"`
+	Title            string `json:"title,omitempty"`
+	Description      string `json:"description,omitempty"`
+	Priority         string `json:"priority,omitempty"`
+	Status           string `json:"status,omitempty"`
+	AssignedMemberID string `json:"assignedmemberid,omitempty"`
+	AssignedWorkerID string `json:"assignedworkerid,omitempty"`
+	Result           string `json:"result,omitempty"`
+	Error            string `json:"error,omitempty"`
+	Progress         int    `json:"progress,omitempty"`
 }
 
-type CoworkListTasksData struct {
+type TeamListTasksData struct {
 	Status   string `json:"status,omitempty"`
 	Priority string `json:"priority,omitempty"`
+	MemberID string `json:"memberid,omitempty"`
 }
 
-type CoworkRegisterWorkerData struct {
-	WorkerId    string `json:"workerid"`
-	Name        string `json:"name"`
-	Tool        string `json:"tool"`
-	CustomCmd   string `json:"customcmd,omitempty"`
-	Role        string `json:"role,omitempty"`
-	Desc        string `json:"desc,omitempty"`
-	Soul        string `json:"soul,omitempty"`
-	Skills      string `json:"skills,omitempty"`
-	McpServers  string `json:"mcpservers,omitempty"`
-	BlockId     string `json:"blockid"`
-	TabId       string `json:"tabid"`
-	Concurrency int    `json:"concurrency,omitempty"`
-	Timeout     int    `json:"timeout,omitempty"`
-	MaxRetries  int    `json:"maxretries,omitempty"`
-	Capabilities string `json:"capabilities,omitempty"`
+type TeamExecuteTaskData struct {
+	WorkerID string `json:"workerid"`
+	TaskID   string `json:"taskid"`
+	Command  string `json:"command,omitempty"`
 }
 
-type CoworkUpdateWorkerData struct {
-	WorkerId       string `json:"workerid"`
-	Status         string `json:"status,omitempty"`
-	AssignedTask   string `json:"assignedtask,omitempty"`
-	LastOutputHash string   `json:"lastoutputhash,omitempty"`
-	ErrorMsg       string   `json:"errormsg,omitempty"`
-	Name           string   `json:"name,omitempty"`
-	Role           string   `json:"role,omitempty"`
-	Desc           string   `json:"desc,omitempty"`
-	Soul           string   `json:"soul,omitempty"`
-	Skills         string   `json:"skills,omitempty"`
-	McpServers     string   `json:"mcpservers,omitempty"`
-	CustomCmd      string   `json:"customcmd,omitempty"`
-	Concurrency    int      `json:"concurrency,omitempty"`
-	Timeout        int      `json:"timeout,omitempty"`
-	MaxRetries     int      `json:"maxretries,omitempty"`
-	Capabilities   string `json:"capabilities,omitempty"`
-	CompletedTasks string `json:"completedtasks,omitempty"`
+type TeamExecuteTaskResponse struct {
+	BlockID string `json:"blockid"`
+	TabID   string `json:"tabid"`
+	Success bool   `json:"success"`
+	Error   string `json:"error,omitempty"`
 }
 
-type CoworkAddActivityData struct {
-	TaskId      string `json:"taskid,omitempty"`
-	WorkerId    string `json:"workerid,omitempty"`
+type TeamAddActivityData struct {
+	TaskID      string `json:"taskid,omitempty"`
+	WorkerID    string `json:"workerid,omitempty"`
+	MemberID    string `json:"memberid,omitempty"`
 	Type        string `json:"type"`
 	Description string `json:"description"`
 	Meta        string `json:"meta,omitempty"`
 }
 
-type CoworkListActivityData struct {
-	Limit int `json:"limit,omitempty"`
+type TeamListActivityData struct {
+	Limit    int    `json:"limit,omitempty"`
+	TaskID   string `json:"taskid,omitempty"`
+	WorkerID string `json:"workerid,omitempty"`
+	MemberID string `json:"memberid,omitempty"`
 }
 
-type CoworkStatusData struct {
-	PendingTasks  int `json:"pendingtasks"`
-	WorkingTasks  int `json:"workingtasks"`
-	DoneTasks     int `json:"donetasks"`
-	FailedTasks   int `json:"failedtasks"`
-	ActiveWorkers int `json:"activeworkers"`
-	IdleWorkers   int `json:"idleworkers"`
-	TotalWorkers  int `json:"totalworkers"`
-}
-
-type CoworkExecuteTaskData struct {
-	WorkerId string `json:"workerid"`
-	TaskId   string `json:"taskid"`
-	Command  string `json:"command"`
-}
-
-type CoworkExecuteTaskResponse struct {
-	BlockId string `json:"blockid"`
-	TabId   string `json:"tabid"`
-	Success bool   `json:"success"`
-	Error   string `json:"error,omitempty"`
+type TeamStatusData struct {
+	TotalMembers   int `json:"totalmembers"`
+	ActiveWorkers  int `json:"activeworkers"`
+	IdleWorkers    int `json:"idleworkers"`
+	OfflineWorkers int `json:"offlineworkers"`
+	PendingTasks   int `json:"pendingtasks"`
+	WorkingTasks   int `json:"workingtasks"`
+	DoneTasks      int `json:"donetasks"`
+	FailedTasks    int `json:"failedtasks"`
+	PausedTasks    int `json:"pausedtasks"`
 }
 
 // AIRuntime represents a detected AI CLI runtime
@@ -1125,7 +1169,6 @@ type AIRuntime struct {
 	Status      string `json:"status"`      // online, offline
 }
 
-// CoworkDetectRuntimesCommandReturn is the return type for CoworkDetectRuntimesCommand
-type CoworkDetectRuntimesCommandReturn struct {
+type TeamDetectRuntimesReturn struct {
 	Runtimes []AIRuntime `json:"runtimes"`
 }

@@ -10,7 +10,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/wavetermdev/waveterm/pkg/wps"
 	"github.com/wavetermdev/waveterm/pkg/wstore"
 )
 
@@ -71,17 +70,6 @@ func CheckWorkerHealth(ctx context.Context) error {
 	return nil
 }
 
-// UpdateWorkerHeartbeat refreshes the last_heartbeat timestamp for a worker.
-func UpdateWorkerHeartbeat(ctx context.Context, workerID string) error {
-	return wstore.WithTx(ctx, func(tx *wstore.TxWrap) error {
-		tx.Exec(
-			`UPDATE team_workers SET last_heartbeat = ?, updated_at = ? WHERE worker_id = ?`,
-			time.Now().Unix(), time.Now().Unix(), workerID,
-		)
-		return nil
-	})
-}
-
 // StartHeartbeatLoop runs periodic worker health checks until ctx is cancelled.
 func StartHeartbeatLoop(ctx context.Context) {
 	ticker := time.NewTicker(HeartbeatInterval)
@@ -97,11 +85,6 @@ func StartHeartbeatLoop(ctx context.Context) {
 			}
 		}
 	}
-}
-
-// PublishWorkerUpdate sends a WPS event notifying the frontend of worker state changes.
-func PublishWorkerUpdate() {
-	wps.Broker.Publish(wps.WaveEvent{Event: wps.Event_TeamWorkerUpdate})
 }
 
 func markWorkerOffline(ctx context.Context, workerID string) error {
