@@ -375,6 +375,10 @@ def dispatch_task(
 
     children = task_data.get("children", [])
 
+    # Normalize children: list[dict] -> list[str] (directory names)
+    if children and isinstance(children[0], dict):
+        children = [c["id"] for c in children if "id" in c]
+
     if not children:
         return _dispatch_single(task_path, task_data, team_name, worker_name, profile, profile_map)
 

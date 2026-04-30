@@ -167,114 +167,6 @@ func ControllerResyncCommand(w *wshutil.WshRpc, data wshrpc.CommandControllerRes
 	return err
 }
 
-// command "coworkaddactivity", wshserver.CoworkAddActivityCommand
-func CoworkAddActivityCommand(w *wshutil.WshRpc, data wshrpc.CoworkAddActivityData, opts *wshrpc.RpcOpts) error {
-	_, err := sendRpcRequestCallHelper[any](w, "coworkaddactivity", data, opts)
-	return err
-}
-
-// command "coworkcreatetask", wshserver.CoworkCreateTaskCommand
-func CoworkCreateTaskCommand(w *wshutil.WshRpc, data wshrpc.CoworkCreateTaskData, opts *wshrpc.RpcOpts) (*wshrpc.CoworkTask, error) {
-	resp, err := sendRpcRequestCallHelper[*wshrpc.CoworkTask](w, "coworkcreatetask", data, opts)
-	return resp, err
-}
-
-// command "coworkdeletetask", wshserver.CoworkDeleteTaskCommand
-func CoworkDeleteTaskCommand(w *wshutil.WshRpc, data string, opts *wshrpc.RpcOpts) error {
-	_, err := sendRpcRequestCallHelper[any](w, "coworkdeletetask", data, opts)
-	return err
-}
-
-// command "coworkdeleteworker", wshserver.CoworkDeleteWorkerCommand
-func CoworkDeleteWorkerCommand(w *wshutil.WshRpc, data string, opts *wshrpc.RpcOpts) error {
-	_, err := sendRpcRequestCallHelper[any](w, "coworkdeleteworker", data, opts)
-	return err
-}
-
-// command "coworkdetectruntimes", wshserver.CoworkDetectRuntimesCommand
-func CoworkDetectRuntimesCommand(w *wshutil.WshRpc, opts *wshrpc.RpcOpts) (*wshrpc.CoworkDetectRuntimesCommandReturn, error) {
-	resp, err := sendRpcRequestCallHelper[*wshrpc.CoworkDetectRuntimesCommandReturn](w, "coworkdetectruntimes", nil, opts)
-	return resp, err
-}
-
-// command "coworkexecutetask", wshserver.CoworkExecuteTaskCommand
-func CoworkExecuteTaskCommand(w *wshutil.WshRpc, data wshrpc.CoworkExecuteTaskData, opts *wshrpc.RpcOpts) (*wshrpc.CoworkExecuteTaskResponse, error) {
-	resp, err := sendRpcRequestCallHelper[*wshrpc.CoworkExecuteTaskResponse](w, "coworkexecutetask", data, opts)
-	return resp, err
-}
-
-// command "coworkgetstatus", wshserver.CoworkGetStatusCommand
-func CoworkGetStatusCommand(w *wshutil.WshRpc, opts *wshrpc.RpcOpts) (*wshrpc.CoworkStatusData, error) {
-	resp, err := sendRpcRequestCallHelper[*wshrpc.CoworkStatusData](w, "coworkgetstatus", nil, opts)
-	return resp, err
-}
-
-// command "coworkgettask", wshserver.CoworkGetTaskCommand
-func CoworkGetTaskCommand(w *wshutil.WshRpc, data string, opts *wshrpc.RpcOpts) (*wshrpc.CoworkTask, error) {
-	resp, err := sendRpcRequestCallHelper[*wshrpc.CoworkTask](w, "coworkgettask", data, opts)
-	return resp, err
-}
-
-// command "coworkgettaskoutputhistory", wshserver.CoworkGetTaskOutputHistoryCommand
-func CoworkGetTaskOutputHistoryCommand(w *wshutil.WshRpc, data string, opts *wshrpc.RpcOpts) ([]wshrpc.CoworkTaskOutput, error) {
-	resp, err := sendRpcRequestCallHelper[[]wshrpc.CoworkTaskOutput](w, "coworkgettaskoutputhistory", data, opts)
-	return resp, err
-}
-
-// command "coworklistactivity", wshserver.CoworkListActivityCommand
-func CoworkListActivityCommand(w *wshutil.WshRpc, data wshrpc.CoworkListActivityData, opts *wshrpc.RpcOpts) ([]*wshrpc.CoworkActivity, error) {
-	resp, err := sendRpcRequestCallHelper[[]*wshrpc.CoworkActivity](w, "coworklistactivity", data, opts)
-	return resp, err
-}
-
-// command "coworklisttasks", wshserver.CoworkListTasksCommand
-func CoworkListTasksCommand(w *wshutil.WshRpc, data wshrpc.CoworkListTasksData, opts *wshrpc.RpcOpts) ([]*wshrpc.CoworkTask, error) {
-	resp, err := sendRpcRequestCallHelper[[]*wshrpc.CoworkTask](w, "coworklisttasks", data, opts)
-	return resp, err
-}
-
-// command "coworklistworkers", wshserver.CoworkListWorkersCommand
-func CoworkListWorkersCommand(w *wshutil.WshRpc, opts *wshrpc.RpcOpts) ([]*wshrpc.CoworkWorker, error) {
-	resp, err := sendRpcRequestCallHelper[[]*wshrpc.CoworkWorker](w, "coworklistworkers", nil, opts)
-	return resp, err
-}
-
-// command "coworkpausetask", wshserver.CoworkPauseTaskCommand
-func CoworkPauseTaskCommand(w *wshutil.WshRpc, data string, opts *wshrpc.RpcOpts) error {
-	_, err := sendRpcRequestCallHelper[any](w, "coworkpausetask", data, opts)
-	return err
-}
-
-// command "coworkregisterworker", wshserver.CoworkRegisterWorkerCommand
-func CoworkRegisterWorkerCommand(w *wshutil.WshRpc, data wshrpc.CoworkRegisterWorkerData, opts *wshrpc.RpcOpts) (*wshrpc.CoworkWorker, error) {
-	resp, err := sendRpcRequestCallHelper[*wshrpc.CoworkWorker](w, "coworkregisterworker", data, opts)
-	return resp, err
-}
-
-// command "coworkresumetask", wshserver.CoworkResumeTaskCommand
-func CoworkResumeTaskCommand(w *wshutil.WshRpc, data string, opts *wshrpc.RpcOpts) error {
-	_, err := sendRpcRequestCallHelper[any](w, "coworkresumetask", data, opts)
-	return err
-}
-
-// command "coworkretrytask", wshserver.CoworkRetryTaskCommand
-func CoworkRetryTaskCommand(w *wshutil.WshRpc, data string, opts *wshrpc.RpcOpts) error {
-	_, err := sendRpcRequestCallHelper[any](w, "coworkretrytask", data, opts)
-	return err
-}
-
-// command "coworkupdatetask", wshserver.CoworkUpdateTaskCommand
-func CoworkUpdateTaskCommand(w *wshutil.WshRpc, data wshrpc.CoworkUpdateTaskData, opts *wshrpc.RpcOpts) (*wshrpc.CoworkTask, error) {
-	resp, err := sendRpcRequestCallHelper[*wshrpc.CoworkTask](w, "coworkupdatetask", data, opts)
-	return resp, err
-}
-
-// command "coworkupdateworker", wshserver.CoworkUpdateWorkerCommand
-func CoworkUpdateWorkerCommand(w *wshutil.WshRpc, data wshrpc.CoworkUpdateWorkerData, opts *wshrpc.RpcOpts) (*wshrpc.CoworkWorker, error) {
-	resp, err := sendRpcRequestCallHelper[*wshrpc.CoworkWorker](w, "coworkupdateworker", data, opts)
-	return resp, err
-}
-
 // command "createblock", wshserver.CreateBlockCommand
 func CreateBlockCommand(w *wshutil.WshRpc, data wshrpc.CommandCreateBlockData, opts *wshrpc.RpcOpts) (waveobj.ORef, error) {
 	resp, err := sendRpcRequestCallHelper[waveobj.ORef](w, "createblock", data, opts)
@@ -911,6 +803,156 @@ func StreamWaveAiCommand(w *wshutil.WshRpc, data wshrpc.WaveAIStreamRequest, opt
 	return sendRpcRequestResponseStreamHelper[wshrpc.WaveAIPacketType](w, "streamwaveai", data, opts)
 }
 
+// command "teamaddactivity", wshserver.TeamAddActivityCommand
+func TeamAddActivityCommand(w *wshutil.WshRpc, data wshrpc.TeamAddActivityData, opts *wshrpc.RpcOpts) error {
+	_, err := sendRpcRequestCallHelper[any](w, "teamaddactivity", data, opts)
+	return err
+}
+
+// command "teamcreatemember", wshserver.TeamCreateMemberCommand
+func TeamCreateMemberCommand(w *wshutil.WshRpc, data wshrpc.TeamCreateMemberData, opts *wshrpc.RpcOpts) (*wshrpc.TeamMember, error) {
+	resp, err := sendRpcRequestCallHelper[*wshrpc.TeamMember](w, "teamcreatemember", data, opts)
+	return resp, err
+}
+
+// command "teamcreatetask", wshserver.TeamCreateTaskCommand
+func TeamCreateTaskCommand(w *wshutil.WshRpc, data wshrpc.TeamCreateTaskData, opts *wshrpc.RpcOpts) (*wshrpc.TeamTask, error) {
+	resp, err := sendRpcRequestCallHelper[*wshrpc.TeamTask](w, "teamcreatetask", data, opts)
+	return resp, err
+}
+
+// command "teamdeletemember", wshserver.TeamDeleteMemberCommand
+func TeamDeleteMemberCommand(w *wshutil.WshRpc, data string, opts *wshrpc.RpcOpts) error {
+	_, err := sendRpcRequestCallHelper[any](w, "teamdeletemember", data, opts)
+	return err
+}
+
+// command "teamdeletetask", wshserver.TeamDeleteTaskCommand
+func TeamDeleteTaskCommand(w *wshutil.WshRpc, data string, opts *wshrpc.RpcOpts) error {
+	_, err := sendRpcRequestCallHelper[any](w, "teamdeletetask", data, opts)
+	return err
+}
+
+// command "teamdeleteworker", wshserver.TeamDeleteWorkerCommand
+func TeamDeleteWorkerCommand(w *wshutil.WshRpc, data string, opts *wshrpc.RpcOpts) error {
+	_, err := sendRpcRequestCallHelper[any](w, "teamdeleteworker", data, opts)
+	return err
+}
+
+// command "teamdetectruntimes", wshserver.TeamDetectRuntimesCommand
+func TeamDetectRuntimesCommand(w *wshutil.WshRpc, opts *wshrpc.RpcOpts) (*wshrpc.TeamDetectRuntimesReturn, error) {
+	resp, err := sendRpcRequestCallHelper[*wshrpc.TeamDetectRuntimesReturn](w, "teamdetectruntimes", nil, opts)
+	return resp, err
+}
+
+// command "teamexecutetask", wshserver.TeamExecuteTaskCommand
+func TeamExecuteTaskCommand(w *wshutil.WshRpc, data wshrpc.TeamExecuteTaskData, opts *wshrpc.RpcOpts) (*wshrpc.TeamExecuteTaskResponse, error) {
+	resp, err := sendRpcRequestCallHelper[*wshrpc.TeamExecuteTaskResponse](w, "teamexecutetask", data, opts)
+	return resp, err
+}
+
+// command "teamforkworker", wshserver.TeamForkWorkerCommand
+func TeamForkWorkerCommand(w *wshutil.WshRpc, data string, opts *wshrpc.RpcOpts) (*wshrpc.TeamWorker, error) {
+	resp, err := sendRpcRequestCallHelper[*wshrpc.TeamWorker](w, "teamforkworker", data, opts)
+	return resp, err
+}
+
+// command "teamgetmember", wshserver.TeamGetMemberCommand
+func TeamGetMemberCommand(w *wshutil.WshRpc, data string, opts *wshrpc.RpcOpts) (*wshrpc.TeamMember, error) {
+	resp, err := sendRpcRequestCallHelper[*wshrpc.TeamMember](w, "teamgetmember", data, opts)
+	return resp, err
+}
+
+// command "teamgetstatus", wshserver.TeamGetStatusCommand
+func TeamGetStatusCommand(w *wshutil.WshRpc, opts *wshrpc.RpcOpts) (*wshrpc.TeamStatusData, error) {
+	resp, err := sendRpcRequestCallHelper[*wshrpc.TeamStatusData](w, "teamgetstatus", nil, opts)
+	return resp, err
+}
+
+// command "teamgettask", wshserver.TeamGetTaskCommand
+func TeamGetTaskCommand(w *wshutil.WshRpc, data string, opts *wshrpc.RpcOpts) (*wshrpc.TeamTask, error) {
+	resp, err := sendRpcRequestCallHelper[*wshrpc.TeamTask](w, "teamgettask", data, opts)
+	return resp, err
+}
+
+// command "teamgettaskoutputhistory", wshserver.TeamGetTaskOutputHistoryCommand
+func TeamGetTaskOutputHistoryCommand(w *wshutil.WshRpc, data string, opts *wshrpc.RpcOpts) ([]wshrpc.TeamTaskOutput, error) {
+	resp, err := sendRpcRequestCallHelper[[]wshrpc.TeamTaskOutput](w, "teamgettaskoutputhistory", data, opts)
+	return resp, err
+}
+
+// command "teamgetworker", wshserver.TeamGetWorkerCommand
+func TeamGetWorkerCommand(w *wshutil.WshRpc, data string, opts *wshrpc.RpcOpts) (*wshrpc.TeamWorker, error) {
+	resp, err := sendRpcRequestCallHelper[*wshrpc.TeamWorker](w, "teamgetworker", data, opts)
+	return resp, err
+}
+
+// command "teamlistactivity", wshserver.TeamListActivityCommand
+func TeamListActivityCommand(w *wshutil.WshRpc, data wshrpc.TeamListActivityData, opts *wshrpc.RpcOpts) ([]*wshrpc.TeamActivity, error) {
+	resp, err := sendRpcRequestCallHelper[[]*wshrpc.TeamActivity](w, "teamlistactivity", data, opts)
+	return resp, err
+}
+
+// command "teamlistmembers", wshserver.TeamListMembersCommand
+func TeamListMembersCommand(w *wshutil.WshRpc, opts *wshrpc.RpcOpts) ([]*wshrpc.TeamMember, error) {
+	resp, err := sendRpcRequestCallHelper[[]*wshrpc.TeamMember](w, "teamlistmembers", nil, opts)
+	return resp, err
+}
+
+// command "teamlisttasks", wshserver.TeamListTasksCommand
+func TeamListTasksCommand(w *wshutil.WshRpc, data wshrpc.TeamListTasksData, opts *wshrpc.RpcOpts) ([]*wshrpc.TeamTask, error) {
+	resp, err := sendRpcRequestCallHelper[[]*wshrpc.TeamTask](w, "teamlisttasks", data, opts)
+	return resp, err
+}
+
+// command "teamlistworkers", wshserver.TeamListWorkersCommand
+func TeamListWorkersCommand(w *wshutil.WshRpc, data string, opts *wshrpc.RpcOpts) ([]*wshrpc.TeamWorker, error) {
+	resp, err := sendRpcRequestCallHelper[[]*wshrpc.TeamWorker](w, "teamlistworkers", data, opts)
+	return resp, err
+}
+
+// command "teampausetask", wshserver.TeamPauseTaskCommand
+func TeamPauseTaskCommand(w *wshutil.WshRpc, data string, opts *wshrpc.RpcOpts) error {
+	_, err := sendRpcRequestCallHelper[any](w, "teampausetask", data, opts)
+	return err
+}
+
+// command "teamrecycleworker", wshserver.TeamRecycleWorkerCommand
+func TeamRecycleWorkerCommand(w *wshutil.WshRpc, data string, opts *wshrpc.RpcOpts) error {
+	_, err := sendRpcRequestCallHelper[any](w, "teamrecycleworker", data, opts)
+	return err
+}
+
+// command "teamresumetask", wshserver.TeamResumeTaskCommand
+func TeamResumeTaskCommand(w *wshutil.WshRpc, data string, opts *wshrpc.RpcOpts) error {
+	_, err := sendRpcRequestCallHelper[any](w, "teamresumetask", data, opts)
+	return err
+}
+
+// command "teamretrytask", wshserver.TeamRetryTaskCommand
+func TeamRetryTaskCommand(w *wshutil.WshRpc, data string, opts *wshrpc.RpcOpts) error {
+	_, err := sendRpcRequestCallHelper[any](w, "teamretrytask", data, opts)
+	return err
+}
+
+// command "teamupdatemember", wshserver.TeamUpdateMemberCommand
+func TeamUpdateMemberCommand(w *wshutil.WshRpc, data wshrpc.TeamUpdateMemberData, opts *wshrpc.RpcOpts) (*wshrpc.TeamMember, error) {
+	resp, err := sendRpcRequestCallHelper[*wshrpc.TeamMember](w, "teamupdatemember", data, opts)
+	return resp, err
+}
+
+// command "teamupdatetask", wshserver.TeamUpdateTaskCommand
+func TeamUpdateTaskCommand(w *wshutil.WshRpc, data wshrpc.TeamUpdateTaskData, opts *wshrpc.RpcOpts) (*wshrpc.TeamTask, error) {
+	resp, err := sendRpcRequestCallHelper[*wshrpc.TeamTask](w, "teamupdatetask", data, opts)
+	return resp, err
+}
+
+// command "teamupdateworker", wshserver.TeamUpdateWorkerCommand
+func TeamUpdateWorkerCommand(w *wshutil.WshRpc, data wshrpc.TeamUpdateWorkerData, opts *wshrpc.RpcOpts) (*wshrpc.TeamWorker, error) {
+	resp, err := sendRpcRequestCallHelper[*wshrpc.TeamWorker](w, "teamupdateworker", data, opts)
+	return resp, err
+}
+
 // command "termgetscrollbacklines", wshserver.TermGetScrollbackLinesCommand
 func TermGetScrollbackLinesCommand(w *wshutil.WshRpc, data wshrpc.CommandTermGetScrollbackLinesData, opts *wshrpc.RpcOpts) (*wshrpc.CommandTermGetScrollbackLinesRtnData, error) {
 	resp, err := sendRpcRequestCallHelper[*wshrpc.CommandTermGetScrollbackLinesRtnData](w, "termgetscrollbacklines", data, opts)
@@ -1053,136 +1095,6 @@ func WslListCommand(w *wshutil.WshRpc, opts *wshrpc.RpcOpts) ([]string, error) {
 func WslStatusCommand(w *wshutil.WshRpc, opts *wshrpc.RpcOpts) ([]wshrpc.ConnStatus, error) {
 	resp, err := sendRpcRequestCallHelper[[]wshrpc.ConnStatus](w, "wslstatus", nil, opts)
 	return resp, err
-}
-
-// command "authenticatetojobmanager", wshserver.AuthenticateToJobManagerCommand
-func AuthenticateToJobManagerCommand(w *wshutil.WshRpc, data wshrpc.CommandAuthenticateToJobData, opts *wshrpc.RpcOpts) error {
-	_, err := sendRpcRequestCallHelper[any](w, "authenticatetojobmanager", data, opts)
-	return err
-}
-
-// command "blockjobstatus", wshserver.BlockJobStatusCommand
-func BlockJobStatusCommand(w *wshutil.WshRpc, data string, opts *wshrpc.RpcOpts) (*wshrpc.BlockJobStatusData, error) {
-	resp, err := sendRpcRequestCallHelper[*wshrpc.BlockJobStatusData](w, "blockjobstatus", data, opts)
-	return resp, err
-}
-
-// command "jobcmdexited", wshserver.JobCmdExitedCommand
-func JobCmdExitedCommand(w *wshutil.WshRpc, data wshrpc.CommandJobCmdExitedData, opts *wshrpc.RpcOpts) error {
-	_, err := sendRpcRequestCallHelper[any](w, "jobcmdexited", data, opts)
-	return err
-}
-
-// command "jobcontrollerattachjob", wshserver.JobControllerAttachJobCommand
-func JobControllerAttachJobCommand(w *wshutil.WshRpc, data wshrpc.CommandJobControllerAttachJobData, opts *wshrpc.RpcOpts) error {
-	_, err := sendRpcRequestCallHelper[any](w, "jobcontrollerattachjob", data, opts)
-	return err
-}
-
-// command "jobcontrollerconnectedjobs", wshserver.JobControllerConnectedJobsCommand
-func JobControllerConnectedJobsCommand(w *wshutil.WshRpc, opts *wshrpc.RpcOpts) ([]string, error) {
-	resp, err := sendRpcRequestCallHelper[[]string](w, "jobcontrollerconnectedjobs", nil, opts)
-	return resp, err
-}
-
-// command "jobcontrollerdeletejob", wshserver.JobControllerDeleteJobCommand
-func JobControllerDeleteJobCommand(w *wshutil.WshRpc, data string, opts *wshrpc.RpcOpts) error {
-	_, err := sendRpcRequestCallHelper[any](w, "jobcontrollerdeletejob", data, opts)
-	return err
-}
-
-// command "jobcontrollerdetachjob", wshserver.JobControllerDetachJobCommand
-func JobControllerDetachJobCommand(w *wshutil.WshRpc, data string, opts *wshrpc.RpcOpts) error {
-	_, err := sendRpcRequestCallHelper[any](w, "jobcontrollerdetachjob", data, opts)
-	return err
-}
-
-// command "jobcontrollerdisconnectjob", wshserver.JobControllerDisconnectJobCommand
-func JobControllerDisconnectJobCommand(w *wshutil.WshRpc, data string, opts *wshrpc.RpcOpts) error {
-	_, err := sendRpcRequestCallHelper[any](w, "jobcontrollerdisconnectjob", data, opts)
-	return err
-}
-
-// command "jobcontrollerexitjob", wshserver.JobControllerExitJobCommand
-func JobControllerExitJobCommand(w *wshutil.WshRpc, data string, opts *wshrpc.RpcOpts) error {
-	_, err := sendRpcRequestCallHelper[any](w, "jobcontrollerexitjob", data, opts)
-	return err
-}
-
-// command "jobcontrollergetalljobmanagerstatus", wshserver.JobControllerGetAllJobManagerStatusCommand
-func JobControllerGetAllJobManagerStatusCommand(w *wshutil.WshRpc, opts *wshrpc.RpcOpts) ([]*wshrpc.JobManagerStatusUpdate, error) {
-	resp, err := sendRpcRequestCallHelper[[]*wshrpc.JobManagerStatusUpdate](w, "jobcontrollergetalljobmanagerstatus", nil, opts)
-	return resp, err
-}
-
-// command "jobcontrollerlist", wshserver.JobControllerListCommand
-func JobControllerListCommand(w *wshutil.WshRpc, opts *wshrpc.RpcOpts) ([]*waveobj.Job, error) {
-	resp, err := sendRpcRequestCallHelper[[]*waveobj.Job](w, "jobcontrollerlist", nil, opts)
-	return resp, err
-}
-
-// command "jobcontrollerreconnectjob", wshserver.JobControllerReconnectJobCommand
-func JobControllerReconnectJobCommand(w *wshutil.WshRpc, data string, opts *wshrpc.RpcOpts) error {
-	_, err := sendRpcRequestCallHelper[any](w, "jobcontrollerreconnectjob", data, opts)
-	return err
-}
-
-// command "jobcontrollerreconnectjobsforconn", wshserver.JobControllerReconnectJobsForConnCommand
-func JobControllerReconnectJobsForConnCommand(w *wshutil.WshRpc, data string, opts *wshrpc.RpcOpts) error {
-	_, err := sendRpcRequestCallHelper[any](w, "jobcontrollerreconnectjobsforconn", data, opts)
-	return err
-}
-
-// command "jobcontrollerstartjob", wshserver.JobControllerStartJobCommand
-func JobControllerStartJobCommand(w *wshutil.WshRpc, data wshrpc.CommandJobControllerStartJobData, opts *wshrpc.RpcOpts) (string, error) {
-	resp, err := sendRpcRequestCallHelper[string](w, "jobcontrollerstartjob", data, opts)
-	return resp, err
-}
-
-// command "jobinput", wshserver.JobInputCommand
-func JobInputCommand(w *wshutil.WshRpc, data wshrpc.CommandJobInputData, opts *wshrpc.RpcOpts) error {
-	_, err := sendRpcRequestCallHelper[any](w, "jobinput", data, opts)
-	return err
-}
-
-// command "jobprepareconnect", wshserver.JobPrepareConnectCommand
-func JobPrepareConnectCommand(w *wshutil.WshRpc, data wshrpc.CommandJobPrepareConnectData, opts *wshrpc.RpcOpts) (*wshrpc.CommandJobConnectRtnData, error) {
-	resp, err := sendRpcRequestCallHelper[*wshrpc.CommandJobConnectRtnData](w, "jobprepareconnect", data, opts)
-	return resp, err
-}
-
-// command "jobstartstream", wshserver.JobStartStreamCommand
-func JobStartStreamCommand(w *wshutil.WshRpc, data wshrpc.CommandJobStartStreamData, opts *wshrpc.RpcOpts) error {
-	_, err := sendRpcRequestCallHelper[any](w, "jobstartstream", data, opts)
-	return err
-}
-
-// command "startjob", wshserver.StartJobCommand
-func StartJobCommand(w *wshutil.WshRpc, data wshrpc.CommandStartJobData, opts *wshrpc.RpcOpts) (*wshrpc.CommandStartJobRtnData, error) {
-	resp, err := sendRpcRequestCallHelper[*wshrpc.CommandStartJobRtnData](w, "startjob", data, opts)
-	return resp, err
-}
-
-// command "streamdata", wshserver.StreamDataCommand
-func StreamDataCommand(w *wshutil.WshRpc, data wshrpc.CommandStreamData, opts *wshrpc.RpcOpts) error {
-	_, err := sendRpcRequestCallHelper[any](w, "streamdata", data, opts)
-	return err
-}
-
-// command "streamdataack", wshserver.StreamDataAckCommand
-func StreamDataAckCommand(w *wshutil.WshRpc, data wshrpc.CommandStreamAckData, opts *wshrpc.RpcOpts) error {
-	_, err := sendRpcRequestCallHelper[any](w, "streamdataack", data, opts)
-	return err
-}
-
-// command "vdomrender", wshserver.VDomRenderCommand
-func VDomRenderCommand(w *wshutil.WshRpc, data vdom.VDomFrontendUpdate, opts *wshrpc.RpcOpts) chan wshrpc.RespOrErrorUnion[*vdom.VDomBackendUpdate] {
-	return sendRpcRequestResponseStreamHelper[*vdom.VDomBackendUpdate](w, "vdomrender", data, opts)
-}
-
-// command "vdomurlrequest", wshserver.VDomUrlRequestCommand
-func VDomUrlRequestCommand(w *wshutil.WshRpc, data wshrpc.VDomUrlRequestData, opts *wshrpc.RpcOpts) chan wshrpc.RespOrErrorUnion[wshrpc.VDomUrlRequestResponse] {
-	return sendRpcRequestResponseStreamHelper[wshrpc.VDomUrlRequestResponse](w, "vdomurlrequest", data, opts)
 }
 
 
