@@ -1,0 +1,44 @@
+{
+  "id": "child-10-ai-tools",
+  "name": "child-10-ai-tools",
+  "title": "Phase1D: AI tools (tools_team.go) + system prompt",
+  "description": "Create pkg/aiusechat/tools_team.go with 15 team_* AI tools (team_fork_worker, team_list_workers, team_list_members, team_create_member, team_update_member, team_delete_member, team_create_task, team_assign_task, team_update_task, team_get_status, team_execute_task, team_recycle_worker, team_send_prompt, team_get_task_output, team_list_activity). Follow callback pattern from tools_cowork.go. Also update usechat-prompts.go (CoworkMode→TeamMode prompt), usechat.go, and uctypes/uctypes.go.",
+  "status": "in_progress",
+  "dev_type": "backend",
+  "scope": null,
+  "package": "waveterm-docs",
+  "priority": "P2",
+  "creator": "re2zero",
+  "assignee": "re2zero",
+  "createdAt": "2026-04-30",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "team",
+  "worktree_path": null,
+  "current_phase": 3,
+  "next_action": [
+    {
+      "phase": 3,
+      "action": "implement"
+    }
+  ],
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": "refactor-cowork-to-team-ai-manages-ai-team-with-waveai-as-manager-member-templates-with-worker-instances-full-rename-cowork-team",
+  "relatedFiles": [
+    "pkg/aiusechat/tools_team.go",
+    "pkg/aiusechat/usechat-prompts.go",
+    "pkg/aiusechat/usechat.go",
+    "pkg/aiusechat/uctypes/uctypes.go"
+  ],
+  "depends_on": [
+    "child-1-team-db",
+    "child-2-team-fork",
+    "child-6-rpc-types"
+  ],
+  "meta": {
+    "complexity": "simple"
+  }
+}

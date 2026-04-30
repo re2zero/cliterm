@@ -600,6 +600,195 @@ func TestInjectMCP_UnsupportedTool(t *testing.T) {
 	}
 }
 
+func TestInjectPersona_DefaultTool(t *testing.T) {
+	err := injectPersona("test persona", &TeamMember{Tool: "aider"})
+	if err != nil {
+		t.Fatalf("unsupported tool should return nil, got: %v", err)
+	}
+}
+
+func TestInjectPersona_ClaudeTool(t *testing.T) {
+	tmpDir := t.TempDir()
+	origHome := getWaveHome
+	t.Cleanup(func() { getWaveHome = origHome })
+	getWaveHome = func() string { return tmpDir }
+
+	err := injectPersona("test persona for claude", &TeamMember{Tool: ToolClaude})
+	if err != nil {
+		t.Fatalf("injectPersona for claude failed: %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(tmpDir, ".claude", "CLAUDE.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), "test persona for claude") {
+		t.Error("persona not found in CLAUDE.md")
+	}
+}
+
+func TestInjectPersona_OpenCodeTool(t *testing.T) {
+	tmpDir := t.TempDir()
+	origDir, _ := os.Getwd()
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Chdir(origDir) })
+
+	err := injectPersona("test persona for opencode", &TeamMember{Tool: ToolOpenCode})
+	if err != nil {
+		t.Fatalf("injectPersona for opencode failed: %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(tmpDir, "AGENTS.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != "test persona for opencode" {
+		t.Errorf("AGENTS.md = %q, want %q", string(data), "test persona for opencode")
+	}
+}
+
+func TestGetTeamSkillsDir(t *testing.T) {
+	tmpDir := t.TempDir()
+	origHome := getWaveHome
+	t.Cleanup(func() { getWaveHome = origHome })
+	getWaveHome = func() string { return tmpDir }
+
+	dir := getTeamSkillsDir()
+	expected := filepath.Join(tmpDir, ".waveterm", teamSkillsSubDir)
+	if dir != expected {
+		t.Errorf("getTeamSkillsDir() = %q, want %q", dir, expected)
+	}
+}
+
+func TestGetCLISkillDir(t *testing.T) {
+	tmpDir := t.TempDir()
+	origHome := getWaveHome
+	t.Cleanup(func() { getWaveHome = origHome })
+	getWaveHome = func() string { return tmpDir }
+
+	tests := []struct {
+		tool string
+		want string
+	}{
+		{ToolClaude, filepath.Join(tmpDir, ".claude/skills")},
+		{ToolOpenCode, filepath.Join(tmpDir, ".config/opencode/skills")},
+		{ToolCursor, ""},
+		{ToolAider, ""},
+		{"unknown", ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.tool, func(t *testing.T) {
+			got := getCLISkillDir(tt.tool)
+			if got != tt.want {
+				t.Errorf("getCLISkillDir(%q) = %q, want %q", tt.tool, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestInjectWorkerConfig_Minimal(t *testing.T) {
+	tmpDir := t.TempDir()
+	origHome := getWaveHome
+	t.Cleanup(func() { getWaveHome = origHome })
+	getWaveHome = func() string { return tmpDir }
+
+	worker := &TeamWorker{
+		WorkerID: "test-worker-id",
+		MemberID: "test-member-id",
+		Name:     "test-worker-1",
+	}
+
+	member := &TeamMember{
+		MemberID: "test-member-id",
+		Name:     "test-member",
+		Tool:     ToolClaude,
+		Persona:  "You are a test assistant.",
+	}
+
+	err := InjectWorkerConfig(worker, member)
+	if err != nil {
+		t.Fatalf("InjectWorkerConfig failed: %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(tmpDir, ".claude", "CLAUDE.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), "test assistant") {
+		t.Error("persona not injected into CLAUDE.md")
+	}
+}
+
+func TestInjectWorkerConfig_WithSkills(t *testing.T) {
+	tmpDir := t.TempDir()
+	origHome := getWaveHome
+	t.Cleanup(func() { getWaveHome = origHome })
+	getWaveHome = func() string { return tmpDir }
+
+	skillDir := filepath.Join(tmpDir, ".waveterm", teamSkillsSubDir, "my-skill")
+	if err := os.MkdirAll(skillDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	worker := &TeamWorker{WorkerID: "w1", Name: "w1"}
+	member := &TeamMember{
+		Name:   "m1",
+		Tool:   ToolClaude,
+		Skills: []string{"my-skill"},
+	}
+
+	err := InjectWorkerConfig(worker, member)
+	if err != nil {
+		t.Fatalf("InjectWorkerConfig with skills failed: %v", err)
+	}
+
+	linkPath := filepath.Join(tmpDir, ".claude", "skills", "my-skill")
+	fi, err := os.Lstat(linkPath)
+	if err != nil {
+		t.Fatalf("skill symlink not created: %v", err)
+	}
+	if fi.Mode()&os.ModeSymlink == 0 {
+		t.Error("expected symlink for skill")
+	}
+}
+
+func TestInjectWorkerConfig_WithMCP(t *testing.T) {
+	tmpDir := t.TempDir()
+	origHome := getWaveHome
+	t.Cleanup(func() { getWaveHome = origHome })
+	getWaveHome = func() string { return tmpDir }
+
+	worker := &TeamWorker{WorkerID: "w1", Name: "w1"}
+	member := &TeamMember{
+		Name:       "m1",
+		Tool:       ToolClaude,
+		McpServers: []MCPConfig{{Name: "test-srv", Type: "stdio", Command: "echo"}},
+	}
+
+	err := InjectWorkerConfig(worker, member)
+	if err != nil {
+		t.Fatalf("InjectWorkerConfig with MCP failed: %v", err)
+	}
+
+	mcpFile := filepath.Join(tmpDir, ".claude", "mcp", "test-srv.json")
+	if _, err := os.Stat(mcpFile); err != nil {
+		t.Fatalf("MCP config file not created: %v", err)
+	}
+}
+
+func TestInjectWorkerConfig_NoPersonaNoSkillsNoMCP(t *testing.T) {
+	worker := &TeamWorker{WorkerID: "w1", Name: "w1"}
+	member := &TeamMember{Name: "m1", Tool: ToolAider}
+
+	err := InjectWorkerConfig(worker, member)
+	if err != nil {
+		t.Fatalf("InjectWorkerConfig with empty member should succeed: %v", err)
+	}
+}
+
 func countOccurrences(s, substr string) int {
 	count := 0
 	idx := 0

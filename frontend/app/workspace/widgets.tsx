@@ -316,11 +316,11 @@ const SettingsFloatingWindow = memo(
             },
             {
                 icon: "users",
-                label: "Cowork",
+                label: "Team",
                 onClick: () => {
                     const blockDef: BlockDef = {
                         meta: {
-                            view: "cowork",
+                            view: "team",
                         },
                     };
                     env.createBlock(blockDef, false, true);

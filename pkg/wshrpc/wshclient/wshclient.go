@@ -47,6 +47,12 @@ func AuthenticateJobManagerVerifyCommand(w *wshutil.WshRpc, data wshrpc.CommandA
 	return err
 }
 
+// command "authenticatetojobmanager", wshserver.AuthenticateToJobManagerCommand
+func AuthenticateToJobManagerCommand(w *wshutil.WshRpc, data wshrpc.CommandAuthenticateToJobData, opts *wshrpc.RpcOpts) error {
+	_, err := sendRpcRequestCallHelper[any](w, "authenticatetojobmanager", data, opts)
+	return err
+}
+
 // command "authenticatetoken", wshserver.AuthenticateTokenCommand
 func AuthenticateTokenCommand(w *wshutil.WshRpc, data wshrpc.CommandAuthenticateTokenData, opts *wshrpc.RpcOpts) (wshrpc.CommandAuthenticateRtnData, error) {
 	resp, err := sendRpcRequestCallHelper[wshrpc.CommandAuthenticateRtnData](w, "authenticatetoken", data, opts)
@@ -68,6 +74,12 @@ func BadgeWatchPidCommand(w *wshutil.WshRpc, data wshrpc.CommandBadgeWatchPidDat
 // command "blockinfo", wshserver.BlockInfoCommand
 func BlockInfoCommand(w *wshutil.WshRpc, data string, opts *wshrpc.RpcOpts) (*wshrpc.BlockInfoData, error) {
 	resp, err := sendRpcRequestCallHelper[*wshrpc.BlockInfoData](w, "blockinfo", data, opts)
+	return resp, err
+}
+
+// command "blockjobstatus", wshserver.BlockJobStatusCommand
+func BlockJobStatusCommand(w *wshutil.WshRpc, data string, opts *wshrpc.RpcOpts) (*wshrpc.BlockJobStatusData, error) {
+	resp, err := sendRpcRequestCallHelper[*wshrpc.BlockJobStatusData](w, "blockjobstatus", data, opts)
 	return resp, err
 }
 
@@ -496,6 +508,24 @@ func GetWaveAIRateLimitCommand(w *wshutil.WshRpc, opts *wshrpc.RpcOpts) (*uctype
 	return resp, err
 }
 
+// command "jobinput", wshserver.JobInputCommand
+func JobInputCommand(w *wshutil.WshRpc, data wshrpc.CommandJobInputData, opts *wshrpc.RpcOpts) error {
+	_, err := sendRpcRequestCallHelper[any](w, "jobinput", data, opts)
+	return err
+}
+
+// command "jobprepareconnect", wshserver.JobPrepareConnectCommand
+func JobPrepareConnectCommand(w *wshutil.WshRpc, data wshrpc.CommandJobPrepareConnectData, opts *wshrpc.RpcOpts) (*wshrpc.CommandJobConnectRtnData, error) {
+	resp, err := sendRpcRequestCallHelper[*wshrpc.CommandJobConnectRtnData](w, "jobprepareconnect", data, opts)
+	return resp, err
+}
+
+// command "jobstartstream", wshserver.JobStartStreamCommand
+func JobStartStreamCommand(w *wshutil.WshRpc, data wshrpc.CommandJobStartStreamData, opts *wshrpc.RpcOpts) error {
+	_, err := sendRpcRequestCallHelper[any](w, "jobstartstream", data, opts)
+	return err
+}
+
 // command "listallappfiles", wshserver.ListAllAppFilesCommand
 func ListAllAppFilesCommand(w *wshutil.WshRpc, data wshrpc.CommandListAllAppFilesData, opts *wshrpc.RpcOpts) (*wshrpc.CommandListAllAppFilesRtnData, error) {
 	resp, err := sendRpcRequestCallHelper[*wshrpc.CommandListAllAppFilesRtnData](w, "listallappfiles", data, opts)
@@ -782,6 +812,12 @@ func StartBuilderCommand(w *wshutil.WshRpc, data wshrpc.CommandStartBuilderData,
 	return err
 }
 
+// command "startjob", wshserver.StartJobCommand
+func StartJobCommand(w *wshutil.WshRpc, data wshrpc.CommandStartJobData, opts *wshrpc.RpcOpts) (*wshrpc.CommandStartJobRtnData, error) {
+	resp, err := sendRpcRequestCallHelper[*wshrpc.CommandStartJobRtnData](w, "startjob", data, opts)
+	return resp, err
+}
+
 // command "stopbuilder", wshserver.StopBuilderCommand
 func StopBuilderCommand(w *wshutil.WshRpc, data string, opts *wshrpc.RpcOpts) error {
 	_, err := sendRpcRequestCallHelper[any](w, "stopbuilder", data, opts)
@@ -993,6 +1029,11 @@ func VDomAsyncInitiationCommand(w *wshutil.WshRpc, data vdom.VDomAsyncInitiation
 func VDomCreateContextCommand(w *wshutil.WshRpc, data vdom.VDomCreateContext, opts *wshrpc.RpcOpts) (*waveobj.ORef, error) {
 	resp, err := sendRpcRequestCallHelper[*waveobj.ORef](w, "vdomcreatecontext", data, opts)
 	return resp, err
+}
+
+// command "vdomurlrequest", wshserver.VDomUrlRequestCommand
+func VDomUrlRequestCommand(w *wshutil.WshRpc, data wshrpc.VDomUrlRequestData, opts *wshrpc.RpcOpts) chan wshrpc.RespOrErrorUnion[wshrpc.VDomUrlRequestResponse] {
+	return sendRpcRequestResponseStreamHelper[wshrpc.VDomUrlRequestResponse](w, "vdomurlrequest", data, opts)
 }
 
 // command "waitforroute", wshserver.WaitForRouteCommand

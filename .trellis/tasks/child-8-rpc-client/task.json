@@ -1,0 +1,39 @@
+{
+  "id": "child-8-rpc-client",
+  "name": "child-8-rpc-client",
+  "title": "Phase1C: RPC client stubs in wshclient.go",
+  "description": "Remove Cowork client methods from pkg/wshrpc/wshclient/wshclient.go and add Team client methods following the existing pattern. Each method sends the RPC command and returns the response.",
+  "status": "in_progress",
+  "dev_type": "backend",
+  "scope": null,
+  "package": "waveterm-docs",
+  "priority": "P2",
+  "creator": "re2zero",
+  "assignee": "re2zero",
+  "createdAt": "2026-04-30",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "team",
+  "worktree_path": null,
+  "current_phase": 3,
+  "next_action": [
+    {
+      "phase": 3,
+      "action": "implement"
+    }
+  ],
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": "refactor-cowork-to-team-ai-manages-ai-team-with-waveai-as-manager-member-templates-with-worker-instances-full-rename-cowork-team",
+  "relatedFiles": [
+    "pkg/wshrpc/wshclient/wshclient.go"
+  ],
+  "depends_on": [
+    "child-6-rpc-types"
+  ],
+  "meta": {
+    "complexity": "simple"
+  }
+}

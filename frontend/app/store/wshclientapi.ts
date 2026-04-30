@@ -48,6 +48,12 @@ export class RpcApiType {
         return client.wshRpcCall("authenticatejobmanagerverify", data, opts);
     }
 
+    // command "authenticatetojobmanager" [call]
+    AuthenticateToJobManagerCommand(client: WshClient, data: CommandAuthenticateToJobData, opts?: RpcOpts): Promise<void> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "authenticatetojobmanager", data, opts);
+        return client.wshRpcCall("authenticatetojobmanager", data, opts);
+    }
+
     // command "authenticatetoken" [call]
     AuthenticateTokenCommand(client: WshClient, data: CommandAuthenticateTokenData, opts?: RpcOpts): Promise<CommandAuthenticateRtnData> {
         if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "authenticatetoken", data, opts);
@@ -70,6 +76,12 @@ export class RpcApiType {
     BlockInfoCommand(client: WshClient, data: string, opts?: RpcOpts): Promise<BlockInfoData> {
         if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "blockinfo", data, opts);
         return client.wshRpcCall("blockinfo", data, opts);
+    }
+
+    // command "blockjobstatus" [call]
+    BlockJobStatusCommand(client: WshClient, data: string, opts?: RpcOpts): Promise<BlockJobStatusData> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "blockjobstatus", data, opts);
+        return client.wshRpcCall("blockjobstatus", data, opts);
     }
 
     // command "blockslist" [call]
@@ -498,6 +510,24 @@ export class RpcApiType {
         return client.wshRpcCall("getwaveairatelimit", null, opts);
     }
 
+    // command "jobinput" [call]
+    JobInputCommand(client: WshClient, data: CommandJobInputData, opts?: RpcOpts): Promise<void> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "jobinput", data, opts);
+        return client.wshRpcCall("jobinput", data, opts);
+    }
+
+    // command "jobprepareconnect" [call]
+    JobPrepareConnectCommand(client: WshClient, data: CommandJobPrepareConnectData, opts?: RpcOpts): Promise<CommandJobConnectRtnData> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "jobprepareconnect", data, opts);
+        return client.wshRpcCall("jobprepareconnect", data, opts);
+    }
+
+    // command "jobstartstream" [call]
+    JobStartStreamCommand(client: WshClient, data: CommandJobStartStreamData, opts?: RpcOpts): Promise<void> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "jobstartstream", data, opts);
+        return client.wshRpcCall("jobstartstream", data, opts);
+    }
+
     // command "listallappfiles" [call]
     ListAllAppFilesCommand(client: WshClient, data: CommandListAllAppFilesData, opts?: RpcOpts): Promise<CommandListAllAppFilesRtnData> {
         if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "listallappfiles", data, opts);
@@ -786,6 +816,12 @@ export class RpcApiType {
         return client.wshRpcCall("startbuilder", data, opts);
     }
 
+    // command "startjob" [call]
+    StartJobCommand(client: WshClient, data: CommandStartJobData, opts?: RpcOpts): Promise<CommandStartJobRtnData> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "startjob", data, opts);
+        return client.wshRpcCall("startjob", data, opts);
+    }
+
     // command "stopbuilder" [call]
     StopBuilderCommand(client: WshClient, data: string, opts?: RpcOpts): Promise<void> {
         if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "stopbuilder", data, opts);
@@ -1000,6 +1036,12 @@ export class RpcApiType {
     VDomCreateContextCommand(client: WshClient, data: VDomCreateContext, opts?: RpcOpts): Promise<ORef> {
         if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "vdomcreatecontext", data, opts);
         return client.wshRpcCall("vdomcreatecontext", data, opts);
+    }
+
+    // command "vdomurlrequest" [responsestream]
+	VDomUrlRequestCommand(client: WshClient, data: VDomUrlRequestData, opts?: RpcOpts): AsyncGenerator<VDomUrlRequestResponse, void, boolean> {
+        if (this.mockClient) return this.mockClient.mockWshRpcStream(client, "vdomurlrequest", data, opts);
+        return client.wshRpcStream("vdomurlrequest", data, opts);
     }
 
     // command "waitforroute" [call]

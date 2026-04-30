@@ -56,7 +56,7 @@ export class WaveAIModel {
     isAIStreaming = jotai.atom(false);
 
     widgetAccessAtom!: jotai.Atom<boolean>;
-    coworkModeAtom!: jotai.Atom<boolean>;
+    teamModeAtom!: jotai.Atom<boolean>;
     droppedFiles: jotai.PrimitiveAtom<DroppedFile[]> = jotai.atom([]);
     chatId!: jotai.PrimitiveAtom<string>;
     currentAIMode!: jotai.PrimitiveAtom<string>;
@@ -97,12 +97,12 @@ export class WaveAIModel {
             return value ?? true;
         });
 
-        this.coworkModeAtom = jotai.atom((get) => {
+        this.teamModeAtom = jotai.atom((get) => {
             if (this.inBuilder) {
                 return false;
             }
-            const coworkModeMetaAtom = getOrefMetaKeyAtom(this.orefContext, "waveai:coworkmode");
-            const value = get(coworkModeMetaAtom);
+            const teamModeMetaAtom = getOrefMetaKeyAtom(this.orefContext, "waveai:teammode");
+            const value = get(teamModeMetaAtom);
             return value ?? false;
         });
 
@@ -403,16 +403,16 @@ export class WaveAIModel {
         });
     }
 
-    setCoworkMode(enabled: boolean) {
+    setTeamMode(enabled: boolean) {
         RpcApi.SetMetaCommand(TabRpcClient, {
             oref: this.orefContext,
-            meta: { "waveai:coworkmode": enabled },
+            meta: { "waveai:teammode": enabled },
         });
     }
 
-    openCoworkBlock() {
+    openTeamBlock() {
         const blockDef: BlockDef = {
-            meta: { view: "cowork" },
+            meta: { view: "team" },
         };
         createBlock(blockDef, false, true);
     }

@@ -1,0 +1,551 @@
+// Copyright 2026, Command Zone Inc.
+// SPDX-License-Identifier: Apache-2.0
+
+import * as React from "react";
+import { RpcApi } from "@/app/store/wshclientapi";
+import { TabRpcClient } from "@/app/store/wshrpcutil";
+import { Markdown } from "@/app/element/markdown";
+import { cn } from "@/util/util";
+
+export interface WorkerFormData {
+    name?: string;
+    description?: string;
+    persona?: string;
+    skills?: string[];
+    mcpservers?: TeamMCPConfig[];
+    capabilities?: string[];
+    customcmd?: string;
+    maxretries?: number;
+    maxconcurrency?: number;
+}
+
+const STATUS_ICON: Record<string, { dot: string; label: string }> = {
+    idle: { dot: "bg-green-500", label: "Idle" },
+    working: { dot: "bg-yellow-400 animate-pulse", label: "Working" },
+    offline: { dot: "bg-muted-foreground/40", label: "Offline" },
+    error: { dot: "bg-red-500", label: "Error" },
+};
+
+const CAPABILITIES = ["frontend", "backend", "debugging", "testing", "review", "refactor"];
+const RUNTIMES = ["claude", "opencode", "cursor", "aider"];
+const PRESET_SKILLS = ["code-review", "git-master", "frontend-design", "qt-cpp-bug-fixer", "webapp-testing", "docx", "pdf", "xlsx"];
+const PRESET_MCPS = ["filesystem", "github", "browser", "database", "fetch"];
+
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+    return (
+        <div>
+            <h4 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2 pb-1 border-b border-border/30">{title}</h4>
+            <div className="space-y-2.5">{children}</div>
+        </div>
+    );
+}
+
+function FieldRow({ label, children, className }: { label: string; children: React.ReactNode; className?: string }) {
+    return (
+        <div className={cn("flex flex-col gap-1", className)}>
+            <label className="text-[11px] text-muted-foreground">{label}</label>
+            {children}
+        </div>
+    );
+}
+
+interface WorkerListProps {
+    workers: TeamWorker[];
+    selectedWorkerId: string | null;
+    onSelectWorker: (workerId: string | null) => void;
+    onEditWorker: (workerId: string) => void;
+    onDeleteWorker: (workerId: string) => void;
+    onNewWorker: () => void;
+}
+
+export function WorkerList({ workers, selectedWorkerId, onSelectWorker, onEditWorker, onDeleteWorker, onNewWorker }: WorkerListProps) {
+    const [deleteTarget, setDeleteTarget] = React.useState<TeamWorker | null>(null);
+
+    const handleDelete = () => {
+        if (!deleteTarget) return;
+        onDeleteWorker(deleteTarget.workerid);
+        setDeleteTarget(null);
+    };
+
+    return (
+        <div className="w-[140px] min-w-[120px] border-r border-border/50 flex flex-col bg-card/50">
+            <div className="flex items-center justify-between px-2.5 py-2 border-b border-border/50">
+                <span className="text-[11px] font-semibold text-primary uppercase tracking-wider">Workers</span>
+                <span className="text-[10px] text-muted-foreground tabular-nums">{workers.length}</span>
+            </div>
+            <div className="flex-1 overflow-y-auto py-0.5">
+                {workers.map((w) => (
+                    <WorkerItem
+                        key={w.workerid}
+                        worker={w}
+                        isSelected={selectedWorkerId === w.workerid}
+                        onSelect={() => onSelectWorker(w.workerid)}
+                        onEdit={() => onEditWorker(w.workerid)}
+                        onDelete={() => setDeleteTarget(w)}
+                    />
+                ))}
+                {workers.length === 0 && (
+                    <div className="px-2 py-6 text-[10px] text-muted-foreground text-center leading-relaxed">
+                        No workers<br />Create one ↓
+                    </div>
+                )}
+            </div>
+            <div className="border-t border-border/50 p-1.5">
+                <button
+                    className="w-full px-2 py-1.5 rounded text-[11px] bg-accent/80 text-primary hover:bg-accent cursor-pointer font-medium transition-colors"
+                    onClick={onNewWorker}
+                >
+                    + New
+                </button>
+            </div>
+
+            {deleteTarget && (
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50"
+                    onClick={(e) => e.target === e.currentTarget && setDeleteTarget(null)}>
+                    <div className="bg-card border border-border/50 rounded-lg shadow-2xl p-4 w-72" style={{ colorScheme: "dark" }}>
+                        <h3 className="text-sm font-semibold text-primary mb-1.5">Delete Worker</h3>
+                        <p className="text-xs text-secondary mb-1">
+                            Delete <span className="text-primary font-medium">{deleteTarget.name}</span>?
+                        </p>
+                        <p className="text-[11px] text-red-400 mb-3">This action cannot be undone.</p>
+                        <div className="flex justify-end gap-2">
+                            <button className="px-2.5 py-1 rounded text-xs text-muted-foreground hover:text-primary cursor-pointer" onClick={() => setDeleteTarget(null)}>Cancel</button>
+                            <button className="px-2.5 py-1 rounded bg-red-500/80 text-white hover:bg-red-500 text-xs font-medium cursor-pointer" onClick={handleDelete}>Delete</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
+
+function WorkerItem({ worker, isSelected, onSelect, onEdit, onDelete }: {
+    worker: TeamWorker;
+    isSelected: boolean;
+    onSelect: () => void;
+    onEdit: () => void;
+    onDelete: () => void;
+}) {
+    const [menuOpen, setMenuOpen] = React.useState(false);
+    const menuRef = React.useRef<HTMLDivElement>(null);
+    const status = STATUS_ICON[worker.status] ?? STATUS_ICON["offline"];
+
+    React.useEffect(() => {
+        if (!menuOpen) return;
+        const handler = (e: MouseEvent) => {
+            if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
+        };
+        document.addEventListener("mousedown", handler);
+        return () => document.removeEventListener("mousedown", handler);
+    }, [menuOpen]);
+
+    return (
+        <div
+            className={cn(
+                "flex items-center gap-1.5 px-2 py-1.5 cursor-pointer transition-colors group",
+                isSelected ? "bg-accent/10" : "hover:bg-accent/5",
+            )}
+            onClick={onSelect}
+        >
+            <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", status.dot)} title={status.label} />
+            <div className="flex-1 min-w-0">
+                <div className="text-[11px] text-primary truncate leading-tight">{worker.name}</div>
+                <div className="text-[9px] text-muted-foreground">{worker.status}</div>
+            </div>
+            <div className="relative" ref={menuRef}>
+                <button
+                    className="p-0.5 rounded text-muted-foreground hover:text-primary cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity"
+                    onClick={(e) => { e.stopPropagation(); setMenuOpen(!menuOpen); }}
+                >⋮</button>
+                {menuOpen && (
+                    <div className="absolute right-0 top-full mt-0.5 bg-card border border-border/50 rounded shadow-lg z-20 py-0.5 min-w-[72px]">
+                        <button className="w-full text-left px-2 py-1 text-[11px] text-primary hover:bg-accent/10 cursor-pointer"
+                            onClick={(e) => { e.stopPropagation(); setMenuOpen(false); onEdit(); }}>Edit</button>
+                        <button className="w-full text-left px-2 py-1 text-[11px] text-red-400 hover:bg-red-500/10 cursor-pointer"
+                            onClick={(e) => { e.stopPropagation(); setMenuOpen(false); onDelete(); }}>Delete</button>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+}
+
+export interface WorkerDetailPanelProps {
+    worker: TeamWorker;
+    allTasks: TeamTask[];
+    onClose: () => void;
+    onEdit: () => void;
+    onTaskClick: (task: TeamTask) => void;
+}
+
+const TASK_STATUS_LABEL: Record<string, string> = {
+    pending: "Pending",
+    assigned: "Assigned",
+    working: "Working",
+    done: "Done",
+    failed: "Failed",
+    paused: "Paused",
+};
+
+const TASK_STATUS_COLOR: Record<string, string> = {
+    pending: "bg-muted-foreground/30",
+    assigned: "bg-blue-400",
+    working: "bg-yellow-400",
+    done: "bg-green-500",
+    failed: "bg-red-500",
+    paused: "bg-orange-400",
+};
+
+export function WorkerDetailPanel({ worker, allTasks, onClose, onEdit, onTaskClick }: WorkerDetailPanelProps) {
+    const status = STATUS_ICON[worker.status] ?? STATUS_ICON["offline"];
+    const workerTasks = allTasks.filter((t) => t.assignedworkerid === worker.workerid);
+
+    const activeTasks = workerTasks.filter((t) => t.status === "working" || t.status === "assigned");
+    const historyTasks = workerTasks.filter((t) => t.status === "done" || t.status === "failed");
+    const pendingTasks = workerTasks.filter((t) => t.status === "pending" || t.status === "paused");
+
+    return (
+        <div className="w-[320px] min-w-[280px] border-l border-border/50 flex flex-col bg-card overflow-hidden" style={{ colorScheme: "dark" }}>
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border/50">
+                <div className="flex items-center gap-2">
+                    <span className={cn("w-2 h-2 rounded-full", status.dot)} />
+                    <h3 className="text-sm font-semibold text-primary">{worker.name}</h3>
+                </div>
+                <div className="flex items-center gap-2">
+                    <button className="text-[11px] text-muted-foreground hover:text-primary cursor-pointer" onClick={onEdit}>Edit</button>
+                    <button className="text-muted-foreground hover:text-primary cursor-pointer text-sm" onClick={onClose}>✕</button>
+                </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto">
+                <div className="px-4 py-3 border-b border-border/30 space-y-2">
+                    <div className="flex items-center gap-3 text-xs">
+                        <span className={cn("px-1.5 py-0.5 rounded text-[10px] font-medium", worker.status === "idle" ? "bg-green-500/10 text-green-400" : worker.status === "working" ? "bg-yellow-500/10 text-yellow-400" : "bg-muted text-muted-foreground")}>
+                            {status.label}
+                        </span>
+                        <span className="text-muted-foreground">Worker</span>
+                    </div>
+                </div>
+
+                {activeTasks.length > 0 && (
+                    <div className="px-4 py-3 border-b border-border/30">
+                        <h4 className="text-[10px] text-muted-foreground uppercase tracking-wider mb-2">Active ({activeTasks.length})</h4>
+                        <div className="space-y-1">
+                            {activeTasks.map((t) => (
+                                <button key={t.taskid} className="w-full text-left px-2 py-1.5 rounded hover:bg-accent/10 cursor-pointer transition-colors" onClick={() => onTaskClick(t)}>
+                                    <div className="flex items-center gap-1.5">
+                                        <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", TASK_STATUS_COLOR[t.status] ?? "bg-muted-foreground/30")} />
+                                        <span className="text-xs text-primary truncate">{t.title}</span>
+                                    </div>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {pendingTasks.length > 0 && (
+                    <div className="px-4 py-3 border-b border-border/30">
+                        <h4 className="text-[10px] text-muted-foreground uppercase tracking-wider mb-2">Queued ({pendingTasks.length})</h4>
+                        <div className="space-y-1">
+                            {pendingTasks.map((t) => (
+                                <button key={t.taskid} className="w-full text-left px-2 py-1.5 rounded hover:bg-accent/10 cursor-pointer transition-colors" onClick={() => onTaskClick(t)}>
+                                    <div className="flex items-center gap-1.5">
+                                        <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", TASK_STATUS_COLOR[t.status] ?? "bg-muted-foreground/30")} />
+                                        <span className="text-xs text-primary truncate">{t.title}</span>
+                                    </div>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                <div className="px-4 py-3">
+                    <h4 className="text-[10px] text-muted-foreground uppercase tracking-wider mb-2">History ({historyTasks.length})</h4>
+                    {historyTasks.length === 0 ? (
+                        <p className="text-[11px] text-muted-foreground italic">No completed tasks yet</p>
+                    ) : (
+                        <div className="space-y-1">
+                            {historyTasks.map((t) => (
+                                <button key={t.taskid} className="w-full text-left px-2 py-1.5 rounded hover:bg-accent/10 cursor-pointer transition-colors" onClick={() => onTaskClick(t)}>
+                                    <div className="flex items-center gap-1.5">
+                                        <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", TASK_STATUS_COLOR[t.status] ?? "bg-muted-foreground/30")} />
+                                        <span className="text-xs text-primary truncate">{t.title}</span>
+                                    </div>
+                                </button>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+}
+
+interface WorkerEditorProps {
+    worker?: TeamWorker;
+    workers: TeamWorker[];
+    onClose: () => void;
+    onSubmit: (tool: string, config: WorkerFormData) => Promise<string | void>;
+}
+
+export function WorkerEditor({ worker, onClose, onSubmit }: WorkerEditorProps) {
+    const isCreating = !worker;
+    const [submitting, setSubmitting] = React.useState(false);
+    const [runtimes, setRuntimes] = React.useState<AIRuntime[]>([]);
+    const [nameDirty, setNameDirty] = React.useState(false);
+
+    const [tool, setTool] = React.useState("claude");
+    const [name, setName] = React.useState(worker?.name ?? "");
+    const [maxRetries, setMaxRetries] = React.useState(3);
+    const [capabilities, setCapabilities] = React.useState<string[]>([]);
+    const [description, setDescription] = React.useState("");
+    const [customCmd, setCustomCmd] = React.useState("");
+    const [persona, setPersona] = React.useState("");
+    const [skills, setSkills] = React.useState<string[]>([]);
+    const [mcpServers, setMcpServers] = React.useState<string[]>([]);
+
+    React.useEffect(() => {
+        RpcApi.TeamDetectRuntimesCommand(TabRpcClient)
+            .then((r) => setRuntimes(r.runtimes))
+            .catch(() => {});
+    }, []);
+
+    React.useEffect(() => {
+        if (isCreating && !nameDirty) {
+            setName(tool === "opencode" ? "OpenCode Worker" : `${tool.charAt(0).toUpperCase() + tool.slice(1)} Worker`);
+        }
+    }, [tool, isCreating, nameDirty]);
+
+    const handleNameChange = (value: string) => {
+        setNameDirty(true);
+        setName(value);
+    };
+
+    const handleSubmit = async () => {
+        if (submitting) return;
+        setSubmitting(true);
+        try {
+            await onSubmit(tool, {
+                name: name || undefined,
+                maxretries: maxRetries > 0 ? maxRetries : undefined,
+                capabilities: capabilities.length > 0 ? capabilities : undefined,
+                description: description || undefined,
+                persona: persona || undefined,
+                skills: skills.length > 0 ? skills : undefined,
+                mcpservers: mcpServers.length > 0 ? mcpServers.map((s) => ({ name: s } as TeamMCPConfig)) : undefined,
+                customcmd: customCmd || undefined,
+            });
+            onClose();
+        } catch (e) {
+            console.error("Failed to create worker:", e);
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    const inputCls = "w-full bg-base border border-border/50 rounded text-sm text-primary focus:outline-none focus:ring-1 focus:ring-accent px-2.5 py-1.5";
+
+    return (
+        <div className="flex flex-col h-full w-full bg-card" style={{ colorScheme: "dark" }}>
+            <div className="flex items-center justify-between px-5 py-3 border-b border-border/50 shrink-0">
+                <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-semibold text-primary">
+                        {isCreating ? "New Worker" : worker?.name ?? "Worker"}
+                    </h3>
+                    {!isCreating && worker && (
+                        <span className={cn(
+                            "px-1.5 py-0.5 rounded text-[10px]",
+                            worker.status === "idle" ? "bg-green-500/10 text-green-400" :
+                            worker.status === "working" ? "bg-yellow-500/10 text-yellow-400" :
+                            "bg-muted text-muted-foreground",
+                        )}>
+                            {STATUS_ICON[worker.status]?.label ?? worker.status}
+                        </span>
+                    )}
+                </div>
+                <button className="text-muted-foreground hover:text-primary cursor-pointer text-sm" onClick={onClose}>✕</button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
+                <Section title="Identity">
+                    <FieldRow label="Name">
+                        <input className={inputCls} value={name} onChange={(e) => handleNameChange(e.target.value)} disabled={!isCreating} />
+                    </FieldRow>
+                    <FieldRow label="Description">
+                        <textarea className={cn(inputCls, "resize-y")} rows={2} value={description} onChange={(e) => setDescription(e.target.value)}
+                            placeholder="Brief description for users..." />
+                    </FieldRow>
+                </Section>
+
+                {isCreating && (
+                    <Section title="Runtime">
+                        <div className="grid grid-cols-2 gap-2">
+                            {RUNTIMES.map((rt) => {
+                                const runtime = runtimes.find((r) => r.name === rt);
+                                const isOnline = runtime?.status === "online";
+                                return (
+                                    <button key={rt}
+                                        className={cn(
+                                            "flex items-center gap-2 px-3 py-2 rounded border cursor-pointer transition-colors",
+                                            tool === rt ? "border-accent bg-accent/10" : "border-border/50 hover:border-accent/50",
+                                            !isOnline && "opacity-50",
+                                        )}
+                                        onClick={() => setTool(rt)}
+                                    >
+                                        <span className={cn("w-2 h-2 rounded-full shrink-0", isOnline ? "bg-green-500" : "bg-muted-foreground/40")} />
+                                        <span className="text-xs text-primary font-medium">{rt === "opencode" ? "OpenCode" : rt.charAt(0).toUpperCase() + rt.slice(1)}</span>
+                                        {isOnline && runtime?.version && <span className="text-[10px] text-muted-foreground">{runtime.version}</span>}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                        <FieldRow label="Custom Command" className="mt-3">
+                            <input className={inputCls} placeholder="Override default launch command..." value={customCmd} onChange={(e) => setCustomCmd(e.target.value)} />
+                        </FieldRow>
+                    </Section>
+                )}
+
+                {!isCreating && worker && (
+                    <Section title="Runtime">
+                        <FieldRow label="Status">
+                            <span className="text-sm text-secondary">{worker.status}</span>
+                        </FieldRow>
+                    </Section>
+                )}
+
+                <Section title="Performance">
+                    <div className="flex gap-4">
+                        <FieldRow label="Retries">
+                            <input type="number" className="w-16 bg-base border border-border/50 rounded text-sm text-primary text-center px-1.5 py-1 focus:outline-none focus:ring-1 focus:ring-accent" value={maxRetries} onChange={(e) => setMaxRetries(Number(e.target.value))} />
+                        </FieldRow>
+                    </div>
+                </Section>
+
+                <Section title="Capabilities">
+                    <div className="flex flex-wrap gap-1.5">
+                        {CAPABILITIES.map((cap) => (
+                            <button key={cap}
+                                className={cn(
+                                    "px-2.5 py-1 text-[11px] rounded-full border cursor-pointer transition-colors",
+                                    capabilities.includes(cap) ? "bg-accent/20 border-accent text-accent" : "border-border/50 text-muted-foreground hover:border-accent/50",
+                                )}
+                                onClick={() => setCapabilities((prev) => prev.includes(cap) ? prev.filter((c) => c !== cap) : [...prev, cap])}
+                            >{cap}</button>
+                        ))}
+                    </div>
+                </Section>
+
+                <Section title="Agent Configuration">
+                    <SoulEditor value={persona} onChange={setPersona} />
+                    <div className="mt-3">
+                        <TagPicker label="Skills" options={PRESET_SKILLS} selected={skills} onChange={setSkills} />
+                    </div>
+                    <div className="mt-3">
+                        <TagPicker label="MCP Servers" options={PRESET_MCPS} selected={mcpServers} onChange={setMcpServers} />
+                    </div>
+                </Section>
+            </div>
+
+            <div className="flex justify-end gap-2 px-5 py-3 border-t border-border/50 shrink-0">
+                <button className="px-4 py-1.5 rounded text-sm text-muted-foreground hover:text-primary cursor-pointer" onClick={onClose}>
+                    Cancel
+                </button>
+                <button className="px-4 py-1.5 rounded bg-accent/80 text-primary hover:bg-accent text-sm font-medium cursor-pointer disabled:opacity-50"
+                    onClick={handleSubmit} disabled={submitting}>
+                    {submitting ? (isCreating ? "Creating..." : "Saving...") : (isCreating ? "Create" : "Save")}
+                </button>
+            </div>
+        </div>
+    );
+}
+
+function SoulEditor({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+    const [mode, setMode] = React.useState<"source" | "preview">("source");
+
+    return (
+        <div>
+            <div className="flex items-center justify-between mb-1">
+                <div className="flex items-center gap-1.5">
+                    <span className="text-[11px] text-muted-foreground">Soul (system prompt)</span>
+                    <span className="text-[9px] text-muted-foreground/60 bg-muted/30 px-1 rounded">SOUL.md</span>
+                </div>
+                <div className="flex rounded border border-border/50 overflow-hidden">
+                    <button
+                        className={cn("px-1.5 py-0.5 text-[10px] cursor-pointer", mode === "source" ? "bg-accent/20 text-accent" : "text-muted-foreground hover:text-primary")}
+                        onClick={() => setMode("source")}
+                    >Source</button>
+                    <button
+                        className={cn("px-1.5 py-0.5 text-[10px] cursor-pointer border-l border-border/50", mode === "preview" ? "bg-accent/20 text-accent" : "text-muted-foreground hover:text-primary")}
+                        onClick={() => setMode("preview")}
+                    >Preview</button>
+                </div>
+            </div>
+            {mode === "source" ? (
+                <textarea
+                    className="w-full bg-base border border-border/50 rounded text-sm text-primary focus:outline-none focus:ring-1 focus:ring-accent px-2.5 py-1.5 font-mono resize-y"
+                    rows={8} value={value} onChange={(e) => onChange(e.target.value)}
+                    placeholder="# System Prompt\n\nYou are a senior engineer..."
+                />
+            ) : (
+                <div className="border border-border/50 rounded p-3 max-h-[260px] overflow-auto bg-base">
+                    {value ? (
+                        <Markdown text={value} className="text-xs" scrollable={false} />
+                    ) : (
+                        <span className="text-xs text-muted-foreground italic">No content to preview</span>
+                    )}
+                </div>
+            )}
+        </div>
+    );
+}
+
+function TagPicker({ label, options, selected, onChange }: {
+    label: string;
+    options: string[];
+    selected: string[];
+    onChange: (v: string[]) => void;
+}) {
+    const [custom, setCustom] = React.useState("");
+
+    const toggle = (item: string) => {
+        onChange(selected.includes(item) ? selected.filter((s) => s !== item) : [...selected, item]);
+    };
+
+    const addCustom = () => {
+        const trimmed = custom.trim();
+        if (trimmed && !selected.includes(trimmed)) {
+            onChange([...selected, trimmed]);
+        }
+        setCustom("");
+    };
+
+    return (
+        <div>
+            <label className="text-[11px] text-muted-foreground mb-1 block">{label}</label>
+            <div className="flex flex-wrap gap-1">
+                {options.map((opt) => (
+                    <button key={opt}
+                        className={cn(
+                            "px-2 py-0.5 text-[11px] rounded-full border cursor-pointer transition-colors",
+                            selected.includes(opt) ? "bg-accent/20 border-accent text-accent" : "border-border/50 text-muted-foreground hover:border-accent/50",
+                        )}
+                        onClick={() => toggle(opt)}
+                    >{opt}</button>
+                ))}
+                {selected.filter((s) => !options.includes(s)).map((s) => (
+                    <span key={s} className="inline-flex items-center gap-0.5 px-2 py-0.5 text-[11px] rounded-full border border-accent/30 bg-accent/10 text-accent">
+                        {s}
+                        <button className="cursor-pointer hover:text-red-400" onClick={() => toggle(s)}>×</button>
+                    </span>
+                ))}
+            </div>
+            <div className="flex gap-1 mt-1">
+                <input className="flex-1 bg-base border border-border/50 rounded text-[11px] text-primary focus:outline-none focus:ring-1 focus:ring-accent px-2 py-1"
+                    placeholder="Add custom..." value={custom} onChange={(e) => setCustom(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addCustom())} />
+                <button className="px-2 py-1 text-[11px] rounded border border-border/50 text-muted-foreground hover:text-primary hover:border-accent/50 cursor-pointer"
+                    onClick={addCustom}>+</button>
+            </div>
+        </div>
+    );
+}

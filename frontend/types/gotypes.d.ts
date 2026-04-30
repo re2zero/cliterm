@@ -249,6 +249,11 @@ declare global {
         rpccontext?: RpcContext;
     };
 
+    // wshrpc.CommandAuthenticateToJobData
+    type CommandAuthenticateToJobData = {
+        jobaccesstoken: string;
+    };
+
     // wshrpc.CommandAuthenticateTokenData
     type CommandAuthenticateTokenData = {
         token: string;
@@ -421,6 +426,37 @@ declare global {
     type CommandGetWaveAIChatData = {
         chatid: string;
     };
+
+    // wshrpc.CommandJobConnectRtnData
+    type CommandJobConnectRtnData = {
+        seq: number;
+        streamdone?: boolean;
+        streamerror?: string;
+        hasexited?: boolean;
+        exitcode?: number;
+        exitsignal?: string;
+        exiterr?: string;
+    };
+
+    // wshrpc.CommandJobInputData
+    type CommandJobInputData = {
+        jobid: string;
+        inputsessionid?: string;
+        seqnum?: number;
+        inputdata64?: string;
+        signame?: string;
+        termsize?: TermSize;
+    };
+
+    // wshrpc.CommandJobPrepareConnectData
+    type CommandJobPrepareConnectData = {
+        streammeta: StreamMeta;
+        seq: number;
+        termsize: TermSize;
+    };
+
+    // wshrpc.CommandJobStartStreamData
+    type CommandJobStartStreamData = object;
 
     // wshrpc.CommandListAllAppFilesData
     type CommandListAllAppFilesData = {
@@ -599,6 +635,15 @@ declare global {
     // wshrpc.CommandStartBuilderData
     type CommandStartBuilderData = {
         builderid: string;
+    };
+
+    // wshrpc.CommandStartJobData
+    type CommandStartJobData = {
+        cmd: string;
+        args: string[];
+        env: {[key: string]: string};
+        termsize: TermSize;
+        streammeta?: StreamMeta;
     };
 
     // wshrpc.CommandStartJobRtnData
@@ -1162,7 +1207,7 @@ declare global {
         "waveai:chatid"?: string;
         "waveai:mode"?: string;
         "waveai:maxoutputtokens"?: number;
-        "waveai:coworkmode"?: boolean;
+        "waveai:teammode"?: boolean;
     };
 
     // wshrpc.PathCommandData
@@ -2093,6 +2138,21 @@ declare global {
         props?: {[key: string]: any};
         children?: string[];
         text?: string;
+    };
+
+    // wshrpc.VDomUrlRequestData
+    type VDomUrlRequestData = {
+        method: string;
+        url: string;
+        headers: {[key: string]: string};
+        body?: string;
+    };
+
+    // wshrpc.VDomUrlRequestResponse
+    type VDomUrlRequestResponse = {
+        statuscode?: number;
+        headers?: {[key: string]: string};
+        body?: string;
     };
 
     type WSCommandType = {

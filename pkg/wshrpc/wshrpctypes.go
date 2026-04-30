@@ -127,6 +127,13 @@ type WshRpcInterface interface {
 	RemoteReconnectToJobManagerCommand(ctx context.Context, data CommandRemoteReconnectToJobManagerData) (*CommandRemoteReconnectToJobManagerRtnData, error)
 	RemoteDisconnectFromJobManagerCommand(ctx context.Context, data CommandRemoteDisconnectFromJobManagerData) error
 	RemoteTerminateJobManagerCommand(ctx context.Context, data CommandRemoteTerminateJobManagerData) error
+	AuthenticateToJobManagerCommand(ctx context.Context, data CommandAuthenticateToJobData) error
+	StartJobCommand(ctx context.Context, data CommandStartJobData) (*CommandStartJobRtnData, error)
+	VDomUrlRequestCommand(ctx context.Context, data VDomUrlRequestData) chan RespOrErrorUnion[VDomUrlRequestResponse]
+	JobPrepareConnectCommand(ctx context.Context, data CommandJobPrepareConnectData) (*CommandJobConnectRtnData, error)
+	JobStartStreamCommand(ctx context.Context, data CommandJobStartStreamData) error
+	JobInputCommand(ctx context.Context, data CommandJobInputData) error
+	BlockJobStatusCommand(ctx context.Context, blockId string) (*BlockJobStatusData, error)
 	BadgeWatchPidCommand(ctx context.Context, data CommandBadgeWatchPidData) error
 	RemoteProcessListCommand(ctx context.Context, data CommandRemoteProcessListData) (*ProcessListResponse, error)
 	RemoteProcessSignalCommand(ctx context.Context, data CommandRemoteProcessSignalData) error

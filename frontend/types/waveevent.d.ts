@@ -26,8 +26,6 @@ declare global {
         | "waveai:modeconfig"
         | "block:jobstatus"
         | "badge"
-        | "cowork:taskupdate"
-        | "cowork:workerupdate"
         | "team:taskupdate"
         | "team:workerupdate"
         | "team:memberupdate"
@@ -59,8 +57,6 @@ declare global {
         { event: "waveai:modeconfig"; data?: AIModeConfigUpdate; } | 
         { event: "block:jobstatus"; data?: BlockJobStatusData; } | 
         { event: "badge"; data?: BadgeEvent; } | 
-        { event: "cowork:taskupdate"; data?: null; } | 
-        { event: "cowork:workerupdate"; data?: null; } | 
         { event: "team:taskupdate"; data?: null; } | 
         { event: "team:workerupdate"; data?: null; } | 
         { event: "team:memberupdate"; data?: null; }

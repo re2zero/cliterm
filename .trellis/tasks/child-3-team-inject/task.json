@@ -1,0 +1,37 @@
+{
+  "id": "child-3-team-inject",
+  "name": "child-3-team-inject",
+  "title": "Phase1B: pkg/team/team_inject.go — CLI config injection",
+  "description": "Implement CLI configuration injection for Workers. Includes: InjectWorkerConfig (dispatch to tool-specific injection), loadPersona (read personaPath or inline), linkSkills/unlinkSkills (symlink management), injectMCP (MCP config files per CLI tool).",
+  "status": "in_progress",
+  "dev_type": "backend",
+  "scope": null,
+  "package": "waveterm-docs",
+  "priority": "P2",
+  "creator": "re2zero",
+  "assignee": "re2zero",
+  "createdAt": "2026-04-30",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "team",
+  "worktree_path": null,
+  "current_phase": 3,
+  "next_action": [
+    {
+      "phase": 3,
+      "action": "implement"
+    }
+  ],
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": "refactor-cowork-to-team-ai-manages-ai-team-with-waveai-as-manager-member-templates-with-worker-instances-full-rename-cowork-team",
+  "relatedFiles": [
+    "pkg/team/team_inject.go"
+  ],
+  "depends_on": [],
+  "meta": {
+    "complexity": "simple"
+  }
+}

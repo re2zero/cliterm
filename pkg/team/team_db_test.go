@@ -998,3 +998,15 @@ func TestGetStatusEmpty(t *testing.T) {
     t.Errorf("expected 0 pending tasks, got %d", status.PendingTasks)
   }
 }
+
+func TestPublishTaskUpdate(t *testing.T) {
+	PublishTaskUpdate()
+}
+
+func TestPublishWorkerUpdate(t *testing.T) {
+	PublishWorkerUpdate()
+}
+
+func TestPublishMemberUpdate(t *testing.T) {
+	PublishMemberUpdate()
+}

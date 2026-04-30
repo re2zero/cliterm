@@ -27,7 +27,7 @@ import { AIPanelMessages } from "./aipanelmessages";
 import { AIRateLimitStrip } from "./airatelimitstrip";
 import { WaveUIMessage } from "./aitypes";
 import { BYOKAnnouncement } from "./byokannouncement";
-import { CoworkWorkersPanel } from "./cowork-workers-panel";
+import { TeamWorkersPanel } from "./team-workers-panel";
 import { TelemetryRequiredMessage } from "./telemetryrequired";
 import { WaveAIModel } from "./waveai-model";
 
@@ -283,7 +283,7 @@ const AIPanelComponentInner = memo(({ roundTopLeft }: AIPanelComponentInnerProps
                     msg,
                     chatid: globalStore.get(model.chatId),
                     widgetaccess: globalStore.get(model.widgetAccessAtom),
-                    coworkmode: globalStore.get(model.coworkModeAtom),
+                    teammode: globalStore.get(model.teamModeAtom),
                     aimode: globalStore.get(model.currentAIMode),
                 };
                 if (isBuilderWindow()) {
@@ -612,7 +612,7 @@ const AIPanelComponentInner = memo(({ roundTopLeft }: AIPanelComponentInnerProps
                         <AIErrorMessage />
                         <AIDroppedFiles model={model} />
                         <AIPanelInput onSubmit={handleSubmit} status={status} model={model} />
-                        <CoworkWorkersPanel />
+                        <TeamWorkersPanel />
                     </>
                 )}
             </div>

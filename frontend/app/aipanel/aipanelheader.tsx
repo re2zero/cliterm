@@ -9,7 +9,7 @@ import { WaveAIModel } from "./waveai-model";
 export const AIPanelHeader = memo(() => {
     const model = WaveAIModel.getInstance();
     const widgetAccess = useAtomValue(model.widgetAccessAtom);
-    const coworkMode = useAtomValue(model.coworkModeAtom);
+    const teamMode = useAtomValue(model.teamModeAtom);
     const inBuilder = model.inBuilder;
 
     const handleKebabClick = (e: React.MouseEvent) => {
@@ -63,36 +63,36 @@ export const AIPanelHeader = memo(() => {
 
                         <button
                             onClick={() => {
-                                model.setCoworkMode(!coworkMode);
+                                model.setTeamMode(!teamMode);
                                 setTimeout(() => {
                                     model.focusInput();
                                 }, 0);
                             }}
                             className={`ml-2 relative inline-flex h-6 w-14 items-center rounded-full transition-colors cursor-pointer ${
-                                coworkMode ? "bg-purple-600" : "bg-zinc-600"
+                                teamMode ? "bg-purple-600" : "bg-zinc-600"
                             }`}
-                            title={`Cowork Mode ${coworkMode ? "ON" : "OFF"}`}
+                            title={`Team Mode ${teamMode ? "ON" : "OFF"}`}
                         >
                             <span
                                 className={`absolute inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                                    coworkMode ? "translate-x-8" : "translate-x-1"
+                                    teamMode ? "translate-x-8" : "translate-x-1"
                                 }`}
                             />
                             <span
                                 className={`relative z-10 text-xs text-white transition-all ${
-                                    coworkMode ? "ml-2.5 mr-6 text-left" : "ml-6 mr-1.5 text-right"
+                                    teamMode ? "ml-2.5 mr-6 text-left" : "ml-6 mr-1.5 text-right"
                                 }`}
                             >
-                                {coworkMode ? "ON" : "OFF"}
+                                {teamMode ? "ON" : "OFF"}
                             </span>
                         </button>
 
                         <button
                             onClick={() => {
-                                model.openCoworkBlock();
+                                model.openTeamBlock();
                             }}
                             className="ml-2 px-2 py-1 bg-accent/80 hover:bg-accent text-white text-xs rounded transition-colors cursor-pointer"
-                            title="Open Cowork Dashboard"
+                            title="Open Team Dashboard"
                         >
                             👥
                         </button>

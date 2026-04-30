@@ -34,8 +34,10 @@ export const AIPanelInput = memo(({ onSubmit, status, model }: AIPanelInputProps
     const [mentionQuery, setMentionQuery] = useState("");
     const [mentionStartPos, setMentionStartPos] = useState(-1);
     const [mentionSelectedIdx, setMentionSelectedIdx] = useState(0);
-    const [workersCache, setWorkersCache] = useState<CoworkWorker[] | null>(null);
+    const [workersCache, setWorkersCache] = useState<TeamWorker[] | null>(null);
+    const [membersCache, setMembersCache] = useState<TeamMember[] | null>(null);
     const workersFetchRef = useRef(false);
+    const membersFetchRef = useRef(false);
 
     let placeholder: string;
     if (!isChatEmpty) {
@@ -50,10 +52,15 @@ export const AIPanelInput = memo(({ onSubmit, status, model }: AIPanelInputProps
         if (workersFetchRef.current) return;
         workersFetchRef.current = true;
         try {
-            const workers = await RpcApi.CoworkListWorkersCommand(TabRpcClient);
+            const [workers, members] = await Promise.all([
+                RpcApi.TeamListWorkersCommand(TabRpcClient, ""),
+                RpcApi.TeamListMembersCommand(TabRpcClient, {}),
+            ]);
             setWorkersCache(workers);
+            setMembersCache(members);
         } catch {
             setWorkersCache([]);
+            setMembersCache([]);
         }
     }, []);
 
@@ -63,8 +70,20 @@ export const AIPanelInput = memo(({ onSubmit, status, model }: AIPanelInputProps
         return workersCache.filter((w) => w.name.toLowerCase().includes(q));
     })();
 
+    const filteredMembers = (() => {
+        if (!membersCache) return [];
+        const q = mentionQuery.toLowerCase();
+        return membersCache.filter((m) => m.name.toLowerCase().includes(q));
+    })();
+
     const mentionItems = [
-        { type: "all" as const, name: "All Workers", icon: "fa-users", status: "" },
+        { type: "all" as const, name: "All Members", icon: "fa-users", status: "" },
+        ...filteredMembers.map((m) => ({
+            type: "member" as const,
+            name: m.name,
+            icon: "fa-user-gear",
+            status: "",
+        })),
         ...filteredWorkers.map((w) => ({
             type: "worker" as const,
             name: w.name,
