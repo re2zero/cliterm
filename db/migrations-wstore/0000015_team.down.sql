@@ -1,0 +1,14 @@
+DROP INDEX IF EXISTS idx_team_activity_created;
+DROP INDEX IF EXISTS idx_team_activity_member;
+DROP INDEX IF EXISTS idx_team_activity_worker;
+DROP INDEX IF EXISTS idx_team_activity_task;
+DROP INDEX IF EXISTS idx_team_workers_member;
+DROP INDEX IF EXISTS idx_team_workers_status;
+DROP INDEX IF EXISTS idx_team_tasks_member;
+DROP INDEX IF EXISTS idx_team_tasks_status_priority;
+DROP INDEX IF EXISTS idx_team_tasks_priority;
+DROP INDEX IF EXISTS idx_team_tasks_status;
+DROP TABLE IF EXISTS team_activity;
+DROP TABLE IF EXISTS team_tasks;
+DROP TABLE IF EXISTS team_workers;
+DROP TABLE IF EXISTS team_members;

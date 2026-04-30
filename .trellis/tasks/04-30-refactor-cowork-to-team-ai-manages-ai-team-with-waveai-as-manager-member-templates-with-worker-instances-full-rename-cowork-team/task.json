@@ -3,7 +3,7 @@
   "name": "refactor-cowork-to-team-ai-manages-ai-team-with-waveai-as-manager-member-templates-with-worker-instances-full-rename-cowork-team",
   "title": "Refactor cowork to team - AI manages AI team with WaveAI as manager, Member templates with Worker instances, full rename cowork→team",
   "description": "",
-  "status": "planning",
+  "status": "in-progress",
   "dev_type": "backend",
   "scope": null,
   "package": "waveterm-docs",
@@ -15,16 +15,8 @@
   "branch": null,
   "base_branch": "team",
   "worktree_path": null,
-  "current_phase": 0,
+  "current_phase": 3,
   "next_action": [
-    {
-      "phase": 1,
-      "action": "brainstorm"
-    },
-    {
-      "phase": 2,
-      "action": "research"
-    },
     {
       "phase": 3,
       "action": "implement"
@@ -45,11 +37,115 @@
   "commit": null,
   "pr_url": null,
   "subtasks": [],
-  "children": [],
+  "children": [
+    {
+      "id": "child-1-team-db",
+      "name": "Phase1B: pkg/team/team_db.go — DB CRUD layer",
+      "status": "pending",
+      "dev_type": "backend",
+      "depends_on": [],
+      "description": "Implement the database CRUD layer for the team feature at pkg/team/team_db.go. This provides Create/Get/Update/Delete/List operations for Members, Workers, Tasks, and Activity. Also includes GetStatus aggregate query and WPS event publishing.",
+      "files": ["pkg/team/team_db.go"]
+    },
+    {
+      "id": "child-2-team-fork",
+      "name": "Phase1B: pkg/team/team_fork.go — Worker fork/recycle logic",
+      "status": "pending",
+      "dev_type": "backend",
+      "depends_on": ["child-1-team-db"],
+      "description": "Implement Worker fork and recycle logic. ForkWorker checks MaxConcurrency, generates runtime names (MemberName-N), creates DB entries. RecycleWorker updates status and records Activity. GetNextWorkerNumber provides atomic counter.",
+      "files": ["pkg/team/team_fork.go"]
+    },
+    {
+      "id": "child-3-team-inject",
+      "name": "Phase1B: pkg/team/team_inject.go — CLI config injection",
+      "status": "pending",
+      "dev_type": "backend",
+      "depends_on": [],
+      "description": "Implement CLI configuration injection for Workers. Includes: InjectWorkerConfig (dispatch to tool-specific injection), loadPersona (read personaPath or inline), linkSkills/unlinkSkills (symlink management), injectMCP (MCP config files per CLI tool).",
+      "files": ["pkg/team/team_inject.go"]
+    },
+    {
+      "id": "child-4-team-heartbeat",
+      "name": "Phase1B: pkg/team/team_heartbeat.go — Worker health check",
+      "status": "pending",
+      "dev_type": "backend",
+      "depends_on": ["child-1-team-db"],
+      "description": "Implement Worker heartbeat monitoring. CheckWorkerHealth queries active workers, checks PID via os.FindProcess, marks offline if dead. StartHeartbeatLoop runs periodic checks via goroutine with ticker.",
+      "files": ["pkg/team/team_heartbeat.go"]
+    },
+    {
+      "id": "child-5-team-config",
+      "name": "Phase1B: pkg/team/team_config.go — Config file system",
+      "status": "pending",
+      "dev_type": "backend",
+      "depends_on": [],
+      "description": "Implement config file loading system. LoadGlobalTemplates reads ~/.waveterm/team-templates/*.yaml. LoadProjectConfig reads .wave/team.yaml. ParseMemberYAML unmarshals YAML to TeamMember. GetEffectiveConfig merges project + global. Include 4 built-in default templates.",
+      "files": ["pkg/team/team_config.go"]
+    },
+    {
+      "id": "child-6-rpc-types",
+      "name": "Phase1C: RPC type definitions in wshrpctypes.go",
+      "status": "pending",
+      "dev_type": "backend",
+      "depends_on": [],
+      "description": "Remove all Cowork* types from pkg/wshrpc/wshrpctypes.go and add Team* types. This includes all Team command/request/response types, TeamMember/TeamWorker/TeamTask TeamXxxCommand structs, and TeamXxxCommandReturn structs. Also update WshRPCServer interface to remove Cowork methods and add Team methods.",
+      "files": ["pkg/wshrpc/wshrpctypes.go"]
+    },
+    {
+      "id": "child-7-rpc-server",
+      "name": "Phase1C: RPC server handlers in wshserver.go",
+      "status": "pending",
+      "dev_type": "backend",
+      "depends_on": ["child-1-team-db", "child-6-rpc-types"],
+      "description": "Remove Cowork handler registrations from pkg/wshrpc/wshserver/wshserver.go and add Team handler implementations. Each handler delegates to the corresponding pkg/team/ function. Register all Team handlers in init().",
+      "files": ["pkg/wshrpc/wshserver/wshserver.go"]
+    },
+    {
+      "id": "child-8-rpc-client",
+      "name": "Phase1C: RPC client stubs in wshclient.go",
+      "status": "pending",
+      "dev_type": "backend",
+      "depends_on": ["child-6-rpc-types"],
+      "description": "Remove Cowork client methods from pkg/wshrpc/wshclient/wshclient.go and add Team client methods following the existing pattern. Each method sends the RPC command and returns the response.",
+      "files": ["pkg/wshrpc/wshclient/wshclient.go"]
+    },
+    {
+      "id": "child-9-wps-events",
+      "name": "Phase1D: WPS events + tsgen updates",
+      "status": "pending",
+      "dev_type": "backend",
+      "depends_on": [],
+      "description": "Update pkg/wps/wpstypes.go: rename Event_CoworkTaskUpdate→Event_TeamTaskUpdate, Event_CoworkWorkerUpdate→Event_TeamWorkerUpdate, add Event_TeamMemberUpdate. Update pkg/tsgen/tsgenevent.go with same renames. Update pkg/waveobj/objrtinfo.go: WaveAICoworkMode→WaveAITeamMode.",
+      "files": ["pkg/wps/wpstypes.go", "pkg/tsgen/tsgenevent.go", "pkg/waveobj/objrtinfo.go"]
+    },
+    {
+      "id": "child-10-ai-tools",
+      "name": "Phase1D: AI tools (tools_team.go) + system prompt",
+      "status": "pending",
+      "dev_type": "backend",
+      "depends_on": ["child-1-team-db", "child-2-team-fork", "child-6-rpc-types"],
+      "description": "Create pkg/aiusechat/tools_team.go with 15 team_* AI tools (team_fork_worker, team_list_workers, team_list_members, team_create_member, team_update_member, team_delete_member, team_create_task, team_assign_task, team_update_task, team_get_status, team_execute_task, team_recycle_worker, team_send_prompt, team_get_task_output, team_list_activity). Follow callback pattern from tools_cowork.go. Also update usechat-prompts.go (CoworkMode→TeamMode prompt), usechat.go, and uctypes/uctypes.go.",
+      "files": ["pkg/aiusechat/tools_team.go", "pkg/aiusechat/usechat-prompts.go", "pkg/aiusechat/usechat.go", "pkg/aiusechat/uctypes/uctypes.go"]
+    },
+    {
+      "id": "child-11-tests",
+      "name": "Phase1E: Unit tests for pkg/team/",
+      "status": "pending",
+      "dev_type": "backend",
+      "depends_on": ["child-1-team-db", "child-2-team-fork", "child-5-team-config"],
+      "description": "Create pkg/team/team_test.go with comprehensive unit tests. Cover: Member CRUD, Worker CRUD, Task CRUD, Activity logging, state machine validation, fork/recycle logic, config parsing. Target coverage >= 85%. Use raw testing package (no testify/gomock).",
+      "files": ["pkg/team/team_test.go"]
+    }
+  ],
   "parent": null,
   "relatedFiles": [],
-  "notes": "",
+  "notes": "Phase 1A completed (migration + team_types.go). 11 children decomposed for cowork dispatch.",
   "meta": {
-    "complexity": "complex"
+    "complexity": "complex",
+    "cowork": {
+      "max_workers": 4,
+      "babysit_timeout": 600
+    }
   }
 }
