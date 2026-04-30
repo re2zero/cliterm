@@ -8,35 +8,8 @@ import (
   "testing"
   "time"
 
-  "github.com/jmoiron/sqlx"
   _ "github.com/mattn/go-sqlite3"
-  dbfs "github.com/wavetermdev/waveterm/db"
-  "github.com/wavetermdev/waveterm/pkg/util/migrateutil"
-  "github.com/wavetermdev/waveterm/pkg/wstore"
 )
-
-func initTestDB(t *testing.T) *sqlx.DB {
-  t.Helper()
-  db, err := sqlx.Open("sqlite3", ":memory:")
-  if err != nil {
-    t.Fatalf("failed to open in-memory db: %v", err)
-  }
-  // Enable foreign keys for cascade delete tests
-  db.Exec("PRAGMA foreign_keys = ON")
-  err = migrateutil.Migrate("wstore", db.DB, dbfs.WStoreMigrationFS, "migrations-wstore")
-  if err != nil {
-    db.Close()
-    t.Fatalf("failed to apply migrations: %v", err)
-  }
-  wstore.SetGlobalDBForTest(db)
-  return db
-}
-
-func cleanupTestDB(t *testing.T, db *sqlx.DB) {
-  t.Helper()
-  wstore.SetGlobalDBForTest(nil)
-  db.Close()
-}
 
 // --- Member Tests ---
 
@@ -411,7 +384,7 @@ func TestUpdateWorker(t *testing.T) {
   }
 }
 
-func TestUpdateWorkerHeartbeat(t *testing.T) {
+func TestUpdateWorkerHeartbeat_ViaCreateWorker(t *testing.T) {
   db := initTestDB(t)
   defer cleanupTestDB(t, db)
   ctx := context.Background()

@@ -17,16 +17,16 @@ import (
 
 // memberInfo holds the minimal member data needed by fork/recycle operations.
 type memberInfo struct {
-	Name           string
-	MaxConcurrency int
+	Name           string `db:"name"`
+	MaxConcurrency int    `db:"max_concurrency"`
 }
 
 // workerInfo holds the minimal worker data needed by recycle operations.
 type workerInfo struct {
-	WorkerID string
-	MemberID string
-	Name     string
-	Status   string
+	WorkerID string `db:"worker_id"`
+	MemberID string `db:"member_id"`
+	Name     string `db:"name"`
+	Status   string `db:"status"`
 }
 
 // ForkWorker creates a new Worker instance for a Member.
