@@ -46,7 +46,7 @@ var (
 	activeChats = ds.MakeSyncMap[bool]() // key is chatid
 )
 
-func getSystemPrompt(apiType string, model string, isBuilder bool, hasToolsCapability bool, widgetAccess bool, coworkMode bool) []string {
+func getSystemPrompt(apiType string, model string, isBuilder bool, hasToolsCapability bool, widgetAccess bool, teamMode bool) []string {
 	if isBuilder {
 		return []string{}
 	}
@@ -62,8 +62,8 @@ func getSystemPrompt(apiType string, model string, isBuilder bool, hasToolsCapab
 	if needsStrictToolAddOn && !useNoToolsPrompt {
 		prompts = append(prompts, SystemPromptText_StrictToolAddOn)
 	}
-	if coworkMode {
-		prompts = append(prompts, SystemPromptText_CoworkMode)
+	if teamMode {
+		prompts = append(prompts, SystemPromptText_TeamMode)
 	}
 	return prompts
 }
@@ -634,7 +634,7 @@ type PostMessageRequest struct {
 	ChatID       string            `json:"chatid"`
 	Msg          uctypes.AIMessage `json:"msg"`
 	WidgetAccess bool              `json:"widgetaccess,omitempty"`
-	CoworkMode   bool              `json:"coworkmode,omitempty"`
+	TeamMode     bool              `json:"teammode,omitempty"`
 	AIMode       string            `json:"aimode"`
 }
 
@@ -694,12 +694,12 @@ func WaveAIPostMessageHandler(w http.ResponseWriter, r *http.Request) {
 		ClientId:             wstore.GetClientId(),
 		Config:               *aiOpts,
 		WidgetAccess:         req.WidgetAccess,
-		CoworkMode:           req.CoworkMode,
+		TeamMode:             req.TeamMode,
 		AllowNativeWebSearch: true,
 		BuilderId:            req.BuilderId,
 		BuilderAppId:         req.BuilderAppId,
 	}
-	chatOpts.SystemPrompt = getSystemPrompt(chatOpts.Config.APIType, chatOpts.Config.Model, chatOpts.BuilderId != "", chatOpts.Config.HasCapability(uctypes.AICapabilityTools), chatOpts.WidgetAccess, chatOpts.CoworkMode)
+	chatOpts.SystemPrompt = getSystemPrompt(chatOpts.Config.APIType, chatOpts.Config.Model, chatOpts.BuilderId != "", chatOpts.Config.HasCapability(uctypes.AICapabilityTools), chatOpts.WidgetAccess, chatOpts.TeamMode)
 
 	if req.TabId != "" {
 		chatOpts.TabStateGenerator = func() (string, []uctypes.ToolDefinition, string, error) {
@@ -722,8 +722,8 @@ func WaveAIPostMessageHandler(w http.ResponseWriter, r *http.Request) {
 		)
 	}
 
-	if req.CoworkMode {
-		chatOpts.Tools = append(chatOpts.Tools, GetCoworkToolDefinitions()...)
+	if req.TeamMode {
+		chatOpts.Tools = append(chatOpts.Tools, GetTeamToolDefinitions()...)
 	}
 
 	// Validate the message
