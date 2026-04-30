@@ -43,6 +43,7 @@ var WaveEventDataTypes = map[string]reflect.Type{
 	wps.Event_Badge:               reflect.TypeOf(baseds.BadgeEvent{}),
 	wps.Event_CoworkTaskUpdate:    nil,
 	wps.Event_CoworkWorkerUpdate:  nil,
+	wps.Event_TeamWorkerUpdate:    nil,
 }
 
 func getWaveEventDataTSType(eventName string, tsTypesMap map[reflect.Type]string) string {
