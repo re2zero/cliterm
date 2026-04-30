@@ -83,3 +83,7 @@ func WithTxRtn[RT any](ctx context.Context, fn func(tx *TxWrap) (RT, error)) (rt
 func GetGlobalDB() *sqlx.DB {
 	return globalDB
 }
+
+func SetGlobalDBForTest(db *sqlx.DB) {
+	globalDB = db
+}
