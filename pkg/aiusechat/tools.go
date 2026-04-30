@@ -191,6 +191,7 @@ func GenerateTabStateAndTools(ctx context.Context, tabid string, widgetAccess bo
 		if viewTypes["term"] {
 			tools = append(tools, GetTermGetScrollbackToolDefinition(tabid))
 			tools = append(tools, GetTermExecuteToolDefinition(tabid))
+			tools = append(tools, GetTermCreateToolDefinition(tabid))
 			// tools = append(tools, GetTermCommandOutputToolDefinition(tabid))
 		}
 		if viewTypes["web"] {

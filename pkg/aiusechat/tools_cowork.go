@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/aiusechat/uctypes"
+	"github.com/wavetermdev/waveterm/pkg/blockcontroller"
 	"github.com/wavetermdev/waveterm/pkg/cowork"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
 	"github.com/wavetermdev/waveterm/pkg/wshrpc"
@@ -43,7 +44,8 @@ type coworkAssignTaskParams struct {
 type coworkGetStatusParams struct{}
 
 type coworkTerminateWorkerParams struct {
-	WorkerId string `json:"workerid"`
+	WorkerId   string `json:"workerid"`
+	TaskStatus string `json:"task_status"`
 }
 
 func coworkCreateWorkerCallback(input any, toolUseData *uctypes.UIMessageDataToolUse) (any, error) {
@@ -285,6 +287,11 @@ func coworkTerminateWorkerCallback(input any, toolUseData *uctypes.UIMessageData
 		return nil, fmt.Errorf("workerid is required")
 	}
 
+	taskStatus := parsed.TaskStatus
+	if taskStatus == "" {
+		taskStatus = "done"
+	}
+
 	ctx := context.Background()
 	rpcClient := wshclient.GetBareRpcClient()
 
@@ -296,8 +303,8 @@ func coworkTerminateWorkerCallback(input any, toolUseData *uctypes.UIMessageData
 	releasedTask := ""
 	if worker.AssignedTask != "" {
 		task, taskErr := cowork.GetTask(ctx, worker.AssignedTask)
-		if taskErr == nil && task != nil && (task.Status == "working" || task.Status == "assigned") {
-			task.Status = "pending"
+		if taskErr == nil && task != nil && task.Status != "done" && task.Status != "failed" {
+			task.Status = taskStatus
 			task.AssignedWorker = ""
 			task.UpdatedAt = time.Now().Unix()
 			cowork.UpdateTask(ctx, task)
@@ -305,30 +312,46 @@ func coworkTerminateWorkerCallback(input any, toolUseData *uctypes.UIMessageData
 		}
 	}
 
-	worker.Status = "idle"
-	worker.AssignedTask = ""
-	worker.BlockId = ""
-	worker.LastActiveAt = time.Now().Unix()
+	var completedTaskIds []string
+	if worker.CompletedTasks != "" {
+		json.Unmarshal([]byte(worker.CompletedTasks), &completedTaskIds)
+	}
+	if releasedTask != "" {
+		completedTaskIds = append(completedTaskIds, releasedTask)
+	}
+	completedJson, _ := json.Marshal(completedTaskIds)
+
+	blockId := worker.BlockId
+
 	_, err = wshclient.CoworkUpdateWorkerCommand(rpcClient, wshrpc.CoworkUpdateWorkerData{
-		WorkerId: worker.WorkerId,
-		Status:   "idle",
+		WorkerId:       worker.WorkerId,
+		Status:         "idle",
+		AssignedTask:   "",
+		CompletedTasks: string(completedJson),
 	}, &wshrpc.RpcOpts{})
 	if err != nil {
-		return nil, fmt.Errorf("failed to release worker: %w", err)
+		return nil, fmt.Errorf("failed to update worker: %w", err)
+	}
+
+	if blockId != "" {
+		wshclient.DeleteBlockCommand(rpcClient, wshrpc.CommandDeleteBlockData{
+			BlockId: blockId,
+		}, &wshrpc.RpcOpts{})
 	}
 
 	cowork.PublishWorkerUpdate()
 	cowork.PublishTaskUpdate()
 
 	result := map[string]any{
-		"success":  true,
-		"workerid": parsed.WorkerId,
-		"name":     worker.Name,
-		"message":  "Worker released and set to idle",
+		"success":       true,
+		"workerid":      parsed.WorkerId,
+		"name":          worker.Name,
+		"message":       "Worker set to idle, task completed, terminal block closed",
+		"completedtasks": len(completedTaskIds),
 	}
 	if releasedTask != "" {
-		result["releasedtask"] = releasedTask
-		result["taskstatus"] = "pending"
+		result["taskid"] = releasedTask
+		result["taskstatus"] = taskStatus
 	}
 	return result, nil
 }
@@ -510,7 +533,7 @@ func GetCoworkExecuteTaskToolDefinition() uctypes.ToolDefinition {
 	return uctypes.ToolDefinition{
 		Name:        "cowork_execute_task",
 		DisplayName: "Execute Task on Worker",
-		Description: "Execute a task by spawning a terminal block and running the worker's CLI with the task description.",
+		Description: "Execute a task by creating a terminal block and running the worker's CLI with the task description. Use this for NEW tasks that need a fresh terminal. For sending additional instructions to an already-running worker, use cowork_send_prompt instead.",
 		ToolLogName: "cowork:executetask",
 		Strict:      false,
 		InputSchema: map[string]any{
@@ -546,7 +569,7 @@ func GetCoworkTerminateWorkerToolDefinition() uctypes.ToolDefinition {
 	return uctypes.ToolDefinition{
 		Name:        "cowork_terminate_worker",
 		DisplayName: "Terminate Cowork Worker",
-		Description: "Terminate and clean up a running worker agent.",
+		Description: "Terminate a worker: closes its terminal block and updates task status. Use when a worker has finished its work or needs to be stopped.",
 		ToolLogName: "cowork:terminateworker",
 		Strict:      false,
 		InputSchema: map[string]any{
@@ -555,6 +578,11 @@ func GetCoworkTerminateWorkerToolDefinition() uctypes.ToolDefinition {
 				"workerid": map[string]any{
 					"type":        "string",
 					"description": "ID of the worker to terminate",
+				},
+				"task_status": map[string]any{
+					"type":        "string",
+					"description": "Status to set for the worker's assigned task. Use 'done' when task is completed, 'failed' if task failed. Default: 'done'",
+					"enum":        []string{"done", "failed", "pending"},
 				},
 			},
 			"required":             []string{"workerid"},
@@ -576,8 +604,157 @@ func GetCoworkToolDefinitions() []uctypes.ToolDefinition {
 		GetCoworkListWorkersToolDefinition(),
 		GetCoworkCreateTaskToolDefinition(),
 		GetCoworkAssignTaskToolDefinition(),
+		GetCoworkUpdateTaskToolDefinition(),
 		GetCoworkGetStatusToolDefinition(),
 		GetCoworkTerminateWorkerToolDefinition(),
 		GetCoworkExecuteTaskToolDefinition(),
+		GetCoworkSendPromptToolDefinition(),
+	}
+}
+
+type coworkUpdateTaskParams struct {
+	TaskId string `json:"taskid"`
+	Status string `json:"status"`
+}
+
+func GetCoworkUpdateTaskToolDefinition() uctypes.ToolDefinition {
+	return uctypes.ToolDefinition{
+		Name:        "cowork_update_task",
+		DisplayName: "Update Cowork Task Status",
+		Description: "Update the status of a task directly by task ID. Use this when you need to mark a task as done or failed without terminating its worker, or to fix an incorrect task status.",
+		ToolLogName: "cowork:updatetask",
+		Strict:      false,
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"taskid": map[string]any{
+					"type":        "string",
+					"description": "ID of the task to update",
+				},
+				"status": map[string]any{
+					"type":        "string",
+					"description": "New status for the task",
+					"enum":        []string{"done", "failed", "pending", "working", "assigned"},
+				},
+			},
+			"required":             []string{"taskid", "status"},
+			"additionalProperties": false,
+		},
+		ToolCallDesc: func(input any, output any, toolUseData *uctypes.UIMessageDataToolUse) string {
+			parsed := &coworkUpdateTaskParams{}
+			inputBytes, _ := json.Marshal(input)
+			json.Unmarshal(inputBytes, parsed)
+			return fmt.Sprintf("updating task %s → %s", parsed.TaskId[:8], parsed.Status)
+		},
+		ToolAnyCallback: func(input any, toolUseData *uctypes.UIMessageDataToolUse) (any, error) {
+			parsed := &coworkUpdateTaskParams{}
+			inputBytes, _ := json.Marshal(input)
+			json.Unmarshal(inputBytes, parsed)
+			if parsed.TaskId == "" {
+				return nil, fmt.Errorf("taskid is required")
+			}
+			if parsed.Status == "" {
+				return nil, fmt.Errorf("status is required")
+			}
+			ctx := context.Background()
+			task, err := cowork.GetTask(ctx, parsed.TaskId)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get task: %w", err)
+			}
+			oldStatus := task.Status
+			task.Status = parsed.Status
+			task.UpdatedAt = time.Now().Unix()
+			if err := cowork.UpdateTask(ctx, task); err != nil {
+				return nil, fmt.Errorf("failed to update task: %w", err)
+			}
+			cowork.PublishTaskUpdate()
+			return map[string]any{
+				"success":   true,
+				"taskid":    parsed.TaskId,
+				"oldstatus": oldStatus,
+				"status":    parsed.Status,
+				"title":     task.Title,
+			}, nil
+		},
+	}
+}
+
+type coworkSendPromptParams struct {
+	WorkerId string `json:"workerid"`
+	Prompt   string `json:"prompt"`
+}
+
+func GetCoworkSendPromptToolDefinition() uctypes.ToolDefinition {
+	return uctypes.ToolDefinition{
+		Name:        "cowork_send_prompt",
+		DisplayName: "Send Prompt to Worker",
+		Description: "Send a text prompt directly to a running worker's terminal block. Use this to give additional instructions to a worker that is already executing a task, without creating a new task. The text is typed into the worker's terminal and Enter is pressed.",
+		ToolLogName: "cowork:sendprompt",
+		Strict:      false,
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"workerid": map[string]any{
+					"type":        "string",
+					"description": "ID of the worker to send the prompt to",
+				},
+				"prompt": map[string]any{
+					"type":        "string",
+					"description": "The text prompt to send to the worker's terminal",
+				},
+			},
+			"required":             []string{"workerid", "prompt"},
+			"additionalProperties": false,
+		},
+		ToolCallDesc: func(input any, output any, toolUseData *uctypes.UIMessageDataToolUse) string {
+			inputBytes, _ := json.Marshal(input)
+			var parsed coworkSendPromptParams
+			json.Unmarshal(inputBytes, &parsed)
+			promptPreview := parsed.Prompt
+			if len(promptPreview) > 60 {
+				promptPreview = promptPreview[:60] + "..."
+			}
+			return fmt.Sprintf("sending prompt to worker %s: %s", parsed.WorkerId[:8], promptPreview)
+		},
+		ToolAnyCallback: func(input any, toolUseData *uctypes.UIMessageDataToolUse) (any, error) {
+			inputBytes, err := json.Marshal(input)
+			if err != nil {
+				return nil, fmt.Errorf("failed to marshal input: %w", err)
+			}
+			var parsed coworkSendPromptParams
+			if err := json.Unmarshal(inputBytes, &parsed); err != nil {
+				return nil, fmt.Errorf("failed to unmarshal input: %w", err)
+			}
+			if parsed.WorkerId == "" {
+				return nil, fmt.Errorf("workerid is required")
+			}
+			if parsed.Prompt == "" {
+				return nil, fmt.Errorf("prompt is required")
+			}
+
+			ctx := context.Background()
+			worker, err := cowork.GetWorker(ctx, parsed.WorkerId)
+			if err != nil {
+				return nil, fmt.Errorf("worker not found: %w", err)
+			}
+			if worker.BlockId == "" {
+				return nil, fmt.Errorf("worker %s has no terminal block", worker.Name)
+			}
+
+			inputUnion := &blockcontroller.BlockInputUnion{
+				InputData: []byte(parsed.Prompt + "\r"),
+			}
+			err = blockcontroller.SendInput(worker.BlockId, inputUnion)
+			if err != nil {
+				return nil, fmt.Errorf("failed to send prompt to worker terminal: %w", err)
+			}
+
+			return map[string]any{
+				"success":  true,
+				"workerid": parsed.WorkerId,
+				"worker":   worker.Name,
+				"prompt":   parsed.Prompt,
+			}, nil
+		},
 	}
 }

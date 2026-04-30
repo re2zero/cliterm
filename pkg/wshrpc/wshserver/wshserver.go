@@ -1733,6 +1733,9 @@ func (ws *WshServer) CoworkUpdateWorkerCommand(ctx context.Context, data wshrpc.
 	if data.Capabilities != "" {
 		worker.Capabilities = data.Capabilities
 	}
+	if data.CompletedTasks != "" {
+		worker.CompletedTasks = data.CompletedTasks
+	}
 	worker.LastActiveAt = time.Now().Unix()
 	err = cowork.UpdateWorker(ctx, worker)
 	if err != nil {

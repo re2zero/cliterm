@@ -1002,10 +1002,11 @@ type CoworkWorker struct {
 	LastActiveAt   int64    `json:"lastactiveat"`
 	LastOutputHash string   `json:"lastoutputhash,omitempty"`
 	ErrorMsg       string   `json:"errormsg,omitempty"`
-	Capabilities   string `json:"capabilities,omitempty"`
-	Concurrency    int    `json:"concurrency,omitempty"`
-	Timeout        int    `json:"timeout,omitempty"`
-	MaxRetries     int    `json:"maxretries,omitempty"`
+	Capabilities   string   `json:"capabilities,omitempty"`
+	Concurrency    int      `json:"concurrency,omitempty"`
+	Timeout        int      `json:"timeout,omitempty"`
+	MaxRetries     int      `json:"maxretries,omitempty"`
+	CompletedTasks string   `json:"completedtasks,omitempty"`
 }
 
 type CoworkActivity struct {
@@ -1077,6 +1078,7 @@ type CoworkUpdateWorkerData struct {
 	Timeout        int      `json:"timeout,omitempty"`
 	MaxRetries     int      `json:"maxretries,omitempty"`
 	Capabilities   string `json:"capabilities,omitempty"`
+	CompletedTasks string `json:"completedtasks,omitempty"`
 }
 
 type CoworkAddActivityData struct {

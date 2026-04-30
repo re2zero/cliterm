@@ -390,3 +390,103 @@ func GetTermExecuteToolDefinition(tabId string) uctypes.ToolDefinition {
 		},
 	}
 }
+
+type TermCreateInput struct {
+	Command string `json:"command,omitempty"`
+	Title   string `json:"title,omitempty"`
+}
+
+func GetTermCreateToolDefinition(tabId string) uctypes.ToolDefinition {
+	return uctypes.ToolDefinition{
+		Name:        "term_create",
+		DisplayName: "Create Terminal Block",
+		Description: "Create a new terminal block in the current tab and optionally run a command. Returns the new widget ID for use with term_execute and term_get_scrollback.",
+		ToolLogName: "term:create",
+		Strict:      false,
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"command": map[string]any{
+					"type":        "string",
+					"description": "Optional command to execute in the new terminal",
+				},
+				"title": map[string]any{
+					"type":        "string",
+					"description": "Optional title for the terminal tab",
+				},
+			},
+			"additionalProperties": false,
+		},
+		ToolCallDesc: func(input any, output any, toolUseData *uctypes.UIMessageDataToolUse) string {
+			inputBytes, _ := json.Marshal(input)
+			var parsed TermCreateInput
+			json.Unmarshal(inputBytes, &parsed)
+			if parsed.Command != "" {
+				cmdPreview := parsed.Command
+				if len(cmdPreview) > 60 {
+					cmdPreview = cmdPreview[:60] + "..."
+				}
+				return fmt.Sprintf("creating terminal: %s", cmdPreview)
+			}
+			return "creating new terminal block"
+		},
+		ToolAnyCallback: func(input any, toolUseData *uctypes.UIMessageDataToolUse) (any, error) {
+			inputBytes, err := json.Marshal(input)
+			if err != nil {
+				return nil, fmt.Errorf("failed to marshal input: %w", err)
+			}
+			var parsed TermCreateInput
+			if err := json.Unmarshal(inputBytes, &parsed); err != nil {
+				return nil, fmt.Errorf("failed to unmarshal input: %w", err)
+			}
+
+			if tabId == "" {
+				return nil, fmt.Errorf("no active tab available")
+			}
+
+			meta := waveobj.MetaMapType{
+				"view":       "term",
+				"controller": "shell",
+			}
+			if parsed.Title != "" {
+				meta["term:title"] = parsed.Title
+			}
+
+			blockDef := &waveobj.BlockDef{Meta: meta}
+
+			rpcClient := wshclient.GetBareRpcClient()
+			blockRef, err := wshclient.CreateBlockCommand(rpcClient, wshrpc.CommandCreateBlockData{
+				TabId:    tabId,
+				BlockDef: blockDef,
+				Focused:  true,
+			}, &wshrpc.RpcOpts{})
+			if err != nil {
+				return nil, fmt.Errorf("failed to create terminal block: %w", err)
+			}
+
+			blockId := blockRef.OID
+			widgetId := blockId[:8]
+
+			if parsed.Command != "" {
+				inputUnion := &blockcontroller.BlockInputUnion{
+					InputData: []byte(parsed.Command + "\n"),
+				}
+				for attempt := 1; attempt <= 10; attempt++ {
+					err = blockcontroller.SendInput(blockId, inputUnion)
+					if err == nil {
+						break
+					}
+					if attempt < 10 {
+						time.Sleep(500 * time.Millisecond)
+					}
+				}
+			}
+
+			return map[string]any{
+				"success":  true,
+				"widgetid": widgetId,
+				"blockid":  blockId,
+			}, nil
+		},
+	}
+}
