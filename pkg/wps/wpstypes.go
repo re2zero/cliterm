@@ -34,8 +34,6 @@ const (
 	Event_AIModeConfig        = "waveai:modeconfig"    // type: wconfig.AIModeConfigUpdate
 	Event_BlockJobStatus      = "block:jobstatus"      // type: wshrpc.BlockJobStatusData
 	Event_Badge               = "badge"                // type: baseds.BadgeEvent
-	Event_CoworkTaskUpdate    = "cowork:taskupdate"    // type: none
-	Event_CoworkWorkerUpdate  = "cowork:workerupdate"  // type: none
 	Event_TeamTaskUpdate     = "team:taskupdate"      // type: none
 	Event_TeamWorkerUpdate   = "team:workerupdate"    // type: none
 	Event_TeamMemberUpdate   = "team:memberupdate"    // type: none
@@ -61,8 +59,6 @@ var AllEvents []string = []string{
 	Event_AIModeConfig,
 	Event_BlockJobStatus,
 	Event_Badge,
-	Event_CoworkTaskUpdate,
-	Event_CoworkWorkerUpdate,
 	Event_TeamTaskUpdate,
 	Event_TeamWorkerUpdate,
 	Event_TeamMemberUpdate,
