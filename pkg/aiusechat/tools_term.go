@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/aiusechat/uctypes"
+	"github.com/wavetermdev/waveterm/pkg/blockcontroller"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
 	"github.com/wavetermdev/waveterm/pkg/wcore"
 	"github.com/wavetermdev/waveterm/pkg/wshrpc"
@@ -296,6 +297,96 @@ func GetTermCommandOutputToolDefinition(tabId string) uctypes.ToolDefinition {
 				return nil, fmt.Errorf("failed to get command output: %w", err)
 			}
 			return output, nil
+		},
+	}
+}
+
+type TermExecuteInput struct {
+	WidgetId string `json:"widget_id"`
+	Command  string `json:"command"`
+}
+
+func GetTermExecuteToolDefinition(tabId string) uctypes.ToolDefinition {
+	return uctypes.ToolDefinition{
+		Name:        "term_execute",
+		DisplayName: "Execute Command in Terminal",
+		Description: "Send a command to a terminal widget for execution. The command is typed into the terminal and Enter is pressed. Retries automatically if the terminal is not ready yet. Use this to run CLI tools, scripts, or any shell command in an existing terminal.",
+		ToolLogName: "term:execute",
+		Strict:      false,
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"widget_id": map[string]any{
+					"type":        "string",
+					"description": "8-character widget ID of the terminal widget",
+				},
+				"command": map[string]any{
+					"type":        "string",
+					"description": "The shell command to execute in the terminal",
+				},
+			},
+			"required":             []string{"widget_id", "command"},
+			"additionalProperties": false,
+		},
+		ToolCallDesc: func(input any, output any, toolUseData *uctypes.UIMessageDataToolUse) string {
+			inputBytes, _ := json.Marshal(input)
+			var parsed TermExecuteInput
+			json.Unmarshal(inputBytes, &parsed)
+			cmdPreview := parsed.Command
+			if len(cmdPreview) > 60 {
+				cmdPreview = cmdPreview[:60] + "..."
+			}
+			return fmt.Sprintf("executing in %s: %s", parsed.WidgetId, cmdPreview)
+		},
+		ToolAnyCallback: func(input any, toolUseData *uctypes.UIMessageDataToolUse) (any, error) {
+			inputBytes, err := json.Marshal(input)
+			if err != nil {
+				return nil, fmt.Errorf("failed to marshal input: %w", err)
+			}
+			var parsed TermExecuteInput
+			if err := json.Unmarshal(inputBytes, &parsed); err != nil {
+				return nil, fmt.Errorf("failed to unmarshal input: %w", err)
+			}
+			if parsed.WidgetId == "" {
+				return nil, fmt.Errorf("widget_id is required")
+			}
+			if parsed.Command == "" {
+				return nil, fmt.Errorf("command is required")
+			}
+
+			ctx, cancelFn := context.WithTimeout(context.Background(), 15*time.Second)
+			defer cancelFn()
+
+			fullBlockId, err := wcore.ResolveBlockIdFromPrefix(ctx, tabId, parsed.WidgetId)
+			if err != nil {
+				return nil, fmt.Errorf("failed to resolve widget %s: %w", parsed.WidgetId, err)
+			}
+
+			inputUnion := &blockcontroller.BlockInputUnion{
+				InputData: []byte(parsed.Command + "\n"),
+			}
+			err = blockcontroller.SendInput(fullBlockId, inputUnion)
+			if err == nil {
+				return map[string]any{
+					"success":  true,
+					"widgetid": parsed.WidgetId,
+					"command":  parsed.Command,
+				}, nil
+			}
+
+			for attempt := 2; attempt <= 10; attempt++ {
+				time.Sleep(500 * time.Millisecond)
+				err = blockcontroller.SendInput(fullBlockId, inputUnion)
+				if err == nil {
+					return map[string]any{
+						"success":  true,
+						"widgetid": parsed.WidgetId,
+						"command":  parsed.Command,
+					}, nil
+				}
+			}
+
+			return nil, fmt.Errorf("failed to send command to terminal after 10 attempts: %w", err)
 		},
 	}
 }

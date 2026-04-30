@@ -199,6 +199,7 @@ type UIMessageDataToolUse struct {
 	ErrorMessage        string `json:"errormessage,omitempty"`
 	Approval            string `json:"approval,omitempty"`
 	BlockId             string `json:"blockid,omitempty"`
+	TabId               string `json:"tabid,omitempty"`
 	WriteBackupFileName string `json:"writebackupfilename,omitempty"`
 	InputFileName       string `json:"inputfilename,omitempty"`
 }

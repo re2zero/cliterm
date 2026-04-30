@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/aiusechat/uctypes"
+	"github.com/wavetermdev/waveterm/pkg/cowork"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
 	"github.com/wavetermdev/waveterm/pkg/wshrpc"
 	"github.com/wavetermdev/waveterm/pkg/wshrpc/wshclient"
@@ -63,6 +65,7 @@ func coworkCreateWorkerCallback(input any, toolUseData *uctypes.UIMessageDataToo
 		McpServers: parsed.McpServers,
 		CustomCmd:  parsed.CustomCmd,
 		BlockId:    toolUseData.BlockId,
+		TabId:      toolUseData.TabId,
 	}
 
 	if toolUseData.BlockId != "" {
@@ -182,10 +185,43 @@ func coworkAssignTaskCallback(input any, toolUseData *uctypes.UIMessageDataToolU
 }
 
 func coworkGetStatusCallback(input any, toolUseData *uctypes.UIMessageDataToolUse) (any, error) {
+	ctx := context.Background()
 	rpcClient := wshclient.GetBareRpcClient()
 	status, err := wshclient.CoworkGetStatusCommand(rpcClient, &wshrpc.RpcOpts{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get status: %w", err)
+	}
+
+	workers, _ := wshclient.CoworkListWorkersCommand(rpcClient, &wshrpc.RpcOpts{})
+	workerList := make([]map[string]any, 0, len(workers))
+	for _, w := range workers {
+		workerList = append(workerList, map[string]any{
+			"workerid": w.WorkerId,
+			"name":     w.Name,
+			"tool":     w.Tool,
+			"status":   w.Status,
+		})
+	}
+
+	tasks, _ := cowork.ListTasks(ctx, "", "")
+	taskList := make([]map[string]any, 0, len(tasks))
+	for _, t := range tasks {
+		entry := map[string]any{
+			"taskid":   t.TaskId,
+			"title":    t.Title,
+			"status":   t.Status,
+			"priority": t.Priority,
+		}
+		if t.Description != "" {
+			entry["description"] = t.Description
+		}
+		if t.AssignedWorker != "" {
+			entry["assignedworker"] = t.AssignedWorker
+		}
+		if t.Error != "" {
+			entry["error"] = t.Error
+		}
+		taskList = append(taskList, entry)
 	}
 
 	return map[string]any{
@@ -197,6 +233,8 @@ func coworkGetStatusCallback(input any, toolUseData *uctypes.UIMessageDataToolUs
 		"activeworkers": status.ActiveWorkers,
 		"idleworkers":   status.IdleWorkers,
 		"totalworkers":  status.TotalWorkers,
+		"workers":       workerList,
+		"tasks":         taskList,
 	}, nil
 }
 
@@ -225,7 +263,7 @@ func coworkExecuteTaskCallback(input any, toolUseData *uctypes.UIMessageDataTool
 	}
 
 	rpcClient := wshclient.GetBareRpcClient()
-	resp, err := wshclient.CoworkExecuteTaskCommand(rpcClient, data, &wshrpc.RpcOpts{})
+	resp, err := wshclient.CoworkExecuteTaskCommand(rpcClient, data, &wshrpc.RpcOpts{Timeout: 30000})
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute task: %w", err)
 	}
@@ -247,17 +285,52 @@ func coworkTerminateWorkerCallback(input any, toolUseData *uctypes.UIMessageData
 		return nil, fmt.Errorf("workerid is required")
 	}
 
+	ctx := context.Background()
 	rpcClient := wshclient.GetBareRpcClient()
-	err := wshclient.CoworkDeleteWorkerCommand(rpcClient, parsed.WorkerId, &wshrpc.RpcOpts{})
+
+	worker, err := cowork.GetWorker(ctx, parsed.WorkerId)
 	if err != nil {
-		return nil, fmt.Errorf("failed to terminate worker: %w", err)
+		return nil, fmt.Errorf("failed to get worker: %w", err)
 	}
 
-	return map[string]any{
+	releasedTask := ""
+	if worker.AssignedTask != "" {
+		task, taskErr := cowork.GetTask(ctx, worker.AssignedTask)
+		if taskErr == nil && task != nil && (task.Status == "working" || task.Status == "assigned") {
+			task.Status = "pending"
+			task.AssignedWorker = ""
+			task.UpdatedAt = time.Now().Unix()
+			cowork.UpdateTask(ctx, task)
+			releasedTask = task.TaskId
+		}
+	}
+
+	worker.Status = "idle"
+	worker.AssignedTask = ""
+	worker.BlockId = ""
+	worker.LastActiveAt = time.Now().Unix()
+	_, err = wshclient.CoworkUpdateWorkerCommand(rpcClient, wshrpc.CoworkUpdateWorkerData{
+		WorkerId: worker.WorkerId,
+		Status:   "idle",
+	}, &wshrpc.RpcOpts{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to release worker: %w", err)
+	}
+
+	cowork.PublishWorkerUpdate()
+	cowork.PublishTaskUpdate()
+
+	result := map[string]any{
 		"success":  true,
 		"workerid": parsed.WorkerId,
-		"message":  "Worker terminated successfully",
-	}, nil
+		"name":     worker.Name,
+		"message":  "Worker released and set to idle",
+	}
+	if releasedTask != "" {
+		result["releasedtask"] = releasedTask
+		result["taskstatus"] = "pending"
+	}
+	return result, nil
 }
 
 func GetCoworkCreateWorkerToolDefinition() uctypes.ToolDefinition {
@@ -419,7 +492,7 @@ func GetCoworkGetStatusToolDefinition() uctypes.ToolDefinition {
 	return uctypes.ToolDefinition{
 		Name:        "cowork_get_status",
 		DisplayName: "Get Cowork Status",
-		Description: "Get the overall status of Cowork including task counts and worker statistics.",
+		Description: "Get the full Cowork overview: task counts, all workers with their status, and all tasks with their status/priority/assignment. Call this first to understand the current state before creating tasks, assigning workers, or executing tasks.",
 		ToolLogName: "cowork:getstatus",
 		Strict:      false,
 		InputSchema: map[string]any{

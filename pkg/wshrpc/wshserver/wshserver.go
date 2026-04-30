@@ -1795,6 +1795,21 @@ func (ws *WshServer) CoworkGetStatusCommand(ctx context.Context) (*wshrpc.Cowork
 	return status, nil
 }
 
+func getWorkerStartCommand(tool string) string {
+	switch tool {
+	case "claude":
+		return "claude"
+	case "opencode":
+		return "opencode"
+	case "cursor":
+		return "cursor-agent"
+	case "aider":
+		return "aider"
+	default:
+		return tool
+	}
+}
+
 func (ws *WshServer) CoworkExecuteTaskCommand(ctx context.Context, data wshrpc.CoworkExecuteTaskData) (*wshrpc.CoworkExecuteTaskResponse, error) {
 	worker, err := cowork.GetWorker(ctx, data.WorkerId)
 	if err != nil {
@@ -1812,38 +1827,60 @@ func (ws *WshServer) CoworkExecuteTaskCommand(ctx context.Context, data wshrpc.C
 	} else if worker.Tool == "custom" && worker.CustomCmd != "" {
 		cmd = worker.CustomCmd
 	} else {
-		cmd = worker.Tool
+		cmd = getWorkerStartCommand(worker.Tool)
 	}
 
 	blockDef := &waveobj.BlockDef{
 		Meta: waveobj.MetaMapType{
 			"view":       "term",
+			"controller": "shell",
 			"term:title": fmt.Sprintf("Worker: %s - Task: %s", worker.Name, task.Title),
-			"term:input": task.Description,
-			"cmd":        cmd,
-			"cmd:cwd":    "",
-			"cmd:shell":  false,
 		},
 	}
 
-	blockData, err := wcore.CreateBlock(ctx, worker.TabId, blockDef, nil)
+	blockRef, err := ws.CreateBlockCommand(ctx, wshrpc.CommandCreateBlockData{
+		TabId:    worker.TabId,
+		BlockDef: blockDef,
+		Focused:  true,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("error creating terminal block: %w", err)
 	}
-
-	time.Sleep(500 * time.Millisecond)
+	blockId := blockRef.OID
 
 	inputUnion := &blockcontroller.BlockInputUnion{
-		InputData: []byte(task.Description + "\n"),
+		InputData: []byte(cmd + "\n"),
 	}
-	err = blockcontroller.SendInput(blockData.OID, inputUnion)
-	if err != nil {
-		fmt.Printf("warning: failed to send initial input to worker terminal: %v\n", err)
+	for attempt := 1; attempt <= 10; attempt++ {
+		err = blockcontroller.SendInput(blockId, inputUnion)
+		if err == nil {
+			break
+		}
+		if attempt == 10 {
+			fmt.Printf("warning: failed to send command to worker terminal after %d attempts: %v\n", attempt, err)
+		} else {
+			time.Sleep(500 * time.Millisecond)
+		}
+	}
+
+	if task.Description != "" {
+		go func() {
+			time.Sleep(5 * time.Second)
+			taskText := &blockcontroller.BlockInputUnion{
+				InputData: []byte(task.Description),
+			}
+			blockcontroller.SendInput(blockId, taskText)
+			time.Sleep(200 * time.Millisecond)
+			taskEnter := &blockcontroller.BlockInputUnion{
+				InputData: []byte("\r"),
+			}
+			blockcontroller.SendInput(blockId, taskEnter)
+		}()
 	}
 
 	worker.Status = "working"
 	worker.AssignedTask = task.TaskId
-	worker.BlockId = blockData.OID
+	worker.BlockId = blockId
 	err = cowork.UpdateWorker(ctx, worker)
 	if err != nil {
 		return nil, fmt.Errorf("error updating worker: %w", err)
@@ -1859,7 +1896,7 @@ func (ws *WshServer) CoworkExecuteTaskCommand(ctx context.Context, data wshrpc.C
 	cowork.PublishTaskUpdate()
 
 	return &wshrpc.CoworkExecuteTaskResponse{
-		BlockId: blockData.OID,
+		BlockId: blockId,
 		TabId:   worker.TabId,
 		Success: true,
 	}, nil

@@ -267,6 +267,7 @@ func CreateToolUseData(toolCallID, toolName string, arguments string, chatOpts u
 	}
 
 	if chatOpts.TabId != "" {
+		toolUseData.TabId = chatOpts.TabId
 		if argsMap, ok := parsedArgs.(map[string]any); ok {
 			if widgetId, ok := argsMap["widget_id"].(string); ok && widgetId != "" {
 				ctx, cancelFn := context.WithTimeout(context.Background(), 2*time.Second)

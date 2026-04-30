@@ -45,7 +45,7 @@ export function TaskDetail({
 
     React.useEffect(() => {
         RpcApi.CoworkGetTaskOutputHistoryCommand(TabRpcClient, task.taskid)
-            .then((result) => setOutputHistory(result))
+            .then((result) => setOutputHistory(result ?? []))
             .catch(() => {});
     }, [task.taskid]);
 
@@ -53,7 +53,7 @@ export function TaskDetail({
         ? workers.find((w) => w.workerid === task.assignedworker)
         : null;
 
-    const taskActivities = activities.filter((a) => a.taskid === task.taskid);
+    const taskActivities = (activities ?? []).filter((a) => a.taskid === task.taskid);
     const deps = task.dependson?.map((depId) => allTasks.find((t) => t.taskid === depId)).filter(Boolean) ?? [];
 
     const selectCls = "bg-base border border-border/50 rounded text-xs text-primary px-2 py-1 cursor-pointer focus:outline-none focus:ring-1 focus:ring-accent";
