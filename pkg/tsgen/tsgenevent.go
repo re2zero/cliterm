@@ -41,8 +41,6 @@ var WaveEventDataTypes = map[string]reflect.Type{
 	wps.Event_AIModeConfig:        reflect.TypeOf(wconfig.AIModeConfigUpdate{}),
 	wps.Event_BlockJobStatus:      reflect.TypeOf(wshrpc.BlockJobStatusData{}),
 	wps.Event_Badge:               reflect.TypeOf(baseds.BadgeEvent{}),
-	wps.Event_CoworkTaskUpdate:    nil,
-	wps.Event_CoworkWorkerUpdate:  nil,
 	wps.Event_TeamTaskUpdate:     nil,
 	wps.Event_TeamWorkerUpdate:   nil,
 	wps.Event_TeamMemberUpdate:   nil,
