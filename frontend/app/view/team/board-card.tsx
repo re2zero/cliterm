@@ -7,7 +7,7 @@ import { PriorityBadge } from "./priority-badge";
 
 interface BoardCardProps {
     task: TeamTask;
-    workers: TeamWorker[];
+    members: TeamWorker[];
     allTasks: TeamTask[];
     onClick: () => void;
     onRetry?: () => void;
@@ -20,9 +20,9 @@ const STATUS_DOT: Record<string, string> = {
     error: "bg-red-500",
 };
 
-export function BoardCard({ task, workers, allTasks, onClick, onRetry }: BoardCardProps) {
-    const assignedWorker = task.assignedworkerid
-        ? workers.find((w) => w.workerid === task.assignedworkerid)
+export function BoardCard({ task, members, allTasks, onClick, onRetry }: BoardCardProps) {
+    const assignedMember = task.assignedworkerid
+        ? members.find((w) => w.workerid === task.assignedworkerid)
         : null;
 
     const isFailed = task.status === "failed";
@@ -52,14 +52,14 @@ export function BoardCard({ task, workers, allTasks, onClick, onRetry }: BoardCa
                 {task.title}
             </p>
 
-            {/* Row 3: Priority + Worker + Progress */}
+            {/* Row 3: Priority + Member + Progress */}
             <div className="mt-2 flex items-center gap-2 flex-wrap">
                 <PriorityBadge priority={task.priority} />
 
-                {assignedWorker && (
+                {assignedMember && (
                     <span className="flex items-center gap-1 text-[11px] text-secondary">
-                        <span className={cn("w-1.5 h-1.5 rounded-full", STATUS_DOT[assignedWorker.status] ?? "bg-muted-foreground/40")} />
-                        <span className="text-secondary">{assignedWorker.name}</span>
+                        <span className={cn("w-1.5 h-1.5 rounded-full", STATUS_DOT[assignedMember.status] ?? "bg-muted-foreground/40")} />
+                        <span className="text-secondary">{assignedMember.name}</span>
                     </span>
                 )}
 

@@ -1826,11 +1826,19 @@ func (ws *WshServer) TeamExecuteTaskCommand(ctx context.Context, data wshrpc.Tea
 		cmd = getWorkerStartCommand(tool)
 	}
 
+	var projectPath string
+	if worker.ProjectID != "" {
+		proj, projErr := team.GetProject(ctx, worker.ProjectID)
+		if projErr == nil && proj.Path != "" {
+			projectPath = proj.Path
+		}
+	}
+
 	blockDef := &waveobj.BlockDef{
 		Meta: waveobj.MetaMapType{
 			"view":       "term",
 			"controller": "shell",
-			"term:title": fmt.Sprintf("Worker: %s - Task: %s", worker.Name, task.Title),
+			"term:title": fmt.Sprintf("%s — %s", worker.Name, task.Title),
 		},
 	}
 
@@ -1843,6 +1851,22 @@ func (ws *WshServer) TeamExecuteTaskCommand(ctx context.Context, data wshrpc.Tea
 		return nil, fmt.Errorf("error creating terminal block: %w", err)
 	}
 	blockId := blockRef.OID
+
+	if projectPath != "" {
+		cdInput := &blockcontroller.BlockInputUnion{
+			InputData: []byte("cd " + projectPath + "\n"),
+		}
+		for attempt := 1; attempt <= 5; attempt++ {
+			err = blockcontroller.SendInput(blockId, cdInput)
+			if err == nil {
+				break
+			}
+			if attempt < 5 {
+				time.Sleep(300 * time.Millisecond)
+			}
+		}
+		time.Sleep(300 * time.Millisecond)
+	}
 
 	inputUnion := &blockcontroller.BlockInputUnion{
 		InputData: []byte(cmd + "\n"),
@@ -2036,6 +2060,67 @@ func (ws *WshServer) TeamListActivityCommand(ctx context.Context, data wshrpc.Te
 	return result, nil
 }
 
+func (ws *WshServer) TeamCreateProjectCommand(ctx context.Context, data wshrpc.TeamCreateProjectData) (*wshrpc.TeamProject, error) {
+	p := convertRpcProjectToDb(&data)
+	err := team.CreateProject(ctx, p)
+	if err != nil {
+		return nil, fmt.Errorf("error creating team project: %w", err)
+	}
+	team.PublishProjectUpdate()
+	return convertDbProjectToRpc(p), nil
+}
+
+func (ws *WshServer) TeamGetProjectCommand(ctx context.Context, projectId string) (*wshrpc.TeamProject, error) {
+	p, err := team.GetProject(ctx, projectId)
+	if err != nil {
+		return nil, fmt.Errorf("error getting team project: %w", err)
+	}
+	return convertDbProjectToRpc(p), nil
+}
+
+func (ws *WshServer) TeamUpdateProjectCommand(ctx context.Context, data wshrpc.TeamUpdateProjectData) (*wshrpc.TeamProject, error) {
+	p, err := team.GetProject(ctx, data.ProjectId)
+	if err != nil {
+		return nil, fmt.Errorf("error getting team project: %w", err)
+	}
+	if data.Name != "" {
+		p.Name = data.Name
+	}
+	if data.Path != "" {
+		p.Path = data.Path
+	}
+	if data.Spec != "" {
+		p.Spec = data.Spec
+	}
+	err = team.UpdateProject(ctx, p)
+	if err != nil {
+		return nil, fmt.Errorf("error updating team project: %w", err)
+	}
+	team.PublishProjectUpdate()
+	return convertDbProjectToRpc(p), nil
+}
+
+func (ws *WshServer) TeamDeleteProjectCommand(ctx context.Context, projectId string) error {
+	err := team.DeleteProject(ctx, projectId)
+	if err != nil {
+		return fmt.Errorf("error deleting team project: %w", err)
+	}
+	team.PublishProjectUpdate()
+	return nil
+}
+
+func (ws *WshServer) TeamListProjectsCommand(ctx context.Context) ([]*wshrpc.TeamProject, error) {
+	projects, err := team.ListProjects(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("error listing team projects: %w", err)
+	}
+	var result []*wshrpc.TeamProject
+	for _, p := range projects {
+		result = append(result, convertDbProjectToRpc(p))
+	}
+	return result, nil
+}
+
 // --- Conversion helpers between pkg/team and wshrpc types ---
 
 func getWorkerStartCommand(tool string) string {
@@ -2146,6 +2231,7 @@ func convertDbMemberToRpc(m *team.TeamMember) *wshrpc.TeamMember {
 		MaxRetries:     m.MaxRetries,
 		Memory:         m.Memory,
 		Color:          m.Color,
+		ProjectID:      m.ProjectID,
 		CreatedAt:      m.CreatedAt,
 		UpdatedAt:      m.UpdatedAt,
 	}
@@ -2173,6 +2259,7 @@ func convertDbWorkerToRpc(w *team.TeamWorker) *wshrpc.TeamWorker {
 		BlockID:        w.BlockID,
 		TabID:          w.TabID,
 		PID:            w.PID,
+		ProjectID:      w.ProjectID,
 		CreatedAt:      w.CreatedAt,
 		UpdatedAt:      w.UpdatedAt,
 		LastHeartbeat:  w.LastHeartbeat,
@@ -2220,3 +2307,23 @@ func convertDbActivityToRpc(a *team.TeamActivity) *wshrpc.TeamActivity {
 		CreatedAt:   a.CreatedAt,
 	}
 }
+
+func convertRpcProjectToDb(data *wshrpc.TeamCreateProjectData) *team.TeamProject {
+	return &team.TeamProject{
+		Name: data.Name,
+		Path: data.Path,
+		Spec: data.Spec,
+	}
+}
+
+func convertDbProjectToRpc(p *team.TeamProject) *wshrpc.TeamProject {
+	return &wshrpc.TeamProject{
+		ProjectID: p.ProjectID,
+		Name:      p.Name,
+		Path:      p.Path,
+		Spec:      p.Spec,
+		CreatedAt: p.CreatedAt,
+		UpdatedAt: p.UpdatedAt,
+	}
+}
+

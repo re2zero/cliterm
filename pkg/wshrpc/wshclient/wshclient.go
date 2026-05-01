@@ -851,6 +851,12 @@ func TeamCreateMemberCommand(w *wshutil.WshRpc, data wshrpc.TeamCreateMemberData
 	return resp, err
 }
 
+// command "teamcreateproject", wshserver.TeamCreateProjectCommand
+func TeamCreateProjectCommand(w *wshutil.WshRpc, data wshrpc.TeamCreateProjectData, opts *wshrpc.RpcOpts) (*wshrpc.TeamProject, error) {
+	resp, err := sendRpcRequestCallHelper[*wshrpc.TeamProject](w, "teamcreateproject", data, opts)
+	return resp, err
+}
+
 // command "teamcreatetask", wshserver.TeamCreateTaskCommand
 func TeamCreateTaskCommand(w *wshutil.WshRpc, data wshrpc.TeamCreateTaskData, opts *wshrpc.RpcOpts) (*wshrpc.TeamTask, error) {
 	resp, err := sendRpcRequestCallHelper[*wshrpc.TeamTask](w, "teamcreatetask", data, opts)
@@ -860,6 +866,12 @@ func TeamCreateTaskCommand(w *wshutil.WshRpc, data wshrpc.TeamCreateTaskData, op
 // command "teamdeletemember", wshserver.TeamDeleteMemberCommand
 func TeamDeleteMemberCommand(w *wshutil.WshRpc, data string, opts *wshrpc.RpcOpts) error {
 	_, err := sendRpcRequestCallHelper[any](w, "teamdeletemember", data, opts)
+	return err
+}
+
+// command "teamdeleteproject", wshserver.TeamDeleteProjectCommand
+func TeamDeleteProjectCommand(w *wshutil.WshRpc, data string, opts *wshrpc.RpcOpts) error {
+	_, err := sendRpcRequestCallHelper[any](w, "teamdeleteproject", data, opts)
 	return err
 }
 
@@ -899,6 +911,12 @@ func TeamGetMemberCommand(w *wshutil.WshRpc, data string, opts *wshrpc.RpcOpts) 
 	return resp, err
 }
 
+// command "teamgetproject", wshserver.TeamGetProjectCommand
+func TeamGetProjectCommand(w *wshutil.WshRpc, data string, opts *wshrpc.RpcOpts) (*wshrpc.TeamProject, error) {
+	resp, err := sendRpcRequestCallHelper[*wshrpc.TeamProject](w, "teamgetproject", data, opts)
+	return resp, err
+}
+
 // command "teamgetstatus", wshserver.TeamGetStatusCommand
 func TeamGetStatusCommand(w *wshutil.WshRpc, opts *wshrpc.RpcOpts) (*wshrpc.TeamStatusData, error) {
 	resp, err := sendRpcRequestCallHelper[*wshrpc.TeamStatusData](w, "teamgetstatus", nil, opts)
@@ -932,6 +950,12 @@ func TeamListActivityCommand(w *wshutil.WshRpc, data wshrpc.TeamListActivityData
 // command "teamlistmembers", wshserver.TeamListMembersCommand
 func TeamListMembersCommand(w *wshutil.WshRpc, opts *wshrpc.RpcOpts) ([]*wshrpc.TeamMember, error) {
 	resp, err := sendRpcRequestCallHelper[[]*wshrpc.TeamMember](w, "teamlistmembers", nil, opts)
+	return resp, err
+}
+
+// command "teamlistprojects", wshserver.TeamListProjectsCommand
+func TeamListProjectsCommand(w *wshutil.WshRpc, opts *wshrpc.RpcOpts) ([]*wshrpc.TeamProject, error) {
+	resp, err := sendRpcRequestCallHelper[[]*wshrpc.TeamProject](w, "teamlistprojects", nil, opts)
 	return resp, err
 }
 
@@ -974,6 +998,12 @@ func TeamRetryTaskCommand(w *wshutil.WshRpc, data string, opts *wshrpc.RpcOpts) 
 // command "teamupdatemember", wshserver.TeamUpdateMemberCommand
 func TeamUpdateMemberCommand(w *wshutil.WshRpc, data wshrpc.TeamUpdateMemberData, opts *wshrpc.RpcOpts) (*wshrpc.TeamMember, error) {
 	resp, err := sendRpcRequestCallHelper[*wshrpc.TeamMember](w, "teamupdatemember", data, opts)
+	return resp, err
+}
+
+// command "teamupdateproject", wshserver.TeamUpdateProjectCommand
+func TeamUpdateProjectCommand(w *wshutil.WshRpc, data wshrpc.TeamUpdateProjectData, opts *wshrpc.RpcOpts) (*wshrpc.TeamProject, error) {
+	resp, err := sendRpcRequestCallHelper[*wshrpc.TeamProject](w, "teamupdateproject", data, opts)
 	return resp, err
 }
 

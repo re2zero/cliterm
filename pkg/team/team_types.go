@@ -54,6 +54,15 @@ var ValidWorkerTransitions = map[string][]string{
 	WorkerStatusOffline: {WorkerStatusIdle},
 }
 
+type TeamProject struct {
+	ProjectID string `json:"projectId"`
+	Name      string `json:"name"`
+	Path      string `json:"path"`
+	Spec      string `json:"spec"` // development spec: "sdd", "trellis", etc. (empty = none)
+	CreatedAt int64  `json:"createdAt"`
+	UpdatedAt int64  `json:"updatedAt"`
+}
+
 type TeamMember struct {
 	MemberID       string      `json:"memberId"`
 	Name           string      `json:"name"`
@@ -70,6 +79,7 @@ type TeamMember struct {
 	MaxRetries     int         `json:"maxRetries"`
 	Memory         string      `json:"memory"`
 	Color          string      `json:"color"`
+	ProjectID      string      `json:"projectId"` // optional: which project this member belongs to
 	CreatedAt      int64       `json:"createdAt"`
 	UpdatedAt      int64       `json:"updatedAt"`
 }
@@ -93,6 +103,7 @@ type TeamWorker struct {
 	BlockID        string `json:"blockId"`
 	TabID          string `json:"tabId"`
 	PID            int    `json:"pid"`
+	ProjectID      string `json:"projectId"` // inherited from member at fork time
 	CreatedAt      int64  `json:"createdAt"`
 	UpdatedAt      int64  `json:"updatedAt"`
 	LastHeartbeat  int64  `json:"lastHeartbeat"`

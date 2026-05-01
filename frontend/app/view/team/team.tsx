@@ -10,8 +10,9 @@ import { BoardView } from "./board-view";
 import { StatusStrip } from "./status-strip";
 import { RuntimeBar } from "./runtime-bar";
 import { TaskDetail } from "./task-detail";
-import { WorkerList, WorkerEditor, WorkerDetailPanel } from "./member-panel";
-import type { WorkerFormData } from "./member-panel";
+import { MemberList, MemberEditor, MemberDetailPanel } from "./member-panel";
+import { ProjectDialog } from "./project-dialog";
+import type { MemberFormData } from "./member-panel";
 import { cn } from "@/util/util";
 
 interface TeamViewProps {
@@ -21,7 +22,7 @@ interface TeamViewProps {
     model: TeamViewModel;
 }
 
-type WorkerEditorTarget = { type: "new" } | { type: "edit"; workerId: string };
+type MemberEditorTarget = { type: "new" } | { type: "edit"; memberId: string };
 
 export function TeamView({ model }: TeamViewProps) {
     React.useEffect(() => {
@@ -34,23 +35,26 @@ export function TeamView({ model }: TeamViewProps) {
     const doneTasks = jotai.useAtomValue(model.doneTasksAtom) ?? [];
     const failedTasks = jotai.useAtomValue(model.failedTasksAtom) ?? [];
     const allTasks = [...pendingTasks, ...workingTasks, ...doneTasks, ...failedTasks];
-    const workers = jotai.useAtomValue(model.workersAtom) ?? [];
+    const runtimeMembers = jotai.useAtomValue(model.runtimeMembersAtom) ?? [];
     const activities = jotai.useAtomValue(model.activityLogAtom) ?? [];
     const status = jotai.useAtomValue(model.statusAtom);
     const isSupervising = jotai.useAtomValue(model.isSupervisingAtom) ?? false;
     const isProcessing = jotai.useAtomValue(model.isProcessingAtom) ?? false;
     const error = jotai.useAtomValue(model.errorAtom) ?? null;
+    const projects = jotai.useAtomValue(model.projectsAtom) ?? [];
 
     const [selectedTask, setSelectedTask] = React.useState<TeamTask | null>(null);
-    const [selectedWorkerId, setSelectedWorkerId] = React.useState<string | null>(null);
+    const [selectedMemberId, setSelectedMemberId] = React.useState<string | null>(null);
     const [showCreateTask, setShowCreateTask] = React.useState(false);
     const [showActivity, setShowActivity] = React.useState(false);
-    const [editorTarget, setEditorTarget] = React.useState<WorkerEditorTarget | null>(null);
+    const [editorTarget, setEditorTarget] = React.useState<MemberEditorTarget | null>(null);
     const [editorVisible, setEditorVisible] = React.useState(false);
+    const [showProjectDialog, setShowProjectDialog] = React.useState(false);
+    const [editingProject, setEditingProject] = React.useState<TeamProject | undefined>(undefined);
 
-    const editorWorker = editorTarget?.type === "edit" ? workers.find((w) => w.workerid === editorTarget.workerId) : undefined;
+    const editorMember = editorTarget?.type === "edit" ? runtimeMembers.find((w) => w.workerid === editorTarget.memberId) : undefined;
 
-    const openEditor = (target: WorkerEditorTarget) => {
+    const openEditor = (target: MemberEditorTarget) => {
         setEditorTarget(target);
         requestAnimationFrame(() => setEditorVisible(true));
     };
@@ -67,6 +71,16 @@ export function TeamView({ model }: TeamViewProps) {
     };
     const handleTaskClick = (task: TeamTask) => { setSelectedTask(task); };
     const handleRetryTask = (taskId: string) => { model.retryTask(taskId); };
+
+    const handleProjectSubmit = async (data: { name: string; path: string; spec: string }) => {
+        if (editingProject) {
+            await model.updateProject(editingProject.projectid, data);
+        } else {
+            await model.createProject(data);
+        }
+        setShowProjectDialog(false);
+        setEditingProject(undefined);
+    };
 
     return (
         <div className="flex flex-col h-full overflow-hidden" style={{ colorScheme: "dark" }}>
@@ -104,18 +118,22 @@ export function TeamView({ model }: TeamViewProps) {
             <StatusStrip status={status} />
 
             <div className="flex-1 flex min-h-0 relative overflow-hidden">
-                <WorkerList
-                    workers={workers}
-                    selectedWorkerId={selectedWorkerId}
-                    onSelectWorker={(id) => setSelectedWorkerId(id === selectedWorkerId ? null : id)}
-                    onEditWorker={(workerId) => { setSelectedWorkerId(null); openEditor({ type: "edit", workerId }); }}
-                    onDeleteWorker={(workerId) => { model.deleteWorker(workerId); if (selectedWorkerId === workerId) setSelectedWorkerId(null); }}
-                    onNewWorker={() => { setSelectedWorkerId(null); openEditor({ type: "new" }); }}
+                <MemberList
+                    members={runtimeMembers}
+                    projects={projects}
+                    selectedMemberId={selectedMemberId}
+                    onSelectMember={(id) => setSelectedMemberId(id === selectedMemberId ? null : id)}
+                    onEditMember={(memberId) => { setSelectedMemberId(null); openEditor({ type: "edit", memberId }); }}
+                    onDeleteMember={(memberId) => { model.deleteRuntimeMember(memberId); if (selectedMemberId === memberId) setSelectedMemberId(null); }}
+                    onNewMember={() => { setSelectedMemberId(null); openEditor({ type: "new" }); }}
+                    onNewProject={() => { setEditingProject(undefined); setShowProjectDialog(true); }}
+                    onEditProject={(id) => { setEditingProject(projects.find((p) => p.projectid === id)); setShowProjectDialog(true); }}
+                    onDeleteProject={(id) => model.deleteProject(id)}
                 />
 
                 <div className={cn(
                     "flex-1 min-w-0 flex transition-all duration-300 ease-in-out",
-                    (editorVisible || selectedWorkerId) && "translate-x-full opacity-0 pointer-events-none",
+                    (editorVisible || selectedMemberId) && "translate-x-full opacity-0 pointer-events-none",
                 )}>
                     <div className="flex-1 min-w-0">
                         <BoardView
@@ -124,7 +142,7 @@ export function TeamView({ model }: TeamViewProps) {
                             doneTasks={doneTasks}
                             failedTasks={failedTasks}
                             allTasks={allTasks}
-                            workers={workers}
+                            members={runtimeMembers}
                             onTaskClick={handleTaskClick}
                             onRetryTask={handleRetryTask}
                         />
@@ -132,7 +150,7 @@ export function TeamView({ model }: TeamViewProps) {
                     {selectedTask && (
                         <TaskDetail
                             task={selectedTask}
-                            workers={workers}
+                            workers={runtimeMembers}
                             allTasks={allTasks}
                             activities={activities}
                             onClose={() => setSelectedTask(null)}
@@ -146,20 +164,20 @@ export function TeamView({ model }: TeamViewProps) {
                     )}
                 </div>
 
-                {selectedWorkerId && (() => {
-                    const w = workers.find((w) => w.workerid === selectedWorkerId);
-                    if (!w) return null;
+                {selectedMemberId && (() => {
+                    const m = runtimeMembers.find((w) => w.workerid === selectedMemberId);
+                    if (!m) return null;
                     return (
                         <div className={cn(
-                            "absolute top-0 bottom-0 left-[140px] right-0 flex z-10 transition-transform duration-300 ease-in-out",
-                            selectedWorkerId ? "translate-x-0" : "-translate-x-full",
+                            "absolute top-0 bottom-0 left-[190px] right-0 flex z-10 transition-transform duration-300 ease-in-out",
+                            selectedMemberId ? "translate-x-0" : "-translate-x-full",
                         )}>
-                            <WorkerDetailPanel
-                                worker={w}
+                            <MemberDetailPanel
+                                member={m}
                                 allTasks={allTasks}
-                                onClose={() => setSelectedWorkerId(null)}
-                                onEdit={() => { setSelectedWorkerId(null); openEditor({ type: "edit", workerId: w.workerid }); }}
-                                onTaskClick={(task) => { setSelectedWorkerId(null); setSelectedTask(task); }}
+                                onClose={() => setSelectedMemberId(null)}
+                                onEdit={() => { setSelectedMemberId(null); openEditor({ type: "edit", memberId: m.workerid }); }}
+                                onTaskClick={(task) => { setSelectedMemberId(null); setSelectedTask(task); }}
                             />
                         </div>
                     );
@@ -167,16 +185,16 @@ export function TeamView({ model }: TeamViewProps) {
 
                 {editorTarget && (
                     <div className={cn(
-                        "absolute top-0 bottom-0 left-[140px] right-0 flex z-10 transition-transform duration-300 ease-in-out",
+                        "absolute top-0 bottom-0 left-[190px] right-0 flex z-10 transition-transform duration-300 ease-in-out",
                         editorVisible ? "translate-x-0" : "-translate-x-full",
                     )}>
-                        <WorkerEditor
-                            worker={editorWorker}
-                            workers={workers}
+                        <MemberEditor
+                            member={editorMember}
+                            members={runtimeMembers}
                             onClose={closeEditor}
                             onSubmit={editorTarget.type === "edit"
-                                ? async (_tool, config) => { await model.updateWorker(editorTarget.workerId, config as any); }
-                                : async (tool, config) => { await model.createWorker(tool, config as any); }
+                                ? async (_tool, config) => { await model.updateRuntimeMember(editorTarget.memberId, config as any); }
+                                : async (tool, config) => { await model.createRuntimeMember(tool, config as any); }
                             }
                         />
                     </div>
@@ -221,6 +239,17 @@ export function TeamView({ model }: TeamViewProps) {
                             setShowCreateTask(false);
                         }}
                         onCancel={() => setShowCreateTask(false)}
+                    />
+                </div>
+            )}
+
+            {showProjectDialog && (
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50"
+                    onClick={(e) => e.target === e.currentTarget && (setShowProjectDialog(false), setEditingProject(undefined))}>
+                    <ProjectDialog
+                        project={editingProject}
+                        onSubmit={handleProjectSubmit}
+                        onCancel={() => { setShowProjectDialog(false); setEditingProject(undefined); }}
                     />
                 </div>
             )}

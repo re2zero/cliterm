@@ -1680,6 +1680,13 @@ declare global {
         color?: string;
     };
 
+    // wshrpc.TeamCreateProjectData
+    type TeamCreateProjectData = {
+        name: string;
+        path: string;
+        spec?: string;
+    };
+
     // wshrpc.TeamCreateTaskData
     type TeamCreateTaskData = {
         title: string;
@@ -1751,6 +1758,17 @@ declare global {
         maxretries?: number;
         memory?: string;
         color?: string;
+        projectid?: string;
+        createdat: number;
+        updatedat: number;
+    };
+
+    // wshrpc.TeamProject
+    type TeamProject = {
+        projectid: string;
+        name: string;
+        path: string;
+        spec?: string;
         createdat: number;
         updatedat: number;
     };
@@ -1816,6 +1834,14 @@ declare global {
         color?: string;
     };
 
+    // wshrpc.TeamUpdateProjectData
+    type TeamUpdateProjectData = {
+        projectid: string;
+        name?: string;
+        path?: string;
+        spec?: string;
+    };
+
     // wshrpc.TeamUpdateTaskData
     type TeamUpdateTaskData = {
         taskid: string;
@@ -1850,6 +1876,7 @@ declare global {
         blockid?: string;
         tabid?: string;
         pid?: number;
+        projectid?: string;
         createdat: number;
         updatedat: number;
         lastheartbeat?: number;

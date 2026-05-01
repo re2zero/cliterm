@@ -4,7 +4,7 @@
 import { useState } from "react";
 import { cn } from "@/util/util";
 
-export interface WorkerConfigResult {
+export interface MemberConfigResult {
 	runtime: string;
 	concurrency: number;
 	timeout: number;
@@ -12,13 +12,13 @@ export interface WorkerConfigResult {
 	capabilities: string[];
 }
 
-interface WorkerConfigDialogProps {
+interface MemberConfigDialogProps {
 	className?: string;
-	onSubmit: (config: WorkerConfigResult) => void;
+	onSubmit: (config: MemberConfigResult) => void;
 	onCancel?: () => void;
 }
 
-const DEFAULT_CONFIG: WorkerConfigResult = {
+const DEFAULT_CONFIG: MemberConfigResult = {
 	runtime: "claude",
 	concurrency: 3,
 	timeout: 300,
@@ -37,7 +37,7 @@ const PREDEFINED_CAPABILITIES = [
 	"optimization",
 ];
 
-const WORKER_TEMPLATES: Record<string, Omit<WorkerConfigResult, "capabilities"> & { label: string; description: string }> = {
+const MEMBER_TEMPLATES: Record<string, Omit<MemberConfigResult, "capabilities"> & { label: string; description: string }> = {
 	standard: { label: "Standard", description: "Balanced defaults", runtime: "claude", concurrency: 3, timeout: 300, maxRetries: 3 },
 	quick: { label: "Quick", description: "Fast iteration", runtime: "claude", concurrency: 1, timeout: 120, maxRetries: 1 },
 	power: { label: "Power", description: "Max parallelism", runtime: "claude", concurrency: 5, timeout: 600, maxRetries: 5 },
@@ -46,15 +46,15 @@ const WORKER_TEMPLATES: Record<string, Omit<WorkerConfigResult, "capabilities"> 
 	reviewer: { label: "Code Reviewer", description: "Quality gate", runtime: "claude", concurrency: 3, timeout: 180, maxRetries: 2 },
 };
 
-export function WorkerConfigDialog({ className, onSubmit, onCancel }: WorkerConfigDialogProps) {
-	const [config, setConfig] = useState<WorkerConfigResult>(DEFAULT_CONFIG);
+export function MemberConfigDialog({ className, onSubmit, onCancel }: MemberConfigDialogProps) {
+	const [config, setConfig] = useState<MemberConfigResult>(DEFAULT_CONFIG);
 	const [loading, setLoading] = useState(false);
 
-	const set = <K extends keyof WorkerConfigResult>(key: K, value: WorkerConfigResult[K]) =>
+	const set = <K extends keyof MemberConfigResult>(key: K, value: MemberConfigResult[K]) =>
 		setConfig((prev) => ({ ...prev, [key]: value }));
 
 	const applyTemplate = (key: string) => {
-		const t = WORKER_TEMPLATES[key];
+		const t = MEMBER_TEMPLATES[key];
 		if (t) setConfig({ ...t, capabilities: config.capabilities });
 	};
 
@@ -81,7 +81,7 @@ export function WorkerConfigDialog({ className, onSubmit, onCancel }: WorkerConf
 			<div className="flex flex-col gap-1.5">
 				<label className="text-xs font-medium text-tertiary uppercase tracking-wide">Template</label>
 				<div className="grid grid-cols-3 gap-2">
-					{(Object.entries(WORKER_TEMPLATES)).map(([key, t]) => (
+					{(Object.entries(MEMBER_TEMPLATES)).map(([key, t]) => (
 						<button
 							key={key}
 							onClick={() => applyTemplate(key)}

@@ -37,6 +37,7 @@ const (
 	Event_TeamTaskUpdate     = "team:taskupdate"      // type: none
 	Event_TeamWorkerUpdate   = "team:workerupdate"    // type: none
 	Event_TeamMemberUpdate   = "team:memberupdate"    // type: none
+	Event_TeamProjectUpdate  = "team:projectupdate"   // type: none
 )
 
 var AllEvents []string = []string{
@@ -62,6 +63,7 @@ var AllEvents []string = []string{
 	Event_TeamTaskUpdate,
 	Event_TeamWorkerUpdate,
 	Event_TeamMemberUpdate,
+	Event_TeamProjectUpdate,
 }
 
 type WaveEvent struct {

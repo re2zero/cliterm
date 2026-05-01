@@ -17,7 +17,7 @@ interface BoardViewProps {
     doneTasks: TeamTask[];
     failedTasks: TeamTask[];
     allTasks: TeamTask[];
-    workers: TeamWorker[];
+    members: TeamWorker[];
     onTaskClick: (task: TeamTask) => void;
     onRetryTask: (taskId: string) => void;
 }
@@ -28,7 +28,7 @@ export function BoardView({
     doneTasks,
     failedTasks,
     allTasks,
-    workers,
+    members,
     onTaskClick,
     onRetryTask,
 }: BoardViewProps) {
@@ -46,7 +46,7 @@ export function BoardView({
                     key={column.status}
                     column={column}
                     tasks={tasks}
-                    workers={workers}
+                    members={members}
                     allTasks={allTasks}
                     onTaskClick={onTaskClick}
                     onRetryTask={onRetryTask}

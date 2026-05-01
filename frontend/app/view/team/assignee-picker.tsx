@@ -5,17 +5,17 @@ import * as React from "react";
 import { cn } from "@/util/util";
 
 interface AssigneePickerProps {
-    workers: TeamWorker[];
-    selectedWorkerId: string | null;
-    onSelect: (workerId: string | null) => void;
+    members: TeamWorker[];
+    selectedMemberId: string | null;
+    onSelect: (memberId: string | null) => void;
 }
 
-export function AssigneePicker({ workers, selectedWorkerId, onSelect }: AssigneePickerProps) {
+export function AssigneePicker({ members, selectedMemberId, onSelect }: AssigneePickerProps) {
     const [open, setOpen] = React.useState(false);
-    const selected = workers.find((w) => w.workerid === selectedWorkerId);
+    const selected = members.find((w) => w.workerid === selectedMemberId);
 
-    const idleWorkers = workers.filter((w) => w.status === "idle");
-    const busyWorkers = workers.filter((w) => w.status !== "idle");
+    const idleMembers = members.filter((w) => w.status === "idle");
+    const busyMembers = members.filter((w) => w.status !== "idle");
 
     return (
         <div className="relative">
@@ -44,15 +44,15 @@ export function AssigneePicker({ workers, selectedWorkerId, onSelect }: Assignee
                         >
                             Unassigned
                         </button>
-                        {idleWorkers.length > 0 && (
+                        {idleMembers.length > 0 && (
                             <>
                                 <div className="px-3 py-1 text-[10px] text-muted-foreground uppercase tracking-wider">Idle</div>
-                                {idleWorkers.map((w) => (
+                                {idleMembers.map((w) => (
                                     <button
                                         key={w.workerid}
                                         className={cn(
                                             "w-full text-left px-3 py-1.5 text-xs hover:bg-accent/30 cursor-pointer flex items-center gap-1.5",
-                                            selectedWorkerId === w.workerid && "bg-accent/20",
+                                            selectedMemberId === w.workerid && "bg-accent/20",
                                         )}
                                         onClick={() => { onSelect(w.workerid); setOpen(false); }}
                                     >
@@ -63,15 +63,15 @@ export function AssigneePicker({ workers, selectedWorkerId, onSelect }: Assignee
                                 ))}
                             </>
                         )}
-                        {busyWorkers.length > 0 && (
+                        {busyMembers.length > 0 && (
                             <>
                                 <div className="px-3 py-1 text-[10px] text-muted-foreground uppercase tracking-wider">Busy</div>
-                                {busyWorkers.map((w) => (
+                                {busyMembers.map((w) => (
                                     <button
                                         key={w.workerid}
                                         className={cn(
                                             "w-full text-left px-3 py-1.5 text-xs hover:bg-accent/30 cursor-pointer flex items-center gap-1.5",
-                                            selectedWorkerId === w.workerid && "bg-accent/20",
+                                            selectedMemberId === w.workerid && "bg-accent/20",
                                         )}
                                         onClick={() => { onSelect(w.workerid); setOpen(false); }}
                                     >

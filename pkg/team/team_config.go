@@ -58,9 +58,17 @@ type projectMemberYAML struct {
 	Memory         string       `yaml:"memory,omitempty"`
 }
 
+// projectDefYAML represents a project definition in .wave/team.yaml.
+type projectDefYAML struct {
+	Name string `yaml:"name"`
+	Path string `yaml:"path"`
+	Spec string `yaml:"spec,omitempty"`
+}
+
 // projectConfigYAML is the top-level structure of .wave/team.yaml.
 type projectConfigYAML struct {
-	Members []projectMemberYAML `yaml:"members,omitempty"`
+	Projects []projectDefYAML       `yaml:"projects,omitempty"`
+	Members  []projectMemberYAML    `yaml:"members,omitempty"`
 }
 
 // ParseMemberYAML unmarshals YAML bytes into a TeamMember.
@@ -196,6 +204,49 @@ func LoadProjectConfig(projectDir string) ([]TeamMember, error) {
 	}
 
 	return resolveProjectMembers(cfg.Members, globalTemplates)
+}
+
+// LoadProjectsFromConfig reads .wave/team.yaml from the given project directory.
+// Returns project definitions found in the config.
+// Returns an empty slice if the file doesn't exist or has no projects (not an error).
+func LoadProjectsFromConfig(projectDir string) ([]TeamProject, error) {
+	configPath := filepath.Join(projectDir, ".wave", "team.yaml")
+
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("read project config %q: %w", configPath, err)
+	}
+
+	var cfg projectConfigYAML
+	if err := yaml.Unmarshal(data, &cfg); err != nil {
+		return nil, fmt.Errorf("unmarshal project config %q: %w", configPath, err)
+	}
+
+	if len(cfg.Projects) == 0 {
+		return nil, nil
+	}
+
+	var projects []TeamProject
+	for _, p := range cfg.Projects {
+		if p.Name == "" {
+			log.Printf("warning: project definition has no name, skipping")
+			continue
+		}
+		if p.Path == "" {
+			log.Printf("warning: project %q has no path, skipping", p.Name)
+			continue
+		}
+		projects = append(projects, TeamProject{
+			Name: p.Name,
+			Path: p.Path,
+			Spec: p.Spec,
+		})
+	}
+
+	return projects, nil
 }
 
 // GetEffectiveConfig merges project-level and global-level members.

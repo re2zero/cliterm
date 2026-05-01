@@ -4,10 +4,9 @@
 import * as React from "react";
 import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
-import { Markdown } from "@/app/element/markdown";
 import { cn } from "@/util/util";
 
-export interface WorkerFormData {
+export interface MemberFormData {
     name?: string;
     description?: string;
     persona?: string;
@@ -49,53 +48,105 @@ function FieldRow({ label, children, className }: { label: string; children: Rea
     );
 }
 
-interface WorkerListProps {
-    workers: TeamWorker[];
-    selectedWorkerId: string | null;
-    onSelectWorker: (workerId: string | null) => void;
-    onEditWorker: (workerId: string) => void;
-    onDeleteWorker: (workerId: string) => void;
-    onNewWorker: () => void;
+interface MemberListProps {
+    members: TeamWorker[];
+    projects: TeamProject[];
+    selectedMemberId: string | null;
+    onSelectMember: (memberId: string | null) => void;
+    onEditMember: (memberId: string) => void;
+    onDeleteMember: (memberId: string) => void;
+    onNewMember: () => void;
+    onNewProject: () => void;
+    onEditProject: (projectId: string) => void;
+    onDeleteProject: (projectId: string) => void;
 }
 
-export function WorkerList({ workers, selectedWorkerId, onSelectWorker, onEditWorker, onDeleteWorker, onNewWorker }: WorkerListProps) {
+export function MemberList({ members, projects, selectedMemberId, onSelectMember, onEditMember, onDeleteMember, onNewMember, onNewProject, onEditProject, onDeleteProject }: MemberListProps) {
     const [deleteTarget, setDeleteTarget] = React.useState<TeamWorker | null>(null);
+    const [deleteProjectTarget, setDeleteProjectTarget] = React.useState<TeamProject | null>(null);
 
     const handleDelete = () => {
         if (!deleteTarget) return;
-        onDeleteWorker(deleteTarget.workerid);
+        onDeleteMember(deleteTarget.workerid);
         setDeleteTarget(null);
     };
 
+    const handleDeleteProject = () => {
+        if (!deleteProjectTarget) return;
+        onDeleteProject(deleteProjectTarget.projectid);
+        setDeleteProjectTarget(null);
+    };
+
+    const sortedGroups = React.useMemo(() => {
+        const memberMap = new Map<string, TeamWorker[]>();
+        const unassigned: TeamWorker[] = [];
+        for (const m of members) {
+            if (m.projectid) {
+                if (!memberMap.has(m.projectid)) memberMap.set(m.projectid, []);
+                memberMap.get(m.projectid)!.push(m);
+            } else {
+                unassigned.push(m);
+            }
+        }
+        const result: { project: TeamProject | null; members: TeamWorker[] }[] = [];
+        for (const p of projects) {
+            result.push({ project: p, members: memberMap.get(p.projectid) ?? [] });
+        }
+        for (const [pid, grp] of memberMap) {
+            if (!projects.some((p) => p.projectid === pid)) {
+                result.push({ project: { projectid: pid, name: pid, path: "", spec: "", createdat: 0, updatedat: 0 }, members: grp });
+            }
+        }
+        if (unassigned.length > 0 || result.length === 0) {
+            result.push({ project: null, members: unassigned });
+        }
+        return result;
+    }, [members, projects]);
+
     return (
-        <div className="w-[140px] min-w-[120px] border-r border-border/50 flex flex-col bg-card/50">
+        <div className="w-[180px] min-w-[160px] border-r border-border/50 flex flex-col bg-card/50">
             <div className="flex items-center justify-between px-2.5 py-2 border-b border-border/50">
-                <span className="text-[11px] font-semibold text-primary uppercase tracking-wider">Workers</span>
-                <span className="text-[10px] text-muted-foreground tabular-nums">{workers.length}</span>
+                <span className="text-[11px] font-semibold text-primary uppercase tracking-wider">Members</span>
+                <span className="text-[10px] text-muted-foreground tabular-nums">{members.length}</span>
             </div>
             <div className="flex-1 overflow-y-auto py-0.5">
-                {workers.map((w) => (
-                    <WorkerItem
-                        key={w.workerid}
-                        worker={w}
-                        isSelected={selectedWorkerId === w.workerid}
-                        onSelect={() => onSelectWorker(w.workerid)}
-                        onEdit={() => onEditWorker(w.workerid)}
-                        onDelete={() => setDeleteTarget(w)}
-                    />
-                ))}
-                {workers.length === 0 && (
+                {sortedGroups.map((group) => {
+                    const project = group.project;
+                    const projectId = project?.projectid ?? null;
+                    return (
+                        <ProjectGroup
+                            key={projectId ?? "default"}
+                            project={project}
+                            members={group.members}
+                            selectedMemberId={selectedMemberId}
+                            onSelectMember={onSelectMember}
+                            onEditMember={onEditMember}
+                            onDeleteMember={(id) => setDeleteTarget(group.members.find((m) => m.workerid === id) ?? null)}
+                            onNewMember={onNewMember}
+                            onEditProject={projectId ? () => onEditProject(projectId) : undefined}
+                            onDeleteProject={projectId ? () => setDeleteProjectTarget(project!) : undefined}
+                            onNewProject={onNewProject}
+                        />
+                    );
+                })}
+                {members.length === 0 && sortedGroups.length === 0 && (
                     <div className="px-2 py-6 text-[10px] text-muted-foreground text-center leading-relaxed">
-                        No workers<br />Create one ↓
+                        No members<br />Create one ↓
                     </div>
                 )}
             </div>
-            <div className="border-t border-border/50 p-1.5">
+            <div className="border-t border-border/50 p-1.5 flex gap-1">
                 <button
-                    className="w-full px-2 py-1.5 rounded text-[11px] bg-accent/80 text-primary hover:bg-accent cursor-pointer font-medium transition-colors"
-                    onClick={onNewWorker}
+                    className="flex-1 px-2 py-1.5 rounded text-[11px] bg-accent/80 text-primary hover:bg-accent cursor-pointer font-medium transition-colors"
+                    onClick={onNewMember}
                 >
-                    + New
+                    + Member
+                </button>
+                <button
+                    className="flex-1 px-2 py-1.5 rounded text-[11px] bg-blue-500/80 text-primary hover:bg-blue-500 cursor-pointer font-medium transition-colors"
+                    onClick={onNewProject}
+                >
+                    + Project
                 </button>
             </div>
 
@@ -103,7 +154,7 @@ export function WorkerList({ workers, selectedWorkerId, onSelectWorker, onEditWo
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50"
                     onClick={(e) => e.target === e.currentTarget && setDeleteTarget(null)}>
                     <div className="bg-card border border-border/50 rounded-lg shadow-2xl p-4 w-72" style={{ colorScheme: "dark" }}>
-                        <h3 className="text-sm font-semibold text-primary mb-1.5">Delete Worker</h3>
+                        <h3 className="text-sm font-semibold text-primary mb-1.5">Delete Member</h3>
                         <p className="text-xs text-secondary mb-1">
                             Delete <span className="text-primary font-medium">{deleteTarget.name}</span>?
                         </p>
@@ -115,12 +166,29 @@ export function WorkerList({ workers, selectedWorkerId, onSelectWorker, onEditWo
                     </div>
                 </div>
             )}
+
+            {deleteProjectTarget && (
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50"
+                    onClick={(e) => e.target === e.currentTarget && setDeleteProjectTarget(null)}>
+                    <div className="bg-card border border-border/50 rounded-lg shadow-2xl p-4 w-72" style={{ colorScheme: "dark" }}>
+                        <h3 className="text-sm font-semibold text-primary mb-1.5">Delete Project</h3>
+                        <p className="text-xs text-secondary mb-1">
+                            Delete <span className="text-primary font-medium">{deleteProjectTarget.name}</span>?
+                        </p>
+                        <p className="text-[11px] text-red-400 mb-3">This will unassign all members from this project.</p>
+                        <div className="flex justify-end gap-2">
+                            <button className="px-2.5 py-1 rounded text-xs text-muted-foreground hover:text-primary cursor-pointer" onClick={() => setDeleteProjectTarget(null)}>Cancel</button>
+                            <button className="px-2.5 py-1 rounded bg-red-500/80 text-white hover:bg-red-500 text-xs font-medium cursor-pointer" onClick={handleDeleteProject}>Delete</button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
 
-function WorkerItem({ worker, isSelected, onSelect, onEdit, onDelete }: {
-    worker: TeamWorker;
+function MemberItem({ member, isSelected, onSelect, onEdit, onDelete }: {
+    member: TeamWorker;
     isSelected: boolean;
     onSelect: () => void;
     onEdit: () => void;
@@ -128,7 +196,7 @@ function WorkerItem({ worker, isSelected, onSelect, onEdit, onDelete }: {
 }) {
     const [menuOpen, setMenuOpen] = React.useState(false);
     const menuRef = React.useRef<HTMLDivElement>(null);
-    const status = STATUS_ICON[worker.status] ?? STATUS_ICON["offline"];
+    const status = STATUS_ICON[member.status] ?? STATUS_ICON["offline"];
 
     React.useEffect(() => {
         if (!menuOpen) return;
@@ -149,8 +217,8 @@ function WorkerItem({ worker, isSelected, onSelect, onEdit, onDelete }: {
         >
             <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", status.dot)} title={status.label} />
             <div className="flex-1 min-w-0">
-                <div className="text-[11px] text-primary truncate leading-tight">{worker.name}</div>
-                <div className="text-[9px] text-muted-foreground">{worker.status}</div>
+                <div className="text-[11px] text-primary truncate leading-tight">{member.name}</div>
+                <div className="text-[9px] text-muted-foreground">{member.status}</div>
             </div>
             <div className="relative" ref={menuRef}>
                 <button
@@ -170,8 +238,92 @@ function WorkerItem({ worker, isSelected, onSelect, onEdit, onDelete }: {
     );
 }
 
-export interface WorkerDetailPanelProps {
-    worker: TeamWorker;
+function ProjectGroup({ project, members, selectedMemberId, onSelectMember, onEditMember, onDeleteMember, onNewMember, onEditProject, onDeleteProject, onNewProject }: {
+    project: TeamProject | null;
+    members: TeamWorker[];
+    selectedMemberId: string | null;
+    onSelectMember: (memberId: string | null) => void;
+    onEditMember: (memberId: string) => void;
+    onDeleteMember: (memberId: string) => void;
+    onNewMember: () => void;
+    onEditProject?: () => void;
+    onDeleteProject?: () => void;
+    onNewProject: () => void;
+}) {
+    const [menuOpen, setMenuOpen] = React.useState(false);
+    const menuRef = React.useRef<HTMLDivElement>(null);
+    const isDefault = !project;
+
+    React.useEffect(() => {
+        if (!menuOpen) return;
+        const handler = (e: MouseEvent) => {
+            if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
+        };
+        document.addEventListener("mousedown", handler);
+        return () => document.removeEventListener("mousedown", handler);
+    }, [menuOpen]);
+
+    return (
+        <div className="mb-1">
+            <div className={cn(
+                "flex items-center gap-1.5 px-2 py-1 border-b border-border/20 group",
+                isDefault ? "bg-muted/20" : "bg-blue-500/5",
+            )}>
+                <div className="flex-1 min-w-0">
+                    <div className="text-[11px] font-medium text-primary truncate">
+                        {isDefault ? "Default" : project.name}
+                    </div>
+                    {!isDefault && project.path && (
+                        <div className="text-[9px] text-muted-foreground truncate font-mono">
+                            {project.path}
+                        </div>
+                    )}
+                </div>
+                <span className="text-[10px] text-muted-foreground tabular-nums">{members.length}</span>
+                {!isDefault && (
+                    <div className="relative" ref={menuRef}>
+                        <button
+                            className="p-0.5 rounded text-muted-foreground hover:text-primary cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity"
+                            onClick={(e) => { e.stopPropagation(); setMenuOpen(!menuOpen); }}
+                        >⋮</button>
+                        {menuOpen && (
+                            <div className="absolute right-0 top-full mt-0.5 bg-card border border-border/50 rounded shadow-lg z-20 py-0.5 min-w-[72px]">
+                                <button className="w-full text-left px-2 py-1 text-[11px] text-primary hover:bg-accent/10 cursor-pointer"
+                                    onClick={(e) => { e.stopPropagation(); setMenuOpen(false); onEditProject?.(); }}>Edit</button>
+                                <button className="w-full text-left px-2 py-1 text-[11px] text-red-400 hover:bg-red-500/10 cursor-pointer"
+                                    onClick={(e) => { e.stopPropagation(); setMenuOpen(false); onDeleteProject?.(); }}>Delete</button>
+                            </div>
+                        )}
+                    </div>
+                )}
+                <button
+                    className="px-1.5 py-0.5 rounded text-[10px] bg-accent/80 text-primary hover:bg-accent cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity font-medium"
+                    onClick={onNewMember}
+                >+</button>
+            </div>
+            <div>
+                {members.map((m) => (
+                    <MemberItem
+                        key={m.workerid}
+                        member={m}
+                        isSelected={selectedMemberId === m.workerid}
+                        onSelect={() => onSelectMember(m.workerid)}
+                        onEdit={() => onEditMember(m.workerid)}
+                        onDelete={() => onDeleteMember(m.workerid)}
+                    />
+                ))}
+                {members.length === 0 && (
+                    <div className="px-2 py-3 text-[10px] text-muted-foreground text-center italic">
+                        No members
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+}
+
+export interface MemberDetailPanelProps {
+    member: TeamWorker;
     allTasks: TeamTask[];
     onClose: () => void;
     onEdit: () => void;
@@ -196,20 +348,20 @@ const TASK_STATUS_COLOR: Record<string, string> = {
     paused: "bg-orange-400",
 };
 
-export function WorkerDetailPanel({ worker, allTasks, onClose, onEdit, onTaskClick }: WorkerDetailPanelProps) {
-    const status = STATUS_ICON[worker.status] ?? STATUS_ICON["offline"];
-    const workerTasks = allTasks.filter((t) => t.assignedworkerid === worker.workerid);
+export function MemberDetailPanel({ member, allTasks, onClose, onEdit, onTaskClick }: MemberDetailPanelProps) {
+    const status = STATUS_ICON[member.status] ?? STATUS_ICON["offline"];
+    const memberTasks = allTasks.filter((t) => t.assignedworkerid === member.workerid);
 
-    const activeTasks = workerTasks.filter((t) => t.status === "working" || t.status === "assigned");
-    const historyTasks = workerTasks.filter((t) => t.status === "done" || t.status === "failed");
-    const pendingTasks = workerTasks.filter((t) => t.status === "pending" || t.status === "paused");
+    const activeTasks = memberTasks.filter((t) => t.status === "working" || t.status === "assigned");
+    const historyTasks = memberTasks.filter((t) => t.status === "done" || t.status === "failed");
+    const pendingTasks = memberTasks.filter((t) => t.status === "pending" || t.status === "paused");
 
     return (
         <div className="w-[320px] min-w-[280px] border-l border-border/50 flex flex-col bg-card overflow-hidden" style={{ colorScheme: "dark" }}>
             <div className="flex items-center justify-between px-4 py-3 border-b border-border/50">
                 <div className="flex items-center gap-2">
                     <span className={cn("w-2 h-2 rounded-full", status.dot)} />
-                    <h3 className="text-sm font-semibold text-primary">{worker.name}</h3>
+                    <h3 className="text-sm font-semibold text-primary">{member.name}</h3>
                 </div>
                 <div className="flex items-center gap-2">
                     <button className="text-[11px] text-muted-foreground hover:text-primary cursor-pointer" onClick={onEdit}>Edit</button>
@@ -217,15 +369,15 @@ export function WorkerDetailPanel({ worker, allTasks, onClose, onEdit, onTaskCli
                 </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto">
-                <div className="px-4 py-3 border-b border-border/30 space-y-2">
-                    <div className="flex items-center gap-3 text-xs">
-                        <span className={cn("px-1.5 py-0.5 rounded text-[10px] font-medium", worker.status === "idle" ? "bg-green-500/10 text-green-400" : worker.status === "working" ? "bg-yellow-500/10 text-yellow-400" : "bg-muted text-muted-foreground")}>
-                            {status.label}
-                        </span>
-                        <span className="text-muted-foreground">Worker</span>
+                <div className="flex-1 overflow-y-auto">
+                    <div className="px-4 py-3 border-b border-border/30 space-y-2">
+                        <div className="flex items-center gap-3 text-xs">
+                            <span className={cn("px-1.5 py-0.5 rounded text-[10px] font-medium", member.status === "idle" ? "bg-green-500/10 text-green-400" : member.status === "working" ? "bg-yellow-500/10 text-yellow-400" : "bg-muted text-muted-foreground")}>
+                                {status.label}
+                            </span>
+                            <span className="text-muted-foreground">Member</span>
+                        </div>
                     </div>
-                </div>
 
                 {activeTasks.length > 0 && (
                     <div className="px-4 py-3 border-b border-border/30">
@@ -281,26 +433,27 @@ export function WorkerDetailPanel({ worker, allTasks, onClose, onEdit, onTaskCli
     );
 }
 
-interface WorkerEditorProps {
-    worker?: TeamWorker;
-    workers: TeamWorker[];
+interface MemberEditorProps {
+    member?: TeamWorker;
+    members: TeamWorker[];
     onClose: () => void;
-    onSubmit: (tool: string, config: WorkerFormData) => Promise<string | void>;
+    onSubmit: (tool: string, config: MemberFormData) => Promise<string | void>;
 }
 
-export function WorkerEditor({ worker, onClose, onSubmit }: WorkerEditorProps) {
-    const isCreating = !worker;
+export function MemberEditor({ member, onClose, onSubmit }: MemberEditorProps) {
+    const isCreating = !member;
     const [submitting, setSubmitting] = React.useState(false);
     const [runtimes, setRuntimes] = React.useState<AIRuntime[]>([]);
     const [nameDirty, setNameDirty] = React.useState(false);
 
     const [tool, setTool] = React.useState("claude");
-    const [name, setName] = React.useState(worker?.name ?? "");
+    const [name, setName] = React.useState(member?.name ?? "");
+    const [description, setDescription] = React.useState("");
+    const [persona, setPersona] = React.useState("");
+    const [customCmd, setCustomCmd] = React.useState("");
+    const [model, setModel] = React.useState("");
     const [maxRetries, setMaxRetries] = React.useState(3);
     const [capabilities, setCapabilities] = React.useState<string[]>([]);
-    const [description, setDescription] = React.useState("");
-    const [customCmd, setCustomCmd] = React.useState("");
-    const [persona, setPersona] = React.useState("");
     const [skills, setSkills] = React.useState<string[]>([]);
     const [mcpServers, setMcpServers] = React.useState<string[]>([]);
 
@@ -312,7 +465,7 @@ export function WorkerEditor({ worker, onClose, onSubmit }: WorkerEditorProps) {
 
     React.useEffect(() => {
         if (isCreating && !nameDirty) {
-            setName(tool === "opencode" ? "OpenCode Worker" : `${tool.charAt(0).toUpperCase() + tool.slice(1)} Worker`);
+            setName(tool === "opencode" ? "OpenCode Member" : `${tool.charAt(0).toUpperCase() + tool.slice(1)} Member`);
         }
     }, [tool, isCreating, nameDirty]);
 
@@ -327,17 +480,17 @@ export function WorkerEditor({ worker, onClose, onSubmit }: WorkerEditorProps) {
         try {
             await onSubmit(tool, {
                 name: name || undefined,
-                maxretries: maxRetries > 0 ? maxRetries : undefined,
-                capabilities: capabilities.length > 0 ? capabilities : undefined,
                 description: description || undefined,
                 persona: persona || undefined,
+                customcmd: customCmd || undefined,
+                maxretries: maxRetries > 0 ? maxRetries : undefined,
+                capabilities: capabilities.length > 0 ? capabilities : undefined,
                 skills: skills.length > 0 ? skills : undefined,
                 mcpservers: mcpServers.length > 0 ? mcpServers.map((s) => ({ name: s } as TeamMCPConfig)) : undefined,
-                customcmd: customCmd || undefined,
             });
             onClose();
         } catch (e) {
-            console.error("Failed to create worker:", e);
+            console.error("Failed to save member:", e);
         } finally {
             setSubmitting(false);
         }
@@ -348,21 +501,9 @@ export function WorkerEditor({ worker, onClose, onSubmit }: WorkerEditorProps) {
     return (
         <div className="flex flex-col h-full w-full bg-card" style={{ colorScheme: "dark" }}>
             <div className="flex items-center justify-between px-5 py-3 border-b border-border/50 shrink-0">
-                <div className="flex items-center gap-2">
-                    <h3 className="text-sm font-semibold text-primary">
-                        {isCreating ? "New Worker" : worker?.name ?? "Worker"}
-                    </h3>
-                    {!isCreating && worker && (
-                        <span className={cn(
-                            "px-1.5 py-0.5 rounded text-[10px]",
-                            worker.status === "idle" ? "bg-green-500/10 text-green-400" :
-                            worker.status === "working" ? "bg-yellow-500/10 text-yellow-400" :
-                            "bg-muted text-muted-foreground",
-                        )}>
-                            {STATUS_ICON[worker.status]?.label ?? worker.status}
-                        </span>
-                    )}
-                </div>
+                <h3 className="text-sm font-semibold text-primary">
+                    {isCreating ? "New Member" : member?.name ?? "Member"}
+                </h3>
                 <button className="text-muted-foreground hover:text-primary cursor-pointer text-sm" onClick={onClose}>✕</button>
             </div>
 
@@ -372,8 +513,7 @@ export function WorkerEditor({ worker, onClose, onSubmit }: WorkerEditorProps) {
                         <input className={inputCls} value={name} onChange={(e) => handleNameChange(e.target.value)} disabled={!isCreating} />
                     </FieldRow>
                     <FieldRow label="Description">
-                        <textarea className={cn(inputCls, "resize-y")} rows={2} value={description} onChange={(e) => setDescription(e.target.value)}
-                            placeholder="Brief description for users..." />
+                        <input className={inputCls} placeholder="What this member does..." value={description} onChange={(e) => setDescription(e.target.value)} />
                     </FieldRow>
                 </Section>
 
@@ -394,35 +534,39 @@ export function WorkerEditor({ worker, onClose, onSubmit }: WorkerEditorProps) {
                                     >
                                         <span className={cn("w-2 h-2 rounded-full shrink-0", isOnline ? "bg-green-500" : "bg-muted-foreground/40")} />
                                         <span className="text-xs text-primary font-medium">{rt === "opencode" ? "OpenCode" : rt.charAt(0).toUpperCase() + rt.slice(1)}</span>
-                                        {isOnline && runtime?.version && <span className="text-[10px] text-muted-foreground">{runtime.version}</span>}
                                     </button>
                                 );
                             })}
                         </div>
-                        <FieldRow label="Custom Command" className="mt-3">
-                            <input className={inputCls} placeholder="Override default launch command..." value={customCmd} onChange={(e) => setCustomCmd(e.target.value)} />
+                        <FieldRow label="Custom Command" className="mt-2">
+                            <input className={cn(inputCls, "font-mono text-xs")} placeholder="Override default launch command..." value={customCmd} onChange={(e) => setCustomCmd(e.target.value)} />
                         </FieldRow>
                     </Section>
                 )}
 
-                {!isCreating && worker && (
+                {!isCreating && member && (
                     <Section title="Runtime">
                         <FieldRow label="Status">
-                            <span className="text-sm text-secondary">{worker.status}</span>
+                            <span className={cn(
+                                "px-1.5 py-0.5 rounded text-[10px] font-medium",
+                                member.status === "idle" ? "bg-green-500/10 text-green-400" :
+                                member.status === "working" ? "bg-yellow-500/10 text-yellow-400" :
+                                "bg-muted text-muted-foreground",
+                            )}>{STATUS_ICON[member.status]?.label ?? member.status}</span>
                         </FieldRow>
                     </Section>
                 )}
 
-                <Section title="Performance">
-                    <div className="flex gap-4">
-                        <FieldRow label="Retries">
-                            <input type="number" className="w-16 bg-base border border-border/50 rounded text-sm text-primary text-center px-1.5 py-1 focus:outline-none focus:ring-1 focus:ring-accent" value={maxRetries} onChange={(e) => setMaxRetries(Number(e.target.value))} />
-                        </FieldRow>
-                    </div>
+                <Section title="Persona">
+                    <textarea
+                        className={cn(inputCls, "font-mono resize-y min-h-[120px]")}
+                        rows={6} value={persona} onChange={(e) => setPersona(e.target.value)}
+                        placeholder="System prompt for this member. Define its role, expertise, and behavior..."
+                    />
                 </Section>
 
-                <Section title="Capabilities">
-                    <div className="flex flex-wrap gap-1.5">
+                <Section title="Capabilities & Skills">
+                    <div className="flex flex-wrap gap-1.5 mb-3">
                         {CAPABILITIES.map((cap) => (
                             <button key={cap}
                                 className={cn(
@@ -433,15 +577,20 @@ export function WorkerEditor({ worker, onClose, onSubmit }: WorkerEditorProps) {
                             >{cap}</button>
                         ))}
                     </div>
-                </Section>
-
-                <Section title="Agent Configuration">
-                    <SoulEditor value={persona} onChange={setPersona} />
-                    <div className="mt-3">
-                        <TagPicker label="Skills" options={PRESET_SKILLS} selected={skills} onChange={setSkills} />
-                    </div>
+                    <TagPicker label="Skills" options={PRESET_SKILLS} selected={skills} onChange={setSkills} />
                     <div className="mt-3">
                         <TagPicker label="MCP Servers" options={PRESET_MCPS} selected={mcpServers} onChange={setMcpServers} />
+                    </div>
+                </Section>
+
+                <Section title="Advanced">
+                    <div className="flex gap-4">
+                        <FieldRow label="Retries">
+                            <input type="number" min={0} max={10} className="w-16 bg-base border border-border/50 rounded text-sm text-primary text-center px-1.5 py-1 focus:outline-none focus:ring-1 focus:ring-accent" value={maxRetries} onChange={(e) => setMaxRetries(Number(e.target.value))} />
+                        </FieldRow>
+                        <FieldRow label="Model Override">
+                            <input className={cn(inputCls, "font-mono text-xs")} placeholder="default" value={model} onChange={(e) => setModel(e.target.value)} />
+                        </FieldRow>
                     </div>
                 </Section>
             </div>
@@ -455,46 +604,6 @@ export function WorkerEditor({ worker, onClose, onSubmit }: WorkerEditorProps) {
                     {submitting ? (isCreating ? "Creating..." : "Saving...") : (isCreating ? "Create" : "Save")}
                 </button>
             </div>
-        </div>
-    );
-}
-
-function SoulEditor({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-    const [mode, setMode] = React.useState<"source" | "preview">("source");
-
-    return (
-        <div>
-            <div className="flex items-center justify-between mb-1">
-                <div className="flex items-center gap-1.5">
-                    <span className="text-[11px] text-muted-foreground">Soul (system prompt)</span>
-                    <span className="text-[9px] text-muted-foreground/60 bg-muted/30 px-1 rounded">SOUL.md</span>
-                </div>
-                <div className="flex rounded border border-border/50 overflow-hidden">
-                    <button
-                        className={cn("px-1.5 py-0.5 text-[10px] cursor-pointer", mode === "source" ? "bg-accent/20 text-accent" : "text-muted-foreground hover:text-primary")}
-                        onClick={() => setMode("source")}
-                    >Source</button>
-                    <button
-                        className={cn("px-1.5 py-0.5 text-[10px] cursor-pointer border-l border-border/50", mode === "preview" ? "bg-accent/20 text-accent" : "text-muted-foreground hover:text-primary")}
-                        onClick={() => setMode("preview")}
-                    >Preview</button>
-                </div>
-            </div>
-            {mode === "source" ? (
-                <textarea
-                    className="w-full bg-base border border-border/50 rounded text-sm text-primary focus:outline-none focus:ring-1 focus:ring-accent px-2.5 py-1.5 font-mono resize-y"
-                    rows={8} value={value} onChange={(e) => onChange(e.target.value)}
-                    placeholder="# System Prompt\n\nYou are a senior engineer..."
-                />
-            ) : (
-                <div className="border border-border/50 rounded p-3 max-h-[260px] overflow-auto bg-base">
-                    {value ? (
-                        <Markdown text={value} className="text-xs" scrollable={false} />
-                    ) : (
-                        <span className="text-xs text-muted-foreground italic">No content to preview</span>
-                    )}
-                </div>
-            )}
         </div>
     );
 }

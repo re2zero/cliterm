@@ -216,6 +216,11 @@ type WshRpcInterface interface {
 	TeamDetectRuntimesCommand(ctx context.Context) (*TeamDetectRuntimesReturn, error)
 	TeamAddActivityCommand(ctx context.Context, data TeamAddActivityData) error
 	TeamListActivityCommand(ctx context.Context, data TeamListActivityData) ([]*TeamActivity, error)
+	TeamCreateProjectCommand(ctx context.Context, data TeamCreateProjectData) (*TeamProject, error)
+	TeamGetProjectCommand(ctx context.Context, projectId string) (*TeamProject, error)
+	TeamUpdateProjectCommand(ctx context.Context, data TeamUpdateProjectData) (*TeamProject, error)
+	TeamDeleteProjectCommand(ctx context.Context, projectId string) error
+	TeamListProjectsCommand(ctx context.Context) ([]*TeamProject, error)
 }
 
 // for frontend
@@ -990,6 +995,7 @@ type TeamMember struct {
 	MaxRetries     int             `json:"maxretries,omitempty"`
 	Memory         string          `json:"memory,omitempty"`
 	Color          string          `json:"color,omitempty"`
+	ProjectID      string          `json:"projectid,omitempty"`
 	CreatedAt      int64           `json:"createdat"`
 	UpdatedAt      int64           `json:"updatedat"`
 }
@@ -1013,6 +1019,7 @@ type TeamWorker struct {
 	BlockID        string `json:"blockid,omitempty"`
 	TabID          string `json:"tabid,omitempty"`
 	PID            int    `json:"pid,omitempty"`
+	ProjectID      string `json:"projectid,omitempty"`
 	CreatedAt      int64  `json:"createdat"`
 	UpdatedAt      int64  `json:"updatedat"`
 	LastHeartbeat  int64  `json:"lastheartbeat,omitempty"`
@@ -1055,6 +1062,16 @@ type TeamActivity struct {
 	Meta        string `json:"meta,omitempty"`
 	CreatedAt   int64  `json:"createdat"`
 }
+
+type TeamProject struct {
+	ProjectID string `json:"projectid"`
+	Name      string `json:"name"`
+	Path      string `json:"path"`
+	Spec      string `json:"spec,omitempty"`
+	CreatedAt int64  `json:"createdat"`
+	UpdatedAt int64  `json:"updatedat"`
+}
+
 
 type TeamCreateMemberData struct {
 	Name           string          `json:"name"`
@@ -1154,6 +1171,20 @@ type TeamListActivityData struct {
 	WorkerID string `json:"workerid,omitempty"`
 	MemberID string `json:"memberid,omitempty"`
 }
+
+type TeamCreateProjectData struct {
+	Name string `json:"name"`
+	Path string `json:"path"`
+	Spec string `json:"spec,omitempty"`
+}
+
+type TeamUpdateProjectData struct {
+	ProjectId string `json:"projectid"`
+	Name      string `json:"name,omitempty"`
+	Path      string `json:"path,omitempty"`
+	Spec      string `json:"spec,omitempty"`
+}
+
 
 type TeamStatusData struct {
 	TotalMembers   int `json:"totalmembers"`

@@ -15,13 +15,13 @@ export interface ColumnConfig {
 interface BoardColumnProps {
     column: ColumnConfig;
     tasks: TeamTask[];
-    workers: TeamWorker[];
+    members: TeamWorker[];
     allTasks: TeamTask[];
     onTaskClick: (task: TeamTask) => void;
     onRetryTask: (taskId: string) => void;
 }
 
-export function BoardColumn({ column, tasks, workers, allTasks, onTaskClick, onRetryTask }: BoardColumnProps) {
+export function BoardColumn({ column, tasks, members, allTasks, onTaskClick, onRetryTask }: BoardColumnProps) {
     return (
         <div className="flex flex-col min-w-[220px] flex-1 min-h-0">
             <div className={cn("flex items-center gap-2 px-3 py-2 rounded-t-lg", column.bgColor)}>
@@ -40,7 +40,7 @@ export function BoardColumn({ column, tasks, workers, allTasks, onTaskClick, onR
                         <BoardCard
                             key={task.taskid}
                             task={task}
-                            workers={workers}
+                            members={members}
                             allTasks={allTasks}
                             onClick={() => onTaskClick(task)}
                             onRetry={() => onRetryTask(task.taskid)}

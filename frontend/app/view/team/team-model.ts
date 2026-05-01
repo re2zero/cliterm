@@ -29,9 +29,10 @@ export class TeamViewModel implements ViewModel {
     doneTasksAtom = jotai.atom<TeamTask[]>([]);
     failedTasksAtom = jotai.atom<TeamTask[]>([]);
     membersAtom = jotai.atom<TeamMember[]>([]);
-    workersAtom = jotai.atom<TeamWorker[]>([]);
+    runtimeMembersAtom = jotai.atom<TeamWorker[]>([]);
     activityLogAtom = jotai.atom<TeamActivity[]>([]);
-    workerConfigAtom = jotai.atom({
+    projectsAtom = jotai.atom<TeamProject[]>([]);
+    memberConfigAtom = jotai.atom({
 		runtime: "claude",
 		concurrency: 3,
 		timeout: 300,
@@ -47,8 +48,9 @@ export class TeamViewModel implements ViewModel {
     statusAtom!: jotai.Atom<TeamStatusData>;
 
     private eventUnsubTask?: () => void;
-    private eventUnsubWorker?: () => void;
+    private eventUnsubRuntimeMember?: () => void;
     private eventUnsubMember?: () => void;
+    private eventUnsubProject?: () => void;
 
     constructor(initOpts: ViewModelInitType) {
         this.blockId = initOpts.blockId;
@@ -58,7 +60,7 @@ export class TeamViewModel implements ViewModel {
         this.statusAtom = jotai.atom((get) => {
             const pendingTasks = get(this.pendingTasksAtom) ?? [];
             const workingTasks = get(this.workingTasksAtom) ?? [];
-            const workers = get(this.workersAtom) ?? [];
+            const runtimeMembers = get(this.runtimeMembersAtom) ?? [];
             const members = get(this.membersAtom) ?? [];
             const failedTasks = get(this.failedTasksAtom) ?? [];
             const doneTasks = get(this.doneTasksAtom) ?? [];
@@ -68,9 +70,9 @@ export class TeamViewModel implements ViewModel {
                 donetasks: doneTasks.length,
                 failedtasks: failedTasks.length,
                 pausedtasks: 0,
-                activeworkers: workers.filter((w) => w.status === "working").length,
-                idleworkers: workers.filter((w) => w.status === "idle").length,
-                offlineworkers: workers.filter((w) => w.status === "offline").length,
+                activeworkers: runtimeMembers.filter((w) => w.status === "working").length,
+                idleworkers: runtimeMembers.filter((w) => w.status === "idle").length,
+                offlineworkers: runtimeMembers.filter((w) => w.status === "offline").length,
                 totalmembers: members.length,
             };
         });
@@ -95,7 +97,7 @@ export class TeamViewModel implements ViewModel {
                 fireAndForget(async () => this.refreshAllData());
             },
         });
-        this.eventUnsubWorker = waveEventSubscribeSingle({
+        this.eventUnsubRuntimeMember = waveEventSubscribeSingle({
             eventType: "team:workerupdate",
             handler: () => {
                 fireAndForget(async () => this.refreshAllData());
@@ -107,13 +109,20 @@ export class TeamViewModel implements ViewModel {
                 fireAndForget(async () => this.refreshAllData());
             },
         });
+        this.eventUnsubProject = waveEventSubscribeSingle({
+            eventType: "team:projectupdate",
+            handler: () => {
+                fireAndForget(async () => this.refreshAllData());
+            },
+        });
     }
 
     dispose(): void {
         this.stopSupervision();
         this.eventUnsubTask?.();
-        this.eventUnsubWorker?.();
+        this.eventUnsubRuntimeMember?.();
         this.eventUnsubMember?.();
+        this.eventUnsubProject?.();
     }
 
     startSupervision(): void {
@@ -145,24 +154,24 @@ export class TeamViewModel implements ViewModel {
 
             const pendingTasks = globalStore.get(this.pendingTasksAtom) ?? [];
             const workingTasks = globalStore.get(this.workingTasksAtom) ?? [];
-            const workers = globalStore.get(this.workersAtom) ?? [];
+            const runtimeMembers = globalStore.get(this.runtimeMembersAtom) ?? [];
 
             if (
                 pendingTasks.length === 0 &&
                 workingTasks.length === 0 &&
-                workers.every((w) => w.status !== "working")
+                runtimeMembers.every((w) => w.status !== "working")
             ) {
                 return;
             }
 
-            const workerOutputs = await this.collectWorkerOutputs(workers);
+            const memberOutputs = await this.collectMemberOutputs(runtimeMembers);
 
             const prompt = this.buildAnalysisPrompt(
                 pendingTasks,
                 workingTasks,
                 globalStore.get(this.doneTasksAtom) ?? [],
                 globalStore.get(this.failedTasksAtom) ?? [],
-                workerOutputs
+                memberOutputs
             );
 
             const action = await this.callAssistantLLM(prompt);
@@ -208,7 +217,7 @@ export class TeamViewModel implements ViewModel {
 
         try {
             const workers = await RpcApi.TeamListWorkersCommand(TabRpcClient, "");
-            globalStore.set(this.workersAtom, workers);
+            globalStore.set(this.runtimeMembersAtom, workers);
         } catch {}
 
         try {
@@ -219,6 +228,11 @@ export class TeamViewModel implements ViewModel {
         try {
             const activities = await RpcApi.TeamListActivityCommand(TabRpcClient, { limit: 50 });
             globalStore.set(this.activityLogAtom, activities);
+        } catch {}
+
+        try {
+            const projects = await RpcApi.TeamListProjectsCommand(TabRpcClient);
+            globalStore.set(this.projectsAtom, projects);
         } catch {}
     }
 
@@ -232,7 +246,7 @@ export class TeamViewModel implements ViewModel {
         await this.refreshAllData();
     }
 
-    async deleteWorker(workerId: string): Promise<void> {
+    async deleteRuntimeMember(workerId: string): Promise<void> {
         await RpcApi.TeamDeleteWorkerCommand(TabRpcClient, workerId);
         await this.refreshAllData();
     }
@@ -272,15 +286,15 @@ export class TeamViewModel implements ViewModel {
         return members.find((m) => m.memberid === memberId) ?? null;
     }
 
-    async updateWorker(workerId: string, config: Record<string, any>): Promise<void> {
+    async updateRuntimeMember(workerId: string, config: Record<string, any>): Promise<void> {
         await RpcApi.TeamUpdateWorkerCommand(TabRpcClient, { workerid: workerId, ...config });
         await this.refreshAllData();
     }
 
-    async assignTask(taskId: string, workerId: string): Promise<void> {
+    async assignTask(taskId: string, memberId: string): Promise<void> {
         await RpcApi.TeamUpdateTaskCommand(TabRpcClient, {
             taskid: taskId,
-            assignedworkerid: workerId,
+            assignedworkerid: memberId,
         });
         await this.refreshAllData();
     }
@@ -305,25 +319,50 @@ export class TeamViewModel implements ViewModel {
         await this.refreshAllData();
     }
 
-    async executeTask(taskId: string, command: string): Promise<void> {
-        const workers = globalStore.get(this.workersAtom) ?? [];
-        const task = [...(globalStore.get(this.pendingTasksAtom) ?? []), ...(globalStore.get(this.workingTasksAtom) ?? [])].find((t) => t.taskid === taskId);
-        const workerId = task?.assignedworkerid ?? workers.find((w) => w.status === "idle")?.workerid;
-        if (!workerId) return;
-        await RpcApi.TeamExecuteTaskCommand(TabRpcClient, { workerid: workerId, taskid: taskId, command });
+    async createProject(data: { name: string; path: string; spec?: string }): Promise<string> {
+        const result = await RpcApi.TeamCreateProjectCommand(TabRpcClient, {
+            name: data.name,
+            path: data.path,
+            spec: data.spec ?? "",
+        });
+        await this.refreshAllData();
+        return result?.projectid ?? "";
+    }
+
+    async updateProject(projectId: string, updates: Record<string, any>): Promise<void> {
+        await RpcApi.TeamUpdateProjectCommand(TabRpcClient, { projectid: projectId, ...updates });
         await this.refreshAllData();
     }
 
-    private async collectWorkerOutputs(workers: TeamWorker[]): Promise<Map<string, WorkerOutput>> {
+    async deleteProject(projectId: string): Promise<void> {
+        await RpcApi.TeamDeleteProjectCommand(TabRpcClient, projectId);
+        await this.refreshAllData();
+    }
+
+    async assignMemberToProject(memberId: string, projectId: string): Promise<void> {
+        await RpcApi.TeamUpdateMemberCommand(TabRpcClient, { memberid: memberId, projectid: projectId } as any);
+        await this.refreshAllData();
+    }
+
+    async executeTask(taskId: string, command: string): Promise<void> {
+        const runtimeMembers = globalStore.get(this.runtimeMembersAtom) ?? [];
+        const task = [...(globalStore.get(this.pendingTasksAtom) ?? []), ...(globalStore.get(this.workingTasksAtom) ?? [])].find((t) => t.taskid === taskId);
+        const memberId = task?.assignedworkerid ?? runtimeMembers.find((w) => w.status === "idle")?.workerid;
+        if (!memberId) return;
+        await RpcApi.TeamExecuteTaskCommand(TabRpcClient, { workerid: memberId, taskid: taskId, command });
+        await this.refreshAllData();
+    }
+
+    private async collectMemberOutputs(runtimeMembers: TeamWorker[]): Promise<Map<string, WorkerOutput>> {
         const outputs = new Map<string, WorkerOutput>();
-        for (const worker of workers) {
-            if (worker.status !== "working") {
+        for (const member of runtimeMembers) {
+            if (member.status !== "working") {
                 continue;
             }
-            outputs.set(worker.workerid, {
+            outputs.set(member.workerid, {
                 lines: [],
                 totalLines: 0,
-                lastUpdated: worker.lastheartbeat,
+                lastUpdated: member.lastheartbeat,
                 hashChanged: false,
             });
         }
@@ -335,7 +374,7 @@ export class TeamViewModel implements ViewModel {
         working: TeamTask[],
         done: TeamTask[],
         failed: TeamTask[],
-        workerOutputs: Map<string, WorkerOutput>
+        memberOutputs: Map<string, WorkerOutput>
     ): string {
         const safePending = pending ?? [];
         const safeWorking = working ?? [];
@@ -344,15 +383,15 @@ export class TeamViewModel implements ViewModel {
 
         let prompt = "## Current State\n\n";
         prompt += `Pending Tasks: ${safePending.map((t) => `"${t.title}" (${t.priority})`).join(", ") || "none"}\n`;
-        prompt += `Working Tasks: ${safeWorking.map((t) => `"${t.title}" → worker ${t.assignedworkerid}`).join(", ") || "none"}\n`;
+        prompt += `Working Tasks: ${safeWorking.map((t) => `"${t.title}" → member ${t.assignedworkerid}`).join(", ") || "none"}\n`;
         prompt += `Done Tasks: ${safeDone.map((t) => `"${t.title}"`).join(", ") || "none"}\n`;
         prompt += `Failed Tasks: ${safeFailed.map((t) => `"${t.title}"`).join(", ") || "none"}\n\n`;
 
-        for (const [workerId, output] of workerOutputs) {
+        for (const [memberId, output] of memberOutputs) {
             if (output.error) {
-                prompt += `Worker ${workerId} error: ${output.error}\n`;
+                prompt += `Member ${memberId} error: ${output.error}\n`;
             } else if (output.hashChanged && output.lines) {
-                prompt += `Worker ${workerId} recent output:\n${output.lines.slice(-20).join("\n")}\n\n`;
+                prompt += `Member ${memberId} recent output:\n${output.lines.slice(-20).join("\n")}\n\n`;
             }
         }
 
@@ -476,7 +515,7 @@ export class TeamViewModel implements ViewModel {
                     case "wake_worker":
                         if (act.worker_id && act.message) {
                             await this.sendToTerminal(act.worker_id, act.message + "\n");
-                            await this.logActivity("worker_wake", `Woke worker ${act.worker_id}`);
+                            await this.logActivity("worker_wake", `Woke member ${act.worker_id}`);
                         }
                         break;
 
@@ -494,13 +533,13 @@ export class TeamViewModel implements ViewModel {
 
                     case "create_worker":
                         if (act.tool && act.task_id) {
-                            const workerId = await this.createWorkerBlock(act.tool, act.task_id);
+                            const workerId = await this.createRuntimeMemberBlock(act.tool, act.task_id);
                             await RpcApi.TeamUpdateTaskCommand(TabRpcClient, {
                                 taskid: act.task_id,
                                 status: "assigned",
                                 assignedworkerid: workerId,
                             });
-                            await this.logActivity("worker_create", `Created worker ${workerId}`);
+                            await this.logActivity("worker_create", `Created member ${workerId}`);
                         }
                         break;
 
@@ -513,9 +552,9 @@ export class TeamViewModel implements ViewModel {
         }
     }
 
-    async createWorker(tool: string, config?: { name?: string; maxRetries?: number; capabilities?: string[]; persona?: string; description?: string; skills?: string[]; mcpservers?: TeamMCPConfig[]; customcmd?: string }): Promise<string> {
+    async createRuntimeMember(tool: string, config?: { name?: string; maxRetries?: number; capabilities?: string[]; persona?: string; description?: string; skills?: string[]; mcpservers?: TeamMCPConfig[]; customcmd?: string }): Promise<string> {
         const memberResult = await RpcApi.TeamCreateMemberCommand(TabRpcClient, {
-            name: config?.name ?? `${tool} worker`,
+            name: config?.name ?? `${tool} member`,
             tool,
             customcmd: config?.customcmd,
             description: config?.description,
@@ -540,8 +579,8 @@ export class TeamViewModel implements ViewModel {
         return workerId;
     }
 
-    private async createWorkerBlock(tool: string, taskTitle: string): Promise<string> {
-        return this.createWorker(tool);
+    private async createRuntimeMemberBlock(tool: string, taskTitle: string): Promise<string> {
+        return this.createRuntimeMember(tool);
     }
 
     private async sendToTerminal(blockId: string, text: string): Promise<void> {
@@ -573,21 +612,21 @@ const ASSISTANT_SYSTEM_PROMPT = `You are a project management assistant embedded
 
 ## Your Role
 - Monitor task progress by analyzing terminal output
-- Assign pending tasks to available workers
-- Detect stuck/errored workers and send natural language prompts to wake them
+- Assign pending tasks to available members
+- Detect stuck/errored members and send natural language prompts to wake them
 - Report completion status
 
-## Communication with Workers
-You communicate with workers by writing text into their terminal sessions. The text you output will be typed into their terminal. Be concise and direct.
+## Communication with Members
+You communicate with members by writing text into their terminal sessions. The text you output will be typed into their terminal. Be concise and direct.
 
 ## Task Status Machine
-- pending → assigned: when you assign to a worker
-- assigned → working: when worker starts showing activity
-- working → done: when worker output indicates completion
-- working → failed: when worker shows repeated errors
+- pending → assigned: when you assign to a member
+- assigned → working: when member starts showing activity
+- working → done: when member output indicates completion
+- working → failed: when member shows repeated errors
 
 ## Response Format
 You MUST respond with valid JSON in this exact format (no markdown, no explanation):
 {"actions":[{"type":"assign_task","task_id":"...","worker_id":"...","instruction":"..."}]}
 
-Only take actions when the situation actually warrants it. Do not wake workers that are making progress. Do not reassign tasks that are being worked on.`;
+Only take actions when the situation actually warrants it. Do not wake members that are making progress. Do not reassign tasks that are being worked on.`;

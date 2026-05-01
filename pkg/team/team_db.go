@@ -41,10 +41,10 @@ func CreateMember(ctx context.Context, m *TeamMember) error {
   mcpJson, _ := json.Marshal(m.McpServers)
   capsJson, _ := json.Marshal(m.Capabilities)
   return wstore.WithTx(ctx, func(tx *wstore.TxWrap) error {
-    tx.Exec(`INSERT INTO team_members (member_id, name, tool, custom_cmd, description, persona, persona_path, skills, mcp_servers, capabilities, model, max_concurrency, max_retries, memory, color, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    tx.Exec(`INSERT INTO team_members (member_id, name, tool, custom_cmd, description, persona, persona_path, skills, mcp_servers, capabilities, model, max_concurrency, max_retries, memory, color, project_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       m.MemberID, m.Name, m.Tool, m.CustomCmd, m.Description, m.Persona, m.PersonaPath,
       string(skillsJson), string(mcpJson), string(capsJson),
-      m.Model, m.MaxConcurrency, m.MaxRetries, m.Memory, m.Color, m.CreatedAt, m.UpdatedAt)
+      m.Model, m.MaxConcurrency, m.MaxRetries, m.Memory, m.Color, m.ProjectID, m.CreatedAt, m.UpdatedAt)
     return nil
   })
 }
@@ -52,7 +52,7 @@ func CreateMember(ctx context.Context, m *TeamMember) error {
 func scanMember(row interface{ Scan(dest ...any) error }) (*TeamMember, error) {
   var m TeamMember
   var skillsStr, mcpStr, capsStr string
-  err := row.Scan(&m.MemberID, &m.Name, &m.Tool, &m.CustomCmd, &m.Description, &m.Persona, &m.PersonaPath, &skillsStr, &mcpStr, &capsStr, &m.Model, &m.MaxConcurrency, &m.MaxRetries, &m.Memory, &m.Color, &m.CreatedAt, &m.UpdatedAt)
+  err := row.Scan(&m.MemberID, &m.Name, &m.Tool, &m.CustomCmd, &m.Description, &m.Persona, &m.PersonaPath, &skillsStr, &mcpStr, &capsStr, &m.Model, &m.MaxConcurrency, &m.MaxRetries, &m.Memory, &m.Color, &m.ProjectID, &m.CreatedAt, &m.UpdatedAt)
   if err != nil {
     return nil, err
   }
@@ -64,7 +64,7 @@ func scanMember(row interface{ Scan(dest ...any) error }) (*TeamMember, error) {
 
 func GetMember(ctx context.Context, memberID string) (*TeamMember, error) {
   db := wstore.GetGlobalDB()
-  row := db.QueryRowx(`SELECT member_id, name, tool, custom_cmd, description, persona, persona_path, skills, mcp_servers, capabilities, model, max_concurrency, max_retries, memory, color, created_at, updated_at FROM team_members WHERE member_id = ?`, memberID)
+  row := db.QueryRowx(`SELECT member_id, name, tool, custom_cmd, description, persona, persona_path, skills, mcp_servers, capabilities, model, max_concurrency, max_retries, memory, color, project_id, created_at, updated_at FROM team_members WHERE member_id = ?`, memberID)
   return scanMember(row)
 }
 
@@ -74,10 +74,10 @@ func UpdateMember(ctx context.Context, m *TeamMember) error {
   mcpJson, _ := json.Marshal(m.McpServers)
   capsJson, _ := json.Marshal(m.Capabilities)
   return wstore.WithTx(ctx, func(tx *wstore.TxWrap) error {
-    tx.Exec(`UPDATE team_members SET name=?, tool=?, custom_cmd=?, description=?, persona=?, persona_path=?, skills=?, mcp_servers=?, capabilities=?, model=?, max_concurrency=?, max_retries=?, memory=?, color=?, updated_at=? WHERE member_id=?`,
+    tx.Exec(`UPDATE team_members SET name=?, tool=?, custom_cmd=?, description=?, persona=?, persona_path=?, skills=?, mcp_servers=?, capabilities=?, model=?, max_concurrency=?, max_retries=?, memory=?, color=?, project_id=?, updated_at=? WHERE member_id=?`,
       m.Name, m.Tool, m.CustomCmd, m.Description, m.Persona, m.PersonaPath,
       string(skillsJson), string(mcpJson), string(capsJson),
-      m.Model, m.MaxConcurrency, m.MaxRetries, m.Memory, m.Color, m.UpdatedAt, m.MemberID)
+      m.Model, m.MaxConcurrency, m.MaxRetries, m.Memory, m.Color, m.ProjectID, m.UpdatedAt, m.MemberID)
     return nil
   })
 }
@@ -91,7 +91,7 @@ func DeleteMember(ctx context.Context, memberID string) error {
 
 func ListMembers(ctx context.Context) ([]*TeamMember, error) {
   db := wstore.GetGlobalDB()
-  rows, err := db.Queryx(`SELECT member_id, name, tool, custom_cmd, description, persona, persona_path, skills, mcp_servers, capabilities, model, max_concurrency, max_retries, memory, color, created_at, updated_at FROM team_members ORDER BY created_at DESC`)
+  rows, err := db.Queryx(`SELECT member_id, name, tool, custom_cmd, description, persona, persona_path, skills, mcp_servers, capabilities, model, max_concurrency, max_retries, memory, color, project_id, created_at, updated_at FROM team_members ORDER BY created_at DESC`)
   if err != nil {
     return nil, err
   }
@@ -121,15 +121,15 @@ func CreateWorker(ctx context.Context, w *TeamWorker) error {
     w.Status = WorkerStatusIdle
   }
   return wstore.WithTx(ctx, func(tx *wstore.TxWrap) error {
-    tx.Exec(`INSERT INTO team_workers (worker_id, member_id, name, status, assigned_task_id, block_id, tab_id, pid, created_at, updated_at, last_heartbeat) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      w.WorkerID, w.MemberID, w.Name, w.Status, w.AssignedTaskID, w.BlockID, w.TabID, w.PID, w.CreatedAt, w.UpdatedAt, w.LastHeartbeat)
+    tx.Exec(`INSERT INTO team_workers (worker_id, member_id, name, status, assigned_task_id, block_id, tab_id, pid, project_id, created_at, updated_at, last_heartbeat) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      w.WorkerID, w.MemberID, w.Name, w.Status, w.AssignedTaskID, w.BlockID, w.TabID, w.PID, w.ProjectID, w.CreatedAt, w.UpdatedAt, w.LastHeartbeat)
     return nil
   })
 }
 
 func scanWorker(row interface{ Scan(dest ...any) error }) (*TeamWorker, error) {
   var w TeamWorker
-  err := row.Scan(&w.WorkerID, &w.MemberID, &w.Name, &w.Status, &w.AssignedTaskID, &w.BlockID, &w.TabID, &w.PID, &w.CreatedAt, &w.UpdatedAt, &w.LastHeartbeat)
+  err := row.Scan(&w.WorkerID, &w.MemberID, &w.Name, &w.Status, &w.AssignedTaskID, &w.BlockID, &w.TabID, &w.PID, &w.ProjectID, &w.CreatedAt, &w.UpdatedAt, &w.LastHeartbeat)
   if err != nil {
     return nil, err
   }
@@ -138,15 +138,15 @@ func scanWorker(row interface{ Scan(dest ...any) error }) (*TeamWorker, error) {
 
 func GetWorker(ctx context.Context, workerID string) (*TeamWorker, error) {
   db := wstore.GetGlobalDB()
-  row := db.QueryRowx(`SELECT worker_id, member_id, name, status, assigned_task_id, block_id, tab_id, pid, created_at, updated_at, last_heartbeat FROM team_workers WHERE worker_id = ?`, workerID)
+  row := db.QueryRowx(`SELECT worker_id, member_id, name, status, assigned_task_id, block_id, tab_id, pid, project_id, created_at, updated_at, last_heartbeat FROM team_workers WHERE worker_id = ?`, workerID)
   return scanWorker(row)
 }
 
 func UpdateWorker(ctx context.Context, w *TeamWorker) error {
   w.UpdatedAt = time.Now().Unix()
   return wstore.WithTx(ctx, func(tx *wstore.TxWrap) error {
-    tx.Exec(`UPDATE team_workers SET member_id=?, name=?, status=?, assigned_task_id=?, block_id=?, tab_id=?, pid=?, updated_at=? WHERE worker_id=?`,
-      w.MemberID, w.Name, w.Status, w.AssignedTaskID, w.BlockID, w.TabID, w.PID, w.UpdatedAt, w.WorkerID)
+    tx.Exec(`UPDATE team_workers SET member_id=?, name=?, status=?, assigned_task_id=?, block_id=?, tab_id=?, pid=?, project_id=?, updated_at=? WHERE worker_id=?`,
+      w.MemberID, w.Name, w.Status, w.AssignedTaskID, w.BlockID, w.TabID, w.PID, w.ProjectID, w.UpdatedAt, w.WorkerID)
     return nil
   })
 }
@@ -171,9 +171,9 @@ func ListWorkers(ctx context.Context, memberID string) ([]*TeamWorker, error) {
   var rows *sqlx.Rows
   var err error
   if memberID != "" {
-    rows, err = db.Queryx(`SELECT worker_id, member_id, name, status, assigned_task_id, block_id, tab_id, pid, created_at, updated_at, last_heartbeat FROM team_workers WHERE member_id = ? ORDER BY created_at DESC`, memberID)
+    rows, err = db.Queryx(`SELECT worker_id, member_id, name, status, assigned_task_id, block_id, tab_id, pid, project_id, created_at, updated_at, last_heartbeat FROM team_workers WHERE member_id = ? ORDER BY created_at DESC`, memberID)
   } else {
-    rows, err = db.Queryx(`SELECT worker_id, member_id, name, status, assigned_task_id, block_id, tab_id, pid, created_at, updated_at, last_heartbeat FROM team_workers ORDER BY created_at DESC`)
+    rows, err = db.Queryx(`SELECT worker_id, member_id, name, status, assigned_task_id, block_id, tab_id, pid, project_id, created_at, updated_at, last_heartbeat FROM team_workers ORDER BY created_at DESC`)
   }
   if err != nil {
     return nil, err
@@ -439,5 +439,75 @@ func PublishWorkerUpdate() {
 }
 
 func PublishMemberUpdate() {
-  wps.Broker.Publish(wps.WaveEvent{Event: wps.Event_TeamMemberUpdate})
+	wps.Broker.Publish(wps.WaveEvent{Event: wps.Event_TeamMemberUpdate})
 }
+
+func PublishProjectUpdate() {
+	wps.Broker.Publish(wps.WaveEvent{Event: wps.Event_TeamProjectUpdate})
+}
+
+// --- Project CRUD ---
+
+func CreateProject(ctx context.Context, p *TeamProject) error {
+	if p.ProjectID == "" {
+		p.ProjectID = uuid.New().String()
+	}
+	now := time.Now().Unix()
+	p.CreatedAt = now
+	p.UpdatedAt = now
+	return wstore.WithTx(ctx, func(tx *wstore.TxWrap) error {
+		tx.Exec(`INSERT INTO team_projects (project_id, name, path, spec, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`,
+			p.ProjectID, p.Name, p.Path, p.Spec, p.CreatedAt, p.UpdatedAt)
+		return nil
+	})
+}
+
+func scanProject(row interface{ Scan(dest ...any) error }) (*TeamProject, error) {
+	var p TeamProject
+	err := row.Scan(&p.ProjectID, &p.Name, &p.Path, &p.Spec, &p.CreatedAt, &p.UpdatedAt)
+	if err != nil {
+		return nil, err
+	}
+	return &p, nil
+}
+
+func GetProject(ctx context.Context, projectID string) (*TeamProject, error) {
+	db := wstore.GetGlobalDB()
+	row := db.QueryRowx(`SELECT project_id, name, path, spec, created_at, updated_at FROM team_projects WHERE project_id = ?`, projectID)
+	return scanProject(row)
+}
+
+func UpdateProject(ctx context.Context, p *TeamProject) error {
+	p.UpdatedAt = time.Now().Unix()
+	return wstore.WithTx(ctx, func(tx *wstore.TxWrap) error {
+		tx.Exec(`UPDATE team_projects SET name=?, path=?, spec=?, updated_at=? WHERE project_id=?`,
+			p.Name, p.Path, p.Spec, p.UpdatedAt, p.ProjectID)
+		return nil
+	})
+}
+
+func DeleteProject(ctx context.Context, projectID string) error {
+	return wstore.WithTx(ctx, func(tx *wstore.TxWrap) error {
+		tx.Exec(`DELETE FROM team_projects WHERE project_id = ?`, projectID)
+		return nil
+	})
+}
+
+func ListProjects(ctx context.Context) ([]*TeamProject, error) {
+	db := wstore.GetGlobalDB()
+	rows, err := db.Queryx(`SELECT project_id, name, path, spec, created_at, updated_at FROM team_projects ORDER BY created_at DESC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var projects []*TeamProject
+	for rows.Next() {
+		p, err := scanProject(rows)
+		if err != nil {
+			return nil, err
+		}
+		projects = append(projects, p)
+	}
+	return projects, rows.Err()
+}
+

@@ -29,6 +29,7 @@ declare global {
         | "team:taskupdate"
         | "team:workerupdate"
         | "team:memberupdate"
+        | "team:projectupdate"
     ;
 
     type WaveEvent = {
@@ -59,7 +60,8 @@ declare global {
         { event: "badge"; data?: BadgeEvent; } | 
         { event: "team:taskupdate"; data?: null; } | 
         { event: "team:workerupdate"; data?: null; } | 
-        { event: "team:memberupdate"; data?: null; }
+        { event: "team:memberupdate"; data?: null; } | 
+        { event: "team:projectupdate"; data?: any; }
     );
 
 }

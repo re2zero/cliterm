@@ -858,6 +858,12 @@ export class RpcApiType {
         return client.wshRpcCall("teamcreatemember", data, opts);
     }
 
+    // command "teamcreateproject" [call]
+    TeamCreateProjectCommand(client: WshClient, data: TeamCreateProjectData, opts?: RpcOpts): Promise<TeamProject> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "teamcreateproject", data, opts);
+        return client.wshRpcCall("teamcreateproject", data, opts);
+    }
+
     // command "teamcreatetask" [call]
     TeamCreateTaskCommand(client: WshClient, data: TeamCreateTaskData, opts?: RpcOpts): Promise<TeamTask> {
         if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "teamcreatetask", data, opts);
@@ -868,6 +874,12 @@ export class RpcApiType {
     TeamDeleteMemberCommand(client: WshClient, data: string, opts?: RpcOpts): Promise<void> {
         if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "teamdeletemember", data, opts);
         return client.wshRpcCall("teamdeletemember", data, opts);
+    }
+
+    // command "teamdeleteproject" [call]
+    TeamDeleteProjectCommand(client: WshClient, data: string, opts?: RpcOpts): Promise<void> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "teamdeleteproject", data, opts);
+        return client.wshRpcCall("teamdeleteproject", data, opts);
     }
 
     // command "teamdeletetask" [call]
@@ -906,6 +918,12 @@ export class RpcApiType {
         return client.wshRpcCall("teamgetmember", data, opts);
     }
 
+    // command "teamgetproject" [call]
+    TeamGetProjectCommand(client: WshClient, data: string, opts?: RpcOpts): Promise<TeamProject> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "teamgetproject", data, opts);
+        return client.wshRpcCall("teamgetproject", data, opts);
+    }
+
     // command "teamgetstatus" [call]
     TeamGetStatusCommand(client: WshClient, opts?: RpcOpts): Promise<TeamStatusData> {
         if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "teamgetstatus", null, opts);
@@ -940,6 +958,12 @@ export class RpcApiType {
     TeamListMembersCommand(client: WshClient, opts?: RpcOpts): Promise<TeamMember[]> {
         if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "teamlistmembers", null, opts);
         return client.wshRpcCall("teamlistmembers", null, opts);
+    }
+
+    // command "teamlistprojects" [call]
+    TeamListProjectsCommand(client: WshClient, opts?: RpcOpts): Promise<TeamProject[]> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "teamlistprojects", null, opts);
+        return client.wshRpcCall("teamlistprojects", null, opts);
     }
 
     // command "teamlisttasks" [call]
@@ -982,6 +1006,12 @@ export class RpcApiType {
     TeamUpdateMemberCommand(client: WshClient, data: TeamUpdateMemberData, opts?: RpcOpts): Promise<TeamMember> {
         if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "teamupdatemember", data, opts);
         return client.wshRpcCall("teamupdatemember", data, opts);
+    }
+
+    // command "teamupdateproject" [call]
+    TeamUpdateProjectCommand(client: WshClient, data: TeamUpdateProjectData, opts?: RpcOpts): Promise<TeamProject> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "teamupdateproject", data, opts);
+        return client.wshRpcCall("teamupdateproject", data, opts);
     }
 
     // command "teamupdatetask" [call]

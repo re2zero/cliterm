@@ -5,7 +5,7 @@ import { cn } from "@/util/util";
 
 export function StatusStrip({ status }: { status: TeamStatusData }) {
     const items = [
-        { label: "Workers", value: `${status.activeworkers}/${status.totalmembers}`, color: "text-secondary", dot: "bg-green-500" },
+        { label: "Members", value: `${status.activeworkers}/${status.totalmembers}`, color: "text-secondary", dot: "bg-green-500" },
         { label: "Pending", value: status.pendingtasks, color: "text-muted-foreground", dot: "bg-muted-foreground" },
         { label: "Working", value: status.workingtasks, color: "text-yellow-400", dot: "bg-yellow-400" },
         { label: "Done", value: status.donetasks, color: "text-blue-400", dot: "bg-blue-400" },

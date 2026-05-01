@@ -49,7 +49,7 @@ export function TaskDetail({
             .catch(() => {});
     }, [task.taskid]);
 
-    const assignedWorker = task.assignedworkerid
+    const assignedMember = task.assignedworkerid
         ? workers.find((w) => w.workerid === task.assignedworkerid)
         : null;
 
@@ -85,11 +85,11 @@ export function TaskDetail({
                         </select>
                     </div>
                     <div className="flex items-center gap-2">
-                        <span className="text-[11px] text-muted-foreground w-16 shrink-0">Worker</span>
+                        <span className="text-[11px] text-muted-foreground w-16 shrink-0">Member</span>
                         <AssigneePicker
-                            workers={workers}
-                            selectedWorkerId={task.assignedworkerid}
-                            onSelect={(workerId) => onUpdate(task.taskid, { assignedworkerid: workerId })}
+                            members={workers}
+                            selectedMemberId={task.assignedworkerid}
+                            onSelect={(memberId) => onUpdate(task.taskid, { assignedworkerid: memberId })}
                         />
                     </div>
                     <div className="flex items-center gap-2">
