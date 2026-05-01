@@ -1819,10 +1819,10 @@ func (ws *WshServer) TeamExecuteTaskCommand(ctx context.Context, data wshrpc.Tea
 	}
 
 	var cmd string
+	member, _ := team.GetMember(ctx, worker.MemberID)
 	if data.Command != "" {
 		cmd = data.Command
 	} else {
-		member, _ := team.GetMember(ctx, worker.MemberID)
 		tool := team.ToolClaude
 		if member != nil && member.Tool != "" {
 			tool = member.Tool
@@ -1838,6 +1838,12 @@ func (ws *WshServer) TeamExecuteTaskCommand(ctx context.Context, data wshrpc.Tea
 		}
 	}
 
+	if member != nil {
+		if injectErr := team.InjectWorkerConfig(worker, member); injectErr != nil {
+			log.Printf("warning: failed to inject worker config for %s: %v\n", worker.Name, injectErr)
+		}
+	}
+
 	blockDef := &waveobj.BlockDef{
 		Meta: waveobj.MetaMapType{
 			"view":       "term",
@@ -1846,8 +1852,26 @@ func (ws *WshServer) TeamExecuteTaskCommand(ctx context.Context, data wshrpc.Tea
 		},
 	}
 
+	tabId := worker.TabID
+	if tabId == "" {
+		client, clientErr := wstore.DBGetSingleton[*waveobj.Client](ctx)
+		if clientErr == nil && len(client.WindowIds) > 0 {
+			window, windowErr := wstore.DBMustGet[*waveobj.Window](ctx, client.WindowIds[0])
+			if windowErr == nil {
+				workspace, wsErr := wstore.DBMustGet[*waveobj.Workspace](ctx, window.WorkspaceId)
+				if wsErr == nil {
+					tabId = workspace.ActiveTabId
+				}
+			}
+		}
+		if tabId == "" {
+			return nil, fmt.Errorf("worker %s has no tab assigned and no active tab found", worker.Name)
+		}
+		worker.TabID = tabId
+	}
+
 	blockRef, err := ws.CreateBlockCommand(ctx, wshrpc.CommandCreateBlockData{
-		TabId:    worker.TabID,
+		TabId:    tabId,
 		BlockDef: blockDef,
 		Focused:  true,
 	})
@@ -1871,6 +1895,20 @@ func (ws *WshServer) TeamExecuteTaskCommand(ctx context.Context, data wshrpc.Tea
 		}
 		time.Sleep(300 * time.Millisecond)
 	}
+
+	envInput := &blockcontroller.BlockInputUnion{
+		InputData: []byte(fmt.Sprintf("export WAVE_WORKER_ID=%s WAVE_TASK_ID=%s WAVE_TEAM_MCP=1\n", worker.WorkerID, task.TaskID)),
+	}
+	for attempt := 1; attempt <= 3; attempt++ {
+		err = blockcontroller.SendInput(blockId, envInput)
+		if err == nil {
+			break
+		}
+		if attempt < 3 {
+			time.Sleep(200 * time.Millisecond)
+		}
+	}
+	time.Sleep(200 * time.Millisecond)
 
 	inputUnion := &blockcontroller.BlockInputUnion{
 		InputData: []byte(cmd + "\n"),

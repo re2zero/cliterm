@@ -10,6 +10,7 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/team"
 	"github.com/wavetermdev/waveterm/pkg/wshrpc"
 	"github.com/wavetermdev/waveterm/pkg/wshrpc/wshclient"
+	"github.com/wavetermdev/waveterm/pkg/wshutil"
 )
 
 // --- team_fork_worker ---
@@ -1064,16 +1065,58 @@ func teamSendPromptCallback(input any, toolUseData *uctypes.UIMessageDataToolUse
 	if err != nil {
 		return nil, fmt.Errorf("worker not found: %w", err)
 	}
-	if worker.BlockID == "" {
-		return nil, fmt.Errorf("worker %s has no terminal block", worker.Name)
+
+	// Worker has an active terminal block — send prompt directly
+	if worker.BlockID != "" {
+		inputUnion := &blockcontroller.BlockInputUnion{
+			InputData: []byte(parsed.Prompt + "\r"),
+		}
+		err = blockcontroller.SendInput(worker.BlockID, inputUnion)
+		if err != nil {
+			return nil, fmt.Errorf("failed to send prompt to worker terminal: %w", err)
+		}
+		return map[string]any{
+			"success":  true,
+			"workerid": parsed.WorkerId,
+			"worker":   worker.Name,
+			"prompt":   parsed.Prompt,
+		}, nil
 	}
 
-	inputUnion := &blockcontroller.BlockInputUnion{
-		InputData: []byte(parsed.Prompt + "\r"),
+	// Worker is idle (no terminal block) — auto-create task and execute
+	taskTitle := parsed.Prompt
+	if len(taskTitle) > 80 {
+		taskTitle = taskTitle[:77] + "..."
 	}
-	err = blockcontroller.SendInput(worker.BlockID, inputUnion)
+
+	taskData := wshrpc.TeamCreateTaskData{
+		Title:       taskTitle,
+		Description: parsed.Prompt,
+		Priority:    team.PriorityMedium,
+	}
+
+	rpcClient := wshclient.GetBareRpcClient()
+	task, err := wshclient.TeamCreateTaskCommand(rpcClient, taskData, &wshrpc.RpcOpts{})
 	if err != nil {
-		return nil, fmt.Errorf("failed to send prompt to worker terminal: %w", err)
+		return nil, fmt.Errorf("failed to create task for worker %s: %w", worker.Name, err)
+	}
+
+	_, err = wshclient.TeamUpdateTaskCommand(rpcClient, wshrpc.TeamUpdateTaskData{
+		TaskID:           task.TaskID,
+		AssignedMemberID: worker.MemberID,
+		AssignedWorkerID: worker.WorkerID,
+		Status:           team.TaskStatusAssigned,
+	}, &wshrpc.RpcOpts{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to assign task for worker %s: %w", worker.Name, err)
+	}
+
+	resp, err := wshclient.TeamExecuteTaskCommand(rpcClient, wshrpc.TeamExecuteTaskData{
+		WorkerID: parsed.WorkerId,
+		TaskID:   task.TaskID,
+	}, &wshrpc.RpcOpts{Timeout: 30000})
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute task on worker %s: %w", worker.Name, err)
 	}
 
 	return map[string]any{
@@ -1081,6 +1124,10 @@ func teamSendPromptCallback(input any, toolUseData *uctypes.UIMessageDataToolUse
 		"workerid": parsed.WorkerId,
 		"worker":   worker.Name,
 		"prompt":   parsed.Prompt,
+		"taskid":   task.TaskID,
+		"blockid":  resp.BlockID,
+		"tabid":    resp.TabID,
+		"created":  true,
 	}, nil
 }
 
@@ -1088,7 +1135,7 @@ func GetTeamSendPromptToolDefinition() uctypes.ToolDefinition {
 	return uctypes.ToolDefinition{
 		Name:        "team_send_prompt",
 		DisplayName: "Send Prompt to Worker",
-		Description: "Send a text prompt directly to a running worker's terminal block. Use to give additional instructions to a worker already executing a task. The text is typed into the worker's terminal and Enter is pressed.",
+		Description: "Send a prompt to a worker. If the worker already has an active terminal block, the text is typed into it. If the worker is idle (no terminal block), a task is automatically created, a terminal block is opened, the worker's CLI is started in the project directory, and the prompt is sent as the task description. Use this for both @mention dispatch and follow-up instructions.",
 		ToolLogName: "team:sendprompt",
 		Strict:      false,
 		InputSchema: map[string]any{
@@ -1117,6 +1164,191 @@ func GetTeamSendPromptToolDefinition() uctypes.ToolDefinition {
 			return fmt.Sprintf("sending prompt to worker %s: %s", parsed.WorkerId, promptPreview)
 		},
 		ToolAnyCallback: teamSendPromptCallback,
+	}
+}
+
+// --- team_dispatch ---
+
+type teamDispatchParams struct {
+	Target    string `json:"target"`
+	Message   string `json:"message"`
+	ProjectId string `json:"projectid,omitempty"`
+}
+
+func teamDispatchCallback(input any, toolUseData *uctypes.UIMessageDataToolUse) (any, error) {
+	inputBytes, _ := json.Marshal(input)
+	var parsed teamDispatchParams
+	json.Unmarshal(inputBytes, &parsed)
+
+	if parsed.Target == "" {
+		return nil, fmt.Errorf("target is required")
+	}
+	if parsed.Message == "" {
+		return nil, fmt.Errorf("message is required")
+	}
+
+	ctx := context.Background()
+	message := parsed.Message
+	rpcClient := wshclient.GetBareRpcClient()
+
+	if parsed.ProjectId != "" {
+		proj, err := team.GetProject(ctx, parsed.ProjectId)
+		if err == nil && proj != nil {
+			message = fmt.Sprintf("[Project: %s, Path: %s]\n%s", proj.Name, proj.Path, message)
+		}
+	}
+
+	allWorkers, err := team.ListWorkers(ctx, "")
+	if err != nil {
+		return nil, fmt.Errorf("failed to list workers: %w", err)
+	}
+
+	var results []dispatchResult
+
+	if parsed.Target == "all" {
+		for _, w := range allWorkers {
+			if w.Status == "offline" {
+				continue
+			}
+			if w.BlockID == "" {
+				dr, dispatchErr := autoStartWorker(rpcClient, w.WorkerID, w.MemberID, message)
+				results = append(results, *dr)
+				if dispatchErr != nil {
+					results[len(results)-1].Error = dispatchErr.Error()
+				}
+				continue
+			}
+			inputUnion := &blockcontroller.BlockInputUnion{
+				InputData: []byte(message + "\r"),
+			}
+			err := blockcontroller.SendInput(w.BlockID, inputUnion)
+			results = append(results, dispatchResult{
+				Worker:  w.Name,
+				Success: err == nil,
+				Error:   errToString(err),
+			})
+		}
+	} else {
+		var targetWorker *team.TeamWorker
+		for _, w := range allWorkers {
+			if w.Name == parsed.Target || w.WorkerID == parsed.Target {
+				targetWorker = w
+				break
+			}
+		}
+		if targetWorker == nil {
+			return nil, fmt.Errorf("worker not found: %s", parsed.Target)
+		}
+		if targetWorker.BlockID == "" {
+			dispatchResult, dispatchErr := autoStartWorker(rpcClient, targetWorker.WorkerID, targetWorker.MemberID, message)
+			if dispatchErr != nil {
+				return nil, dispatchErr
+			}
+			results = append(results, *dispatchResult)
+		} else {
+			inputUnion := &blockcontroller.BlockInputUnion{
+				InputData: []byte(message + "\r"),
+			}
+			err := blockcontroller.SendInput(targetWorker.BlockID, inputUnion)
+			results = append(results, dispatchResult{
+				Worker:  targetWorker.Name,
+				Success: err == nil,
+				Error:   errToString(err),
+			})
+		}
+	}
+
+	return map[string]any{
+		"target":  parsed.Target,
+		"results": results,
+	}, nil
+}
+
+type dispatchResult struct {
+	Worker  string `json:"worker"`
+	Success bool   `json:"success"`
+	Error   string `json:"error,omitempty"`
+}
+
+func autoStartWorker(rpcClient *wshutil.WshRpc, workerId string, memberId string, prompt string) (*dispatchResult, error) {
+	taskTitle := prompt
+	if len(taskTitle) > 80 {
+		taskTitle = taskTitle[:77] + "..."
+	}
+
+	task, err := wshclient.TeamCreateTaskCommand(rpcClient, wshrpc.TeamCreateTaskData{
+		Title:       taskTitle,
+		Description: prompt,
+		Priority:    team.PriorityMedium,
+	}, &wshrpc.RpcOpts{})
+	if err != nil {
+		return &dispatchResult{Worker: workerId, Success: false, Error: err.Error()}, err
+	}
+
+	_, err = wshclient.TeamUpdateTaskCommand(rpcClient, wshrpc.TeamUpdateTaskData{
+		TaskID:           task.TaskID,
+		AssignedMemberID: memberId,
+		AssignedWorkerID: workerId,
+		Status:           team.TaskStatusAssigned,
+	}, &wshrpc.RpcOpts{})
+	if err != nil {
+		return &dispatchResult{Worker: workerId, Success: false, Error: err.Error()}, err
+	}
+
+	resp, err := wshclient.TeamExecuteTaskCommand(rpcClient, wshrpc.TeamExecuteTaskData{
+		WorkerID: workerId,
+		TaskID:   task.TaskID,
+	}, &wshrpc.RpcOpts{Timeout: 30000})
+	if err != nil {
+		return &dispatchResult{Worker: workerId, Success: false, Error: err.Error()}, err
+	}
+
+	return &dispatchResult{
+		Worker:  workerId,
+		Success: resp.Success,
+	}, nil
+}
+
+func errToString(err error) string {
+	if err == nil {
+		return ""
+	}
+	return err.Error()
+}
+
+func GetTeamDispatchToolDefinition() uctypes.ToolDefinition {
+	return uctypes.ToolDefinition{
+		Name:        "team_dispatch",
+		DisplayName: "Dispatch to Worker",
+		Description: "Send a message or instruction to a worker by name or ID. Use 'all' as target to broadcast to all active workers. Idle workers (no terminal block) are automatically started. Optionally include a projectid to inject project context into the message. Resolves worker names automatically.",
+		ToolLogName: "team:dispatch",
+		Strict:      false,
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"target": map[string]any{
+					"type":        "string",
+					"description": "Worker name, worker ID, or 'all' to broadcast",
+				},
+				"message": map[string]any{
+					"type":        "string",
+					"description": "The message or instruction to send",
+				},
+				"projectid": map[string]any{
+					"type":        "string",
+					"description": "Optional project ID to inject project context into the message",
+				},
+			},
+			"required":             []string{"target", "message"},
+			"additionalProperties": false,
+		},
+		ToolCallDesc: func(input any, output any, toolUseData *uctypes.UIMessageDataToolUse) string {
+			inputBytes, _ := json.Marshal(input)
+			var parsed teamDispatchParams
+			json.Unmarshal(inputBytes, &parsed)
+			return fmt.Sprintf("dispatching to %s", parsed.Target)
+		},
+		ToolAnyCallback: teamDispatchCallback,
 	}
 }
 
@@ -1297,6 +1529,7 @@ func GetTeamToolDefinitions() []uctypes.ToolDefinition {
 		GetTeamExecuteTaskToolDefinition(),
 		GetTeamRecycleWorkerToolDefinition(),
 		GetTeamSendPromptToolDefinition(),
+		GetTeamDispatchToolDefinition(),
 		GetTeamGetTaskOutputToolDefinition(),
 		GetTeamListActivityToolDefinition(),
 	}

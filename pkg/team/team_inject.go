@@ -15,9 +15,20 @@ import (
 )
 
 const (
-	teamSkillsSubDir    = "team-skills"
-	teamTemplatesSubDir = "team-templates"
-	teamPersonaMarker   = "<!-- team:persona -->"
+	teamSkillsSubDir       = "team-skills"
+	teamTemplatesSubDir    = "team-templates"
+	teamPersonaMarker      = "<!-- team:persona -->"
+	taskCompletionProtocol = `
+
+## Task Completion Protocol
+
+You are running as a team worker. When you complete your assigned task:
+- Call team_update_task(status="done", result="brief summary of what was accomplished")
+- If you encounter an error you cannot resolve, call team_update_task(status="failed", error="description")
+- For long tasks, report progress with team_update_task(progress=N) where N is 0-100
+- To communicate with another worker, call team_dispatch(target="worker_name", message="your message")
+- To check team status, call team_get_status()
+`
 )
 
 // cliSkillDirs maps tool type to its native skills directory (relative to home).
@@ -36,6 +47,7 @@ func InjectWorkerConfig(worker *TeamWorker, member *TeamMember) error {
 		return fmt.Errorf("loadPersona for worker %s: %w", worker.WorkerID, err)
 	}
 	if persona != "" {
+		persona = persona + taskCompletionProtocol
 		if err := injectPersona(persona, member); err != nil {
 			return fmt.Errorf("injectPersona for worker %s: %w", worker.WorkerID, err)
 		}
@@ -52,6 +64,18 @@ func InjectWorkerConfig(worker *TeamWorker, member *TeamMember) error {
 			return fmt.Errorf("injectMCP for worker %s: %w", worker.WorkerID, err)
 		}
 	}
+
+	waveTeamMCP := MCPConfig{
+		Name:    "wave-team",
+		Type:    "stdio",
+		Command: "wsh",
+		Args:    []string{"team-mcp-server"},
+	}
+	member.McpServers = append(member.McpServers, waveTeamMCP)
+	if err := injectMCP(member); err != nil {
+		return fmt.Errorf("injectMCP wave-team for worker %s: %w", worker.WorkerID, err)
+	}
+	member.McpServers = member.McpServers[:len(member.McpServers)-1]
 
 	return nil
 }

@@ -789,6 +789,96 @@ func TestInjectWorkerConfig_NoPersonaNoSkillsNoMCP(t *testing.T) {
 	}
 }
 
+func TestInjectWorkerConfig_PersonaContainsTaskProtocol(t *testing.T) {
+	tmpDir := t.TempDir()
+	origHome := getWaveHome
+	t.Cleanup(func() { getWaveHome = origHome })
+	getWaveHome = func() string { return tmpDir }
+
+	worker := &TeamWorker{WorkerID: "w1", Name: "w1"}
+	member := &TeamMember{
+		Name:    "m1",
+		Tool:    ToolClaude,
+		Persona: "You are a code reviewer.",
+	}
+
+	err := InjectWorkerConfig(worker, member)
+	if err != nil {
+		t.Fatalf("InjectWorkerConfig failed: %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(tmpDir, ".claude", "CLAUDE.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	content := string(data)
+	if !strings.Contains(content, "Task Completion Protocol") {
+		t.Error("CLAUDE.md missing task completion protocol")
+	}
+	if !strings.Contains(content, "team_update_task") {
+		t.Error("CLAUDE.md missing team_update_task instruction")
+	}
+	if !strings.Contains(content, "team_dispatch") {
+		t.Error("CLAUDE.md missing team_dispatch instruction")
+	}
+}
+
+func TestInjectWorkerConfig_AutoWaveTeamMCP(t *testing.T) {
+	tmpDir := t.TempDir()
+	origHome := getWaveHome
+	t.Cleanup(func() { getWaveHome = origHome })
+	getWaveHome = func() string { return tmpDir }
+
+	worker := &TeamWorker{WorkerID: "w1", Name: "w1"}
+	member := &TeamMember{
+		Name:    "m1",
+		Tool:    ToolClaude,
+		Persona: "You are a developer.",
+	}
+
+	err := InjectWorkerConfig(worker, member)
+	if err != nil {
+		t.Fatalf("InjectWorkerConfig failed: %v", err)
+	}
+
+	mcpFile := filepath.Join(tmpDir, ".claude", "mcp", "wave-team.json")
+	data, err := os.ReadFile(mcpFile)
+	if err != nil {
+		t.Fatalf("wave-team MCP config not created: %v", err)
+	}
+
+	content := string(data)
+	if !strings.Contains(content, `"command": "wsh"`) {
+		t.Errorf("wave-team MCP missing wsh command: %s", content)
+	}
+	if !strings.Contains(content, "team-mcp-server") {
+		t.Errorf("wave-team MCP missing team-mcp-server arg: %s", content)
+	}
+}
+
+func TestInjectWorkerConfig_AutoWaveTeamMCP_DoesNotMutateMember(t *testing.T) {
+	tmpDir := t.TempDir()
+	origHome := getWaveHome
+	t.Cleanup(func() { getWaveHome = origHome })
+	getWaveHome = func() string { return tmpDir }
+
+	worker := &TeamWorker{WorkerID: "w1", Name: "w1"}
+	member := &TeamMember{
+		Name:       "m1",
+		Tool:       ToolClaude,
+		Persona:    "You are a developer.",
+		McpServers: []MCPConfig{{Name: "existing", Type: "stdio", Command: "echo"}},
+	}
+
+	originalCount := len(member.McpServers)
+	_ = InjectWorkerConfig(worker, member)
+
+	if len(member.McpServers) != originalCount {
+		t.Errorf("member.McpServers was mutated: got %d items, want %d", len(member.McpServers), originalCount)
+	}
+}
+
 func countOccurrences(s, substr string) int {
 	count := 0
 	idx := 0

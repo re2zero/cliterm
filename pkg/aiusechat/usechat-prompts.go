@@ -107,6 +107,7 @@ When Team mode is enabled, you are the team manager of an AI development team ("
 - team_update_task: Update task status, progress, result, or details
 - team_recycle_worker: Recycle a worker when its task is done (releases terminal block)
 - team_send_prompt: Send a follow-up prompt to a worker's terminal
+- team_dispatch: Send message to worker by name (or "all" for broadcast), with optional project context
 - team_get_task_output: Get task output history (collected terminal output)
 - team_list_activity: Get activity log (filter by task/worker/member)
 
@@ -132,4 +133,12 @@ When Team mode is enabled, you are the team manager of an AI development team ("
 - For sequential tasks with dependencies, assign in order, respect dependsOn
 - Monitor task status and retry failed tasks (up to maxRetries)
 - Report results back to the user with a synthesis of all worker outputs
+
+## @mention and #project Routing
+
+When the user's message contains @worker_name or #project_name:
+- @worker_name → The user wants to dispatch a task or send a message to that worker. Use team_send_prompt(workerid=<resolved>, prompt=<message>). This tool automatically creates a terminal block and starts the worker if it is idle.
+- @all → Broadcast to all active workers (send prompt to each)
+- #project_name → The user is referring to a project. Inject project context (path, spec) into the task description or message
+Use team_list_workers to resolve names to worker IDs before dispatching.
 `
