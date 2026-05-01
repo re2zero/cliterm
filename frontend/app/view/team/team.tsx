@@ -42,6 +42,7 @@ export function TeamView({ model }: TeamViewProps) {
     const isProcessing = jotai.useAtomValue(model.isProcessingAtom) ?? false;
     const error = jotai.useAtomValue(model.errorAtom) ?? null;
     const projects = jotai.useAtomValue(model.projectsAtom) ?? [];
+    const templates = jotai.useAtomValue(model.templatesAtom) ?? [];
 
     const [selectedTask, setSelectedTask] = React.useState<TeamTask | null>(null);
     const [selectedMemberId, setSelectedMemberId] = React.useState<string | null>(null);
@@ -80,6 +81,31 @@ export function TeamView({ model }: TeamViewProps) {
         }
         setShowProjectDialog(false);
         setEditingProject(undefined);
+    };
+
+    const handleDropMember = async (memberId: string, projectId: string | null) => {
+        if (projectId) {
+            const project = projects.find((p) => p.projectid === projectId);
+            const member = runtimeMembers.find((m) => m.workerid === memberId);
+            if (!member || !project) return;
+
+            const existingInProject = runtimeMembers.filter(
+                (m) => m.projectid === projectId && m.workerid !== memberId
+            );
+            const baseName = member.name.replace(/-\d+$/, "");
+            const matchCount = existingInProject.filter(
+                (m) => m.name.startsWith(baseName)
+            ).length;
+
+            if (matchCount > 0) {
+                const newName = `${baseName}-${matchCount + 1}`;
+                await model.updateRuntimeMember(memberId, { name: newName });
+            }
+
+            await model.assignMemberToProject(memberId, projectId);
+        } else {
+            await model.assignMemberToProject(memberId, "");
+        }
     };
 
     return (
@@ -121,6 +147,7 @@ export function TeamView({ model }: TeamViewProps) {
                 <MemberList
                     members={runtimeMembers}
                     projects={projects}
+                    templates={templates}
                     selectedMemberId={selectedMemberId}
                     onSelectMember={(id) => setSelectedMemberId(id === selectedMemberId ? null : id)}
                     onEditMember={(memberId) => { setSelectedMemberId(null); openEditor({ type: "edit", memberId }); }}
@@ -129,6 +156,7 @@ export function TeamView({ model }: TeamViewProps) {
                     onNewProject={() => { setEditingProject(undefined); setShowProjectDialog(true); }}
                     onEditProject={(id) => { setEditingProject(projects.find((p) => p.projectid === id)); setShowProjectDialog(true); }}
                     onDeleteProject={(id) => model.deleteProject(id)}
+                    onDropMember={handleDropMember}
                 />
 
                 <div className={cn(
@@ -191,6 +219,7 @@ export function TeamView({ model }: TeamViewProps) {
                         <MemberEditor
                             member={editorMember}
                             members={runtimeMembers}
+                            templates={templates}
                             onClose={closeEditor}
                             onSubmit={editorTarget.type === "edit"
                                 ? async (_tool, config) => { await model.updateRuntimeMember(editorTarget.memberId, config as any); }

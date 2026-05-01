@@ -2121,6 +2121,32 @@ func (ws *WshServer) TeamListProjectsCommand(ctx context.Context) ([]*wshrpc.Tea
 	return result, nil
 }
 
+func (ws *WshServer) TeamListTemplatesCommand(ctx context.Context) ([]*wshrpc.TeamMember, error) {
+	defaults, err := team.LoadDefaultTemplates()
+	if err != nil {
+		return nil, fmt.Errorf("error loading default templates: %w", err)
+	}
+	global, err := team.LoadGlobalTemplates()
+	if err != nil {
+		return nil, fmt.Errorf("error loading global templates: %w", err)
+	}
+	seen := make(map[string]bool)
+	var result []*wshrpc.TeamMember
+	for i := range defaults {
+		if !seen[defaults[i].Name] {
+			seen[defaults[i].Name] = true
+			result = append(result, convertDbMemberToRpc(&defaults[i]))
+		}
+	}
+	for i := range global {
+		if !seen[global[i].Name] {
+			seen[global[i].Name] = true
+			result = append(result, convertDbMemberToRpc(&global[i]))
+		}
+	}
+	return result, nil
+}
+
 // --- Conversion helpers between pkg/team and wshrpc types ---
 
 func getWorkerStartCommand(tool string) string {

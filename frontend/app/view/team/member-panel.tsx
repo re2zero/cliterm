@@ -51,6 +51,7 @@ function FieldRow({ label, children, className }: { label: string; children: Rea
 interface MemberListProps {
     members: TeamWorker[];
     projects: TeamProject[];
+    templates: TeamMember[];
     selectedMemberId: string | null;
     onSelectMember: (memberId: string | null) => void;
     onEditMember: (memberId: string) => void;
@@ -59,9 +60,10 @@ interface MemberListProps {
     onNewProject: () => void;
     onEditProject: (projectId: string) => void;
     onDeleteProject: (projectId: string) => void;
+    onDropMember: (memberId: string, projectId: string | null) => void;
 }
 
-export function MemberList({ members, projects, selectedMemberId, onSelectMember, onEditMember, onDeleteMember, onNewMember, onNewProject, onEditProject, onDeleteProject }: MemberListProps) {
+export function MemberList({ members, projects, selectedMemberId, onSelectMember, onEditMember, onDeleteMember, onNewMember, onNewProject, onEditProject, onDeleteProject, onDropMember }: MemberListProps) {
     const [deleteTarget, setDeleteTarget] = React.useState<TeamWorker | null>(null);
     const [deleteProjectTarget, setDeleteProjectTarget] = React.useState<TeamProject | null>(null);
 
@@ -126,6 +128,7 @@ export function MemberList({ members, projects, selectedMemberId, onSelectMember
                             onEditProject={projectId ? () => onEditProject(projectId) : undefined}
                             onDeleteProject={projectId ? () => setDeleteProjectTarget(project!) : undefined}
                             onNewProject={onNewProject}
+                            onDropMember={onDropMember}
                         />
                     );
                 })}
@@ -207,8 +210,15 @@ function MemberItem({ member, isSelected, onSelect, onEdit, onDelete }: {
         return () => document.removeEventListener("mousedown", handler);
     }, [menuOpen]);
 
+    const handleDragStart = (e: React.DragEvent) => {
+        e.dataTransfer.setData("text/plain", member.workerid);
+        e.dataTransfer.effectAllowed = "move";
+    };
+
     return (
         <div
+            draggable
+            onDragStart={handleDragStart}
             className={cn(
                 "flex items-center gap-1.5 px-2 py-1.5 cursor-pointer transition-colors group",
                 isSelected ? "bg-accent/10" : "hover:bg-accent/5",
@@ -238,7 +248,7 @@ function MemberItem({ member, isSelected, onSelect, onEdit, onDelete }: {
     );
 }
 
-function ProjectGroup({ project, members, selectedMemberId, onSelectMember, onEditMember, onDeleteMember, onNewMember, onEditProject, onDeleteProject, onNewProject }: {
+function ProjectGroup({ project, members, selectedMemberId, onSelectMember, onEditMember, onDeleteMember, onNewMember, onEditProject, onDeleteProject, onNewProject, onDropMember }: {
     project: TeamProject | null;
     members: TeamWorker[];
     selectedMemberId: string | null;
@@ -249,8 +259,10 @@ function ProjectGroup({ project, members, selectedMemberId, onSelectMember, onEd
     onEditProject?: () => void;
     onDeleteProject?: () => void;
     onNewProject: () => void;
+    onDropMember?: (memberId: string, projectId: string | null) => void;
 }) {
     const [menuOpen, setMenuOpen] = React.useState(false);
+    const [dragOver, setDragOver] = React.useState(false);
     const menuRef = React.useRef<HTMLDivElement>(null);
     const isDefault = !project;
 
@@ -263,8 +275,29 @@ function ProjectGroup({ project, members, selectedMemberId, onSelectMember, onEd
         return () => document.removeEventListener("mousedown", handler);
     }, [menuOpen]);
 
+    const handleDragOver = (e: React.DragEvent) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "move";
+        setDragOver(true);
+    };
+
+    const handleDragLeave = () => setDragOver(false);
+
+    const handleDrop = (e: React.DragEvent) => {
+        e.preventDefault();
+        setDragOver(false);
+        const memberId = e.dataTransfer.getData("text/plain");
+        if (memberId && onDropMember) {
+            onDropMember(memberId, project?.projectid ?? null);
+        }
+    };
+
     return (
-        <div className="mb-1">
+        <div className={cn("mb-1", dragOver && "ring-1 ring-accent/50 rounded")}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+        >
             <div className={cn(
                 "flex items-center gap-1.5 px-2 py-1 border-b border-border/20 group",
                 isDefault ? "bg-muted/20" : "bg-blue-500/5",
@@ -436,15 +469,17 @@ export function MemberDetailPanel({ member, allTasks, onClose, onEdit, onTaskCli
 interface MemberEditorProps {
     member?: TeamWorker;
     members: TeamWorker[];
+    templates: TeamMember[];
     onClose: () => void;
     onSubmit: (tool: string, config: MemberFormData) => Promise<string | void>;
 }
 
-export function MemberEditor({ member, onClose, onSubmit }: MemberEditorProps) {
+export function MemberEditor({ member, templates, onClose, onSubmit }: MemberEditorProps) {
     const isCreating = !member;
     const [submitting, setSubmitting] = React.useState(false);
     const [runtimes, setRuntimes] = React.useState<AIRuntime[]>([]);
     const [nameDirty, setNameDirty] = React.useState(false);
+    const [selectedTemplate, setSelectedTemplate] = React.useState<string | null>(null);
 
     const [tool, setTool] = React.useState("claude");
     const [name, setName] = React.useState(member?.name ?? "");
@@ -455,7 +490,7 @@ export function MemberEditor({ member, onClose, onSubmit }: MemberEditorProps) {
     const [maxRetries, setMaxRetries] = React.useState(3);
     const [capabilities, setCapabilities] = React.useState<string[]>([]);
     const [skills, setSkills] = React.useState<string[]>([]);
-    const [mcpServers, setMcpServers] = React.useState<string[]>([]);
+    const [mcpJson, setMcpJson] = React.useState("[]");
 
     React.useEffect(() => {
         RpcApi.TeamDetectRuntimesCommand(TabRpcClient)
@@ -474,10 +509,32 @@ export function MemberEditor({ member, onClose, onSubmit }: MemberEditorProps) {
         setName(value);
     };
 
+    const applyTemplate = (t: TeamMember) => {
+        setSelectedTemplate(t.name);
+        setTool(t.tool || "claude");
+        setNameDirty(true);
+        setName(t.name ?? "");
+        setDescription(t.description ?? "");
+        setPersona(t.persona ?? "");
+        setSkills(t.skills ?? []);
+        setCapabilities(t.capabilities ?? []);
+        setCustomCmd(t.customcmd ?? "");
+        setMaxRetries(t.maxretries ?? 3);
+        setMcpJson(t.mcpservers?.length ? JSON.stringify(t.mcpservers, null, 2) : "[]");
+    };
+
     const handleSubmit = async () => {
         if (submitting) return;
         setSubmitting(true);
         try {
+            let mcpServers = undefined;
+            try {
+                const parsed = JSON.parse(mcpJson);
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                    mcpServers = parsed;
+                }
+            } catch {}
+
             await onSubmit(tool, {
                 name: name || undefined,
                 description: description || undefined,
@@ -486,7 +543,7 @@ export function MemberEditor({ member, onClose, onSubmit }: MemberEditorProps) {
                 maxretries: maxRetries > 0 ? maxRetries : undefined,
                 capabilities: capabilities.length > 0 ? capabilities : undefined,
                 skills: skills.length > 0 ? skills : undefined,
-                mcpservers: mcpServers.length > 0 ? mcpServers.map((s) => ({ name: s } as TeamMCPConfig)) : undefined,
+                mcpservers: mcpServers,
             });
             onClose();
         } catch (e) {
@@ -508,6 +565,34 @@ export function MemberEditor({ member, onClose, onSubmit }: MemberEditorProps) {
             </div>
 
             <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
+                {isCreating && templates.length > 0 && (
+                    <Section title="Template">
+                        <div className="grid grid-cols-2 gap-2">
+                            <button
+                                className={cn(
+                                    "flex items-center gap-2 px-3 py-2 rounded border cursor-pointer transition-colors",
+                                    selectedTemplate === null ? "border-accent bg-accent/10" : "border-border/50 hover:border-accent/50",
+                                )}
+                                onClick={() => { setSelectedTemplate(null); setNameDirty(true); setName(""); setDescription(""); setPersona(""); setSkills([]); setMcpJson("[]"); setCapabilities([]); setCustomCmd(""); }}
+                            >
+                                <span className="text-xs text-muted-foreground">Empty</span>
+                            </button>
+                            {templates.map((t) => (
+                                <button key={t.name}
+                                    className={cn(
+                                        "flex flex-col px-3 py-2 rounded border cursor-pointer transition-colors text-left",
+                                        selectedTemplate === t.name ? "border-accent bg-accent/10" : "border-border/50 hover:border-accent/50",
+                                    )}
+                                    onClick={() => applyTemplate(t)}
+                                >
+                                    <span className="text-xs text-primary font-medium">{t.name}</span>
+                                    <span className="text-[10px] text-muted-foreground truncate">{t.description}</span>
+                                </button>
+                            ))}
+                        </div>
+                    </Section>
+                )}
+
                 <Section title="Identity">
                     <FieldRow label="Name">
                         <input className={inputCls} value={name} onChange={(e) => handleNameChange(e.target.value)} disabled={!isCreating} />
@@ -579,7 +664,7 @@ export function MemberEditor({ member, onClose, onSubmit }: MemberEditorProps) {
                     </div>
                     <TagPicker label="Skills" options={PRESET_SKILLS} selected={skills} onChange={setSkills} />
                     <div className="mt-3">
-                        <TagPicker label="MCP Servers" options={PRESET_MCPS} selected={mcpServers} onChange={setMcpServers} />
+                        <MCPJsonEditor value={mcpJson} onChange={setMcpJson} />
                     </div>
                 </Section>
 
@@ -604,6 +689,74 @@ export function MemberEditor({ member, onClose, onSubmit }: MemberEditorProps) {
                     {submitting ? (isCreating ? "Creating..." : "Saving...") : (isCreating ? "Create" : "Save")}
                 </button>
             </div>
+        </div>
+    );
+}
+
+function MCPJsonEditor({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+    const [mode, setMode] = React.useState<"source" | "preview">("source");
+    const [error, setError] = React.useState<string | null>(null);
+
+    const validateJson = (text: string) => {
+        if (!text.trim()) { setError(null); return; }
+        try {
+            const parsed = JSON.parse(text);
+            if (!Array.isArray(parsed)) { setError("Must be a JSON array"); return; }
+            setError(null);
+        } catch (e) { setError("Invalid JSON"); }
+    };
+
+    React.useEffect(() => { validateJson(value); }, [value]);
+
+    return (
+        <div>
+            <div className="flex items-center justify-between mb-1">
+                <span className="text-[11px] text-muted-foreground">MCP Servers</span>
+                <div className="flex rounded border border-border/50 overflow-hidden">
+                    <button
+                        className={cn("px-1.5 py-0.5 text-[10px] cursor-pointer", mode === "source" ? "bg-accent/20 text-accent" : "text-muted-foreground hover:text-primary")}
+                        onClick={() => setMode("source")}
+                    >JSON</button>
+                    <button
+                        className={cn("px-1.5 py-0.5 text-[10px] cursor-pointer border-l border-border/50", mode === "preview" ? "bg-accent/20 text-accent" : "text-muted-foreground hover:text-primary")}
+                        onClick={() => setMode("preview")}
+                    >Preview</button>
+                </div>
+            </div>
+            {mode === "source" ? (
+                <div>
+                    <textarea
+                        className="w-full bg-base border border-border/50 rounded text-xs text-primary focus:outline-none focus:ring-1 focus:ring-accent px-2.5 py-1.5 font-mono resize-y min-h-[100px]"
+                        rows={6}
+                        value={value}
+                        onChange={(e) => { onChange(e.target.value); validateJson(e.target.value); }}
+                        placeholder='[{"name": "filesystem"}, {"name": "github", "type": "stdio", "command": "npx", "args": ["-y", "@modelcontextprotocol/server-github"]}]'
+                    />
+                    {error && <span className="text-[10px] text-red-400 mt-0.5 block">{error}</span>}
+                </div>
+            ) : (
+                <div className="border border-border/50 rounded p-2 min-h-[60px] bg-base">
+                    {(() => {
+                        if (!value.trim()) return <span className="text-xs text-muted-foreground italic">No MCP servers configured</span>;
+                        try {
+                            const parsed = JSON.parse(value);
+                            if (!Array.isArray(parsed)) return <span className="text-xs text-red-400">Invalid: not an array</span>;
+                            if (parsed.length === 0) return <span className="text-xs text-muted-foreground italic">Empty array</span>;
+                            return (
+                                <div className="space-y-1">
+                                    {parsed.map((s: any, i: number) => (
+                                        <div key={i} className="flex items-center gap-1.5">
+                                            <span className="w-1.5 h-1.5 rounded-full bg-accent shrink-0" />
+                                            <span className="text-xs text-primary">{s.name || `server-${i}`}</span>
+                                            {s.type && <span className="text-[10px] text-muted-foreground">{s.type}</span>}
+                                        </div>
+                                    ))}
+                                </div>
+                            );
+                        } catch { return <span className="text-xs text-red-400">Invalid JSON</span>; }
+                    })()}
+                </div>
+            )}
         </div>
     );
 }

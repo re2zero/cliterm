@@ -972,6 +972,12 @@ export class RpcApiType {
         return client.wshRpcCall("teamlisttasks", data, opts);
     }
 
+    // command "teamlisttemplates" [call]
+    TeamListTemplatesCommand(client: WshClient, opts?: RpcOpts): Promise<TeamMember[]> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "teamlisttemplates", null, opts);
+        return client.wshRpcCall("teamlisttemplates", null, opts);
+    }
+
     // command "teamlistworkers" [call]
     TeamListWorkersCommand(client: WshClient, data: string, opts?: RpcOpts): Promise<TeamWorker[]> {
         if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "teamlistworkers", data, opts);

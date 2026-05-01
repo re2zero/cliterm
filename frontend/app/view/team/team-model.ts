@@ -32,6 +32,7 @@ export class TeamViewModel implements ViewModel {
     runtimeMembersAtom = jotai.atom<TeamWorker[]>([]);
     activityLogAtom = jotai.atom<TeamActivity[]>([]);
     projectsAtom = jotai.atom<TeamProject[]>([]);
+    templatesAtom = jotai.atom<TeamMember[]>([]);
     memberConfigAtom = jotai.atom({
 		runtime: "claude",
 		concurrency: 3,
@@ -234,6 +235,13 @@ export class TeamViewModel implements ViewModel {
             const projects = await RpcApi.TeamListProjectsCommand(TabRpcClient);
             globalStore.set(this.projectsAtom, projects);
         } catch {}
+
+        if (globalStore.get(this.templatesAtom).length === 0) {
+            try {
+                const templates = await RpcApi.TeamListTemplatesCommand(TabRpcClient);
+                globalStore.set(this.templatesAtom, templates ?? []);
+            } catch {}
+        }
     }
 
     async createTask(title: string, description: string, priority: string, dependsOn?: string[]): Promise<void> {

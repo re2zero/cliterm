@@ -965,6 +965,12 @@ func TeamListTasksCommand(w *wshutil.WshRpc, data wshrpc.TeamListTasksData, opts
 	return resp, err
 }
 
+// command "teamlisttemplates", wshserver.TeamListTemplatesCommand
+func TeamListTemplatesCommand(w *wshutil.WshRpc, opts *wshrpc.RpcOpts) ([]*wshrpc.TeamMember, error) {
+	resp, err := sendRpcRequestCallHelper[[]*wshrpc.TeamMember](w, "teamlisttemplates", nil, opts)
+	return resp, err
+}
+
 // command "teamlistworkers", wshserver.TeamListWorkersCommand
 func TeamListWorkersCommand(w *wshutil.WshRpc, data string, opts *wshrpc.RpcOpts) ([]*wshrpc.TeamWorker, error) {
 	resp, err := sendRpcRequestCallHelper[[]*wshrpc.TeamWorker](w, "teamlistworkers", data, opts)

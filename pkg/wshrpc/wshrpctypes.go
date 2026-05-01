@@ -221,6 +221,7 @@ type WshRpcInterface interface {
 	TeamUpdateProjectCommand(ctx context.Context, data TeamUpdateProjectData) (*TeamProject, error)
 	TeamDeleteProjectCommand(ctx context.Context, projectId string) error
 	TeamListProjectsCommand(ctx context.Context) ([]*TeamProject, error)
+	TeamListTemplatesCommand(ctx context.Context) ([]*TeamMember, error)
 }
 
 // for frontend
