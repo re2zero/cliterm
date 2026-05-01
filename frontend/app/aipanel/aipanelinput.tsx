@@ -6,10 +6,13 @@ import { waveAIHasFocusWithin } from "@/app/aipanel/waveai-focus-utils";
 import { type WaveAIModel } from "@/app/aipanel/waveai-model";
 import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
+import { waveEventSubscribeSingle } from "@/app/store/wps";
 import { Tooltip } from "@/element/tooltip";
 import { cn } from "@/util/util";
 import { useAtom, useAtomValue } from "jotai";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
+
+type MentionMode = "member" | "project";
 
 interface AIPanelInputProps {
     onSubmit: (e: React.FormEvent) => void;
@@ -31,13 +34,15 @@ export const AIPanelInput = memo(({ onSubmit, status, model }: AIPanelInputProps
     const fileInputRef = useRef<HTMLInputElement>(null);
     const isPanelOpen = useAtomValue(model.getPanelVisibleAtom());
     const [showMention, setShowMention] = useState(false);
+    const [mentionMode, setMentionMode] = useState<MentionMode>("member");
     const [mentionQuery, setMentionQuery] = useState("");
     const [mentionStartPos, setMentionStartPos] = useState(-1);
     const [mentionSelectedIdx, setMentionSelectedIdx] = useState(0);
     const [workersCache, setWorkersCache] = useState<TeamWorker[] | null>(null);
     const [membersCache, setMembersCache] = useState<TeamMember[] | null>(null);
-    const workersFetchRef = useRef(false);
-    const membersFetchRef = useRef(false);
+    const [projectsCache, setProjectsCache] = useState<TeamProject[] | null>(null);
+    const teamFetchedRef = useRef(false);
+    const mentionListRef = useRef<HTMLDivElement>(null);
 
     let placeholder: string;
     if (!isChatEmpty) {
@@ -48,21 +53,50 @@ export const AIPanelInput = memo(({ onSubmit, status, model }: AIPanelInputProps
         placeholder = "Ask Wave AI anything...";
     }
 
-    const fetchWorkers = useCallback(async () => {
-        if (workersFetchRef.current) return;
-        workersFetchRef.current = true;
+    const fetchTeamData = useCallback(async () => {
         try {
-            const [workers, members] = await Promise.all([
+            const [workers, members, projects] = await Promise.all([
                 RpcApi.TeamListWorkersCommand(TabRpcClient, ""),
                 RpcApi.TeamListMembersCommand(TabRpcClient, {}),
+                RpcApi.TeamListProjectsCommand(TabRpcClient),
             ]);
             setWorkersCache(workers);
             setMembersCache(members);
+            setProjectsCache(projects);
         } catch {
             setWorkersCache([]);
             setMembersCache([]);
+            setProjectsCache([]);
         }
     }, []);
+
+    useEffect(() => {
+        const handleTeamUpdate = () => {
+            setWorkersCache(null);
+            setMembersCache(null);
+            setProjectsCache(null);
+            teamFetchedRef.current = false;
+        };
+        const unsubMember = waveEventSubscribeSingle({
+            eventType: "team:memberupdate",
+            handler: handleTeamUpdate,
+        });
+        const unsubProject = waveEventSubscribeSingle({
+            eventType: "team:projectupdate",
+            handler: handleTeamUpdate,
+        });
+        return () => {
+            unsubMember?.();
+            unsubProject?.();
+        };
+    }, [fetchTeamData]);
+
+    const ensureTeamData = useCallback(() => {
+        if (!teamFetchedRef.current) {
+            teamFetchedRef.current = true;
+            fetchTeamData();
+        }
+    }, [fetchTeamData]);
 
     const filteredWorkers = (() => {
         if (!workersCache) return [];
@@ -76,14 +110,14 @@ export const AIPanelInput = memo(({ onSubmit, status, model }: AIPanelInputProps
         return membersCache.filter((m) => m.name.toLowerCase().includes(q));
     })();
 
-    const mentionItems = [
+    const filteredProjects = (() => {
+        if (!projectsCache) return [];
+        const q = mentionQuery.toLowerCase();
+        return projectsCache.filter((p) => p.name.toLowerCase().includes(q));
+    })();
+
+    const memberItems = [
         { type: "all" as const, name: "All Members", icon: "fa-users", status: "" },
-        ...filteredMembers.map((m) => ({
-            type: "member" as const,
-            name: m.name,
-            icon: "fa-user-gear",
-            status: "",
-        })),
         ...filteredWorkers.map((w) => ({
             type: "worker" as const,
             name: w.name,
@@ -92,8 +126,18 @@ export const AIPanelInput = memo(({ onSubmit, status, model }: AIPanelInputProps
         })),
     ];
 
+    const projectItems = filteredProjects.map((p) => ({
+        type: "project" as const,
+        name: p.name,
+        icon: "fa-folder",
+        detail: p.path,
+    }));
+
+    const mentionItems = mentionMode === "member" ? memberItems : projectItems;
+
     const closeMention = useCallback(() => {
         setShowMention(false);
+        setMentionMode("member");
         setMentionQuery("");
         setMentionStartPos(-1);
         setMentionSelectedIdx(0);
@@ -105,7 +149,8 @@ export const AIPanelInput = memo(({ onSubmit, status, model }: AIPanelInputProps
             if (textarea == null || mentionStartPos < 0) return;
             const before = input.slice(0, mentionStartPos);
             const after = input.slice(textarea.selectionStart);
-            const newValue = before + "@" + name + " " + after;
+            const prefix = mentionMode === "member" ? "@" : "#";
+            const newValue = before + prefix + name + " " + after;
             setInput(newValue);
             closeMention();
             requestAnimationFrame(() => {
@@ -114,8 +159,14 @@ export const AIPanelInput = memo(({ onSubmit, status, model }: AIPanelInputProps
                 textarea.selectionEnd = pos;
             });
         },
-        [input, mentionStartPos, setInput, closeMention]
+        [input, mentionStartPos, mentionMode, setInput, closeMention]
     );
+
+    useEffect(() => {
+        if (!showMention || !mentionListRef.current) return;
+        const selected = mentionListRef.current.querySelector("[data-mention-selected='true']");
+        selected?.scrollIntoView({ block: "nearest" });
+    }, [mentionSelectedIdx, showMention]);
 
     const resizeTextarea = useCallback(() => {
         const textarea = textareaRef.current;
@@ -234,6 +285,40 @@ export const AIPanelInput = memo(({ onSubmit, status, model }: AIPanelInputProps
         }
     };
 
+    const detectMentionTrigger = (val: string, cursorPos: number) => {
+        const beforeCursor = val.slice(0, cursorPos);
+
+        const atIdx = beforeCursor.lastIndexOf("@");
+        if (atIdx >= 0 && (atIdx === 0 || /\s/.test(beforeCursor[atIdx - 1]))) {
+            const queryText = beforeCursor.slice(atIdx + 1);
+            if (!/\s/.test(queryText)) {
+                setMentionMode("member");
+                setShowMention(true);
+                setMentionStartPos(atIdx);
+                setMentionQuery(queryText);
+                setMentionSelectedIdx(0);
+                ensureTeamData();
+                return;
+            }
+        }
+
+        const hashIdx = beforeCursor.lastIndexOf("#");
+        if (hashIdx >= 0 && (hashIdx === 0 || /\s/.test(beforeCursor[hashIdx - 1]))) {
+            const queryText = beforeCursor.slice(hashIdx + 1);
+            if (!/\s/.test(queryText)) {
+                setMentionMode("project");
+                setShowMention(true);
+                setMentionStartPos(hashIdx);
+                setMentionQuery(queryText);
+                setMentionSelectedIdx(0);
+                ensureTeamData();
+                return;
+            }
+        }
+
+        closeMention();
+    };
+
     return (
         <div className={cn("border-t", isFocused ? "border-accent/50" : "border-gray-600")}>
             <input
@@ -253,27 +338,7 @@ export const AIPanelInput = memo(({ onSubmit, status, model }: AIPanelInputProps
                             const val = e.target.value;
                             const cursorPos = e.target.selectionStart;
                             setInput(val);
-                            const beforeCursor = val.slice(0, cursorPos);
-                            const atIdx = beforeCursor.lastIndexOf("@");
-                            if (
-                                atIdx >= 0 &&
-                                (atIdx === 0 || /\s/.test(beforeCursor[atIdx - 1]))
-                            ) {
-                                const queryText = beforeCursor.slice(atIdx + 1);
-                                if (!/\s/.test(queryText)) {
-                                    setShowMention(true);
-                                    setMentionStartPos(atIdx);
-                                    setMentionQuery(queryText);
-                                    setMentionSelectedIdx(0);
-                                    if (!workersFetchRef.current) {
-                                        fetchWorkers();
-                                    }
-                                } else {
-                                    closeMention();
-                                }
-                            } else {
-                                closeMention();
-                            }
+                            detectMentionTrigger(val, cursorPos);
                         }}
                         onKeyDown={handleKeyDown}
                         onFocus={handleFocus}
@@ -286,10 +351,11 @@ export const AIPanelInput = memo(({ onSubmit, status, model }: AIPanelInputProps
                         rows={2}
                     />
                     {showMention && mentionItems.length > 0 && (
-                        <div className="absolute bottom-full left-0 mb-1 bg-zinc-900 border border-gray-600 rounded shadow-lg max-h-48 overflow-y-auto z-50 min-w-48">
+                        <div ref={mentionListRef} className="absolute bottom-full left-0 right-0 mb-1 mx-2 bg-zinc-900 border border-gray-600 rounded shadow-lg max-h-48 overflow-y-auto z-50">
                             {mentionItems.map((item, idx) => (
                                 <div
                                     key={item.type === "all" ? "all" : item.name}
+                                    data-mention-selected={idx === mentionSelectedIdx ? "true" : undefined}
                                     className={cn(
                                         "px-3 py-1.5 text-sm cursor-pointer hover:bg-zinc-700 flex items-center gap-2",
                                         idx === mentionSelectedIdx && "bg-zinc-700"
@@ -301,7 +367,7 @@ export const AIPanelInput = memo(({ onSubmit, status, model }: AIPanelInputProps
                                 >
                                     <i className={cn("fa text-xs text-gray-400", item.icon)}></i>
                                     <span className="text-white">
-                                        @{item.type === "all" ? "all" : item.name}
+                                        {item.type === "all" ? "all" : item.name}
                                     </span>
                                     {item.type === "all" && (
                                         <span className="text-gray-400 text-xs">All Workers</span>
@@ -316,6 +382,9 @@ export const AIPanelInput = memo(({ onSubmit, status, model }: AIPanelInputProps
                                                 item.status === "working" ? "bg-green-500" : "bg-gray-500"
                                             )}
                                         ></span>
+                                    )}
+                                    {"detail" in item && item.detail && (
+                                        <span className="text-gray-400 text-xs truncate max-w-48">{item.detail}</span>
                                     )}
                                 </div>
                             ))}
