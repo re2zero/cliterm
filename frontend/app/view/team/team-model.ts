@@ -295,7 +295,7 @@ export class TeamViewModel implements ViewModel {
     }
 
     async updateRuntimeMember(workerId: string, config: Record<string, any>): Promise<void> {
-        await RpcApi.TeamUpdateWorkerCommand(TabRpcClient, { workerid: workerId, ...config });
+        await RpcApi.TeamUpdateWorkerCommand(TabRpcClient, { workerid: workerId, projectid: "", ...config });
         await this.refreshAllData();
     }
 
@@ -347,8 +347,21 @@ export class TeamViewModel implements ViewModel {
         await this.refreshAllData();
     }
 
-    async assignMemberToProject(memberId: string, projectId: string): Promise<void> {
-        await RpcApi.TeamUpdateMemberCommand(TabRpcClient, { memberid: memberId, projectid: projectId } as any);
+    async saveTemplate(data: { name: string; tool?: string; description?: string; persona?: string; skills?: string[]; capabilities?: string[]; customcmd?: string; maxretries?: number; mcpservers?: TeamMCPConfig[] }): Promise<void> {
+        await RpcApi.TeamSaveTemplateCommand(TabRpcClient, {
+            ...data,
+            maxconcurrency: 3,
+        } as TeamMember);
+        globalStore.set(this.templatesAtom, []);
+    }
+
+    async deleteTemplate(templateName: string): Promise<void> {
+        await RpcApi.TeamDeleteTemplateCommand(TabRpcClient, templateName);
+        globalStore.set(this.templatesAtom, []);
+    }
+
+    async assignMemberToProject(workerId: string, projectId: string): Promise<void> {
+        await RpcApi.TeamUpdateWorkerCommand(TabRpcClient, { workerid: workerId, projectid: projectId });
         await this.refreshAllData();
     }
 
@@ -512,6 +525,7 @@ export class TeamViewModel implements ViewModel {
                                 workerid: act.worker_id,
                                 status: "working",
                                 assignedtaskid: act.task_id,
+                                projectid: "",
                             });
                             if (act.instruction) {
                                 await this.sendToTerminal(act.worker_id, act.instruction + "\n");
@@ -560,7 +574,7 @@ export class TeamViewModel implements ViewModel {
         }
     }
 
-    async createRuntimeMember(tool: string, config?: { name?: string; maxRetries?: number; capabilities?: string[]; persona?: string; description?: string; skills?: string[]; mcpservers?: TeamMCPConfig[]; customcmd?: string }): Promise<string> {
+    async createRuntimeMember(tool: string, config?: { name?: string; maxRetries?: number; capabilities?: string[]; persona?: string; description?: string; skills?: string[]; mcpservers?: TeamMCPConfig[]; customcmd?: string; projectid?: string }): Promise<string> {
         const memberResult = await RpcApi.TeamCreateMemberCommand(TabRpcClient, {
             name: config?.name ?? `${tool} member`,
             tool,
@@ -571,6 +585,7 @@ export class TeamViewModel implements ViewModel {
             mcpservers: config?.mcpservers,
             capabilities: config?.capabilities,
             maxretries: config?.maxRetries,
+            projectid: config?.projectid,
         });
         const memberId = memberResult?.memberid;
         if (!memberId) {

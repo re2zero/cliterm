@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import * as React from "react";
+import { Markdown } from "@/app/element/markdown";
 import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { cn } from "@/util/util";
@@ -16,6 +17,7 @@ export interface MemberFormData {
     customcmd?: string;
     maxretries?: number;
     maxconcurrency?: number;
+    projectid?: string;
 }
 
 const STATUS_ICON: Record<string, { dot: string; label: string }> = {
@@ -56,7 +58,7 @@ interface MemberListProps {
     onSelectMember: (memberId: string | null) => void;
     onEditMember: (memberId: string) => void;
     onDeleteMember: (memberId: string) => void;
-    onNewMember: () => void;
+    onNewMember: (projectId?: string | null) => void;
     onNewProject: () => void;
     onEditProject: (projectId: string) => void;
     onDeleteProject: (projectId: string) => void;
@@ -141,7 +143,7 @@ export function MemberList({ members, projects, selectedMemberId, onSelectMember
             <div className="border-t border-border/50 p-1.5 flex gap-1">
                 <button
                     className="flex-1 px-2 py-1.5 rounded text-[11px] bg-accent/80 text-primary hover:bg-accent cursor-pointer font-medium transition-colors"
-                    onClick={onNewMember}
+                    onClick={() => onNewMember()}
                 >
                     + Member
                 </button>
@@ -255,7 +257,7 @@ function ProjectGroup({ project, members, selectedMemberId, onSelectMember, onEd
     onSelectMember: (memberId: string | null) => void;
     onEditMember: (memberId: string) => void;
     onDeleteMember: (memberId: string) => void;
-    onNewMember: () => void;
+    onNewMember: (projectId?: string | null) => void;
     onEditProject?: () => void;
     onDeleteProject?: () => void;
     onNewProject: () => void;
@@ -331,7 +333,7 @@ function ProjectGroup({ project, members, selectedMemberId, onSelectMember, onEd
                 )}
                 <button
                     className="px-1.5 py-0.5 rounded text-[10px] bg-accent/80 text-primary hover:bg-accent cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity font-medium"
-                    onClick={onNewMember}
+                    onClick={() => onNewMember(project?.projectid ?? null)}
                 >+</button>
             </div>
             <div>
@@ -468,29 +470,32 @@ export function MemberDetailPanel({ member, allTasks, onClose, onEdit, onTaskCli
 
 interface MemberEditorProps {
     member?: TeamWorker;
+    templateMember?: TeamMember;
     members: TeamWorker[];
     templates: TeamMember[];
+    defaultProjectId?: string | null;
     onClose: () => void;
     onSubmit: (tool: string, config: MemberFormData) => Promise<string | void>;
+    onSaveTemplate?: (name: string, config: MemberFormData) => Promise<void>;
 }
 
-export function MemberEditor({ member, templates, onClose, onSubmit }: MemberEditorProps) {
+export function MemberEditor({ member, templateMember, members, templates, defaultProjectId, onClose, onSubmit, onSaveTemplate }: MemberEditorProps) {
     const isCreating = !member;
     const [submitting, setSubmitting] = React.useState(false);
     const [runtimes, setRuntimes] = React.useState<AIRuntime[]>([]);
     const [nameDirty, setNameDirty] = React.useState(false);
     const [selectedTemplate, setSelectedTemplate] = React.useState<string | null>(null);
 
-    const [tool, setTool] = React.useState("claude");
+    const [tool, setTool] = React.useState(templateMember?.tool || member?.name?.includes("opencode") ? "opencode" : "claude");
     const [name, setName] = React.useState(member?.name ?? "");
-    const [description, setDescription] = React.useState("");
-    const [persona, setPersona] = React.useState("");
-    const [customCmd, setCustomCmd] = React.useState("");
-    const [model, setModel] = React.useState("");
-    const [maxRetries, setMaxRetries] = React.useState(3);
-    const [capabilities, setCapabilities] = React.useState<string[]>([]);
-    const [skills, setSkills] = React.useState<string[]>([]);
-    const [mcpJson, setMcpJson] = React.useState("[]");
+    const [description, setDescription] = React.useState(templateMember?.description ?? "");
+    const [persona, setPersona] = React.useState(templateMember?.persona ?? "");
+    const [customCmd, setCustomCmd] = React.useState(templateMember?.customcmd ?? "");
+    const [model, setModel] = React.useState(templateMember?.model ?? "");
+    const [maxRetries, setMaxRetries] = React.useState(templateMember?.maxretries ?? 3);
+    const [capabilities, setCapabilities] = React.useState<string[]>(templateMember?.capabilities ?? []);
+    const [skills, setSkills] = React.useState<string[]>(templateMember?.skills ?? []);
+    const [mcpJson, setMcpJson] = React.useState(templateMember?.mcpservers?.length ? JSON.stringify(templateMember.mcpservers, null, 2) : "[]");
 
     React.useEffect(() => {
         RpcApi.TeamDetectRuntimesCommand(TabRpcClient)
@@ -512,8 +517,6 @@ export function MemberEditor({ member, templates, onClose, onSubmit }: MemberEdi
     const applyTemplate = (t: TeamMember) => {
         setSelectedTemplate(t.name);
         setTool(t.tool || "claude");
-        setNameDirty(true);
-        setName(t.name ?? "");
         setDescription(t.description ?? "");
         setPersona(t.persona ?? "");
         setSkills(t.skills ?? []);
@@ -521,6 +524,18 @@ export function MemberEditor({ member, templates, onClose, onSubmit }: MemberEdi
         setCustomCmd(t.customcmd ?? "");
         setMaxRetries(t.maxretries ?? 3);
         setMcpJson(t.mcpservers?.length ? JSON.stringify(t.mcpservers, null, 2) : "[]");
+
+        const baseName = t.name ?? "member";
+        const existingNames = new Set(members.map((m) => m.name));
+        if (!existingNames.has(baseName)) {
+            setNameDirty(true);
+            setName(baseName);
+        } else {
+            let nextNum = 1;
+            while (existingNames.has(`${baseName}-${nextNum}`)) { nextNum++; }
+            setNameDirty(true);
+            setName(`${baseName}-${nextNum}`);
+        }
     };
 
     const handleSubmit = async () => {
@@ -544,6 +559,7 @@ export function MemberEditor({ member, templates, onClose, onSubmit }: MemberEdi
                 capabilities: capabilities.length > 0 ? capabilities : undefined,
                 skills: skills.length > 0 ? skills : undefined,
                 mcpservers: mcpServers,
+                projectid: isCreating ? defaultProjectId ?? undefined : undefined,
             });
             onClose();
         } catch (e) {
@@ -561,7 +577,27 @@ export function MemberEditor({ member, templates, onClose, onSubmit }: MemberEdi
                 <h3 className="text-sm font-semibold text-primary">
                     {isCreating ? "New Member" : member?.name ?? "Member"}
                 </h3>
-                <button className="text-muted-foreground hover:text-primary cursor-pointer text-sm" onClick={onClose}>✕</button>
+                <div className="flex items-center gap-2">
+                    {onSaveTemplate && (
+                        <button
+                            className="text-[11px] text-muted-foreground hover:text-accent cursor-pointer"
+                            onClick={() => {
+                                const config: MemberFormData = {
+                                    name: name || undefined,
+                                    description: description || undefined,
+                                    persona: persona || undefined,
+                                    skills: skills.length > 0 ? skills : undefined,
+                                    capabilities: capabilities.length > 0 ? capabilities : undefined,
+                                    customcmd: customCmd || undefined,
+                                    maxretries: maxRetries > 0 ? maxRetries : undefined,
+                                };
+                                const mcpServers = (() => { try { const p = JSON.parse(mcpJson); return Array.isArray(p) && p.length > 0 ? p : undefined; } catch { return undefined; } })();
+                                onSaveTemplate(name || "Untitled Template", { ...config, mcpservers: mcpServers });
+                            }}
+                        >Save as Template</button>
+                    )}
+                    <button className="text-muted-foreground hover:text-primary cursor-pointer text-sm" onClick={onClose}>✕</button>
+                </div>
             </div>
 
             <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
@@ -643,11 +679,7 @@ export function MemberEditor({ member, templates, onClose, onSubmit }: MemberEdi
                 )}
 
                 <Section title="Persona">
-                    <textarea
-                        className={cn(inputCls, "font-mono resize-y min-h-[120px]")}
-                        rows={6} value={persona} onChange={(e) => setPersona(e.target.value)}
-                        placeholder="System prompt for this member. Define its role, expertise, and behavior..."
-                    />
+                    <PersonaEditor value={persona} onChange={setPersona} />
                 </Section>
 
                 <Section title="Capabilities & Skills">
@@ -693,6 +725,46 @@ export function MemberEditor({ member, templates, onClose, onSubmit }: MemberEdi
     );
 }
 
+function PersonaEditor({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+    const [mode, setMode] = React.useState<"source" | "preview">("source");
+
+    return (
+        <div>
+            <div className="flex items-center justify-between mb-1">
+                <span className="text-[11px] text-muted-foreground">System Prompt</span>
+                <div className="flex rounded border border-border/50 overflow-hidden">
+                    <button
+                        className={cn("px-1.5 py-0.5 text-[10px] cursor-pointer", mode === "source" ? "bg-accent/20 text-accent" : "text-muted-foreground hover:text-primary")}
+                        onClick={() => setMode("source")}
+                    >Source</button>
+                    <button
+                        className={cn("px-1.5 py-0.5 text-[10px] cursor-pointer border-l border-border/50", mode === "preview" ? "bg-accent/20 text-accent" : "text-muted-foreground hover:text-primary")}
+                        onClick={() => setMode("preview")}
+                    >Preview</button>
+                </div>
+            </div>
+            {mode === "source" ? (
+                <div className="min-h-[120px]">
+                    <textarea
+                        className="w-full bg-base border border-border/50 rounded text-xs text-primary focus:outline-none focus:ring-1 focus:ring-accent px-2.5 py-1.5 font-mono resize-y"
+                        value={value}
+                        onChange={(e) => onChange(e.target.value)}
+                        placeholder="System prompt for this member. Define its role, expertise, and behavior..."
+                    />
+                </div>
+            ) : (
+                <div className="border border-border/50 rounded p-2.5 min-h-[120px] max-h-[400px] overflow-y-auto bg-base">
+                    {value.trim() ? (
+                        <Markdown text={value} className="text-xs" scrollable={false} />
+                    ) : (
+                        <span className="text-xs text-muted-foreground italic">No persona defined</span>
+                    )}
+                </div>
+            )}
+        </div>
+    );
+}
+
 function MCPJsonEditor({ value, onChange }: { value: string; onChange: (v: string) => void }) {
     const [mode, setMode] = React.useState<"source" | "preview">("source");
     const [error, setError] = React.useState<string | null>(null);
@@ -724,10 +796,9 @@ function MCPJsonEditor({ value, onChange }: { value: string; onChange: (v: strin
                 </div>
             </div>
             {mode === "source" ? (
-                <div>
+                <div className="min-h-[100px]">
                     <textarea
-                        className="w-full bg-base border border-border/50 rounded text-xs text-primary focus:outline-none focus:ring-1 focus:ring-accent px-2.5 py-1.5 font-mono resize-y min-h-[100px]"
-                        rows={6}
+                        className="w-full bg-base border border-border/50 rounded text-xs text-primary focus:outline-none focus:ring-1 focus:ring-accent px-2.5 py-1.5 font-mono resize-y"
                         value={value}
                         onChange={(e) => { onChange(e.target.value); validateJson(e.target.value); }}
                         placeholder='[{"name": "filesystem"}, {"name": "github", "type": "stdio", "command": "npx", "args": ["-y", "@modelcontextprotocol/server-github"]}]'

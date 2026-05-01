@@ -881,6 +881,12 @@ func TeamDeleteTaskCommand(w *wshutil.WshRpc, data string, opts *wshrpc.RpcOpts)
 	return err
 }
 
+// command "teamdeletetemplate", wshserver.TeamDeleteTemplateCommand
+func TeamDeleteTemplateCommand(w *wshutil.WshRpc, data string, opts *wshrpc.RpcOpts) error {
+	_, err := sendRpcRequestCallHelper[any](w, "teamdeletetemplate", data, opts)
+	return err
+}
+
 // command "teamdeleteworker", wshserver.TeamDeleteWorkerCommand
 func TeamDeleteWorkerCommand(w *wshutil.WshRpc, data string, opts *wshrpc.RpcOpts) error {
 	_, err := sendRpcRequestCallHelper[any](w, "teamdeleteworker", data, opts)
@@ -998,6 +1004,12 @@ func TeamResumeTaskCommand(w *wshutil.WshRpc, data string, opts *wshrpc.RpcOpts)
 // command "teamretrytask", wshserver.TeamRetryTaskCommand
 func TeamRetryTaskCommand(w *wshutil.WshRpc, data string, opts *wshrpc.RpcOpts) error {
 	_, err := sendRpcRequestCallHelper[any](w, "teamretrytask", data, opts)
+	return err
+}
+
+// command "teamsavetemplate", wshserver.TeamSaveTemplateCommand
+func TeamSaveTemplateCommand(w *wshutil.WshRpc, data *wshrpc.TeamMember, opts *wshrpc.RpcOpts) error {
+	_, err := sendRpcRequestCallHelper[any](w, "teamsavetemplate", data, opts)
 	return err
 }
 

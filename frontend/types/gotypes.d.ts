@@ -1678,6 +1678,7 @@ declare global {
         maxretries?: number;
         memory?: string;
         color?: string;
+        projectid?: string;
     };
 
     // wshrpc.TeamCreateProjectData
@@ -1859,11 +1860,13 @@ declare global {
     // wshrpc.TeamUpdateWorkerData
     type TeamUpdateWorkerData = {
         workerid: string;
+        name?: string;
         status?: string;
         assignedtaskid?: string;
         blockid?: string;
         tabid?: string;
         pid?: number;
+        projectid: string;
     };
 
     // wshrpc.TeamWorker

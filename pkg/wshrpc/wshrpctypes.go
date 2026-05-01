@@ -222,6 +222,8 @@ type WshRpcInterface interface {
 	TeamDeleteProjectCommand(ctx context.Context, projectId string) error
 	TeamListProjectsCommand(ctx context.Context) ([]*TeamProject, error)
 	TeamListTemplatesCommand(ctx context.Context) ([]*TeamMember, error)
+	TeamSaveTemplateCommand(ctx context.Context, member *TeamMember) error
+	TeamDeleteTemplateCommand(ctx context.Context, templateName string) error
 }
 
 // for frontend
@@ -1089,6 +1091,7 @@ type TeamCreateMemberData struct {
 	MaxRetries     int             `json:"maxretries,omitempty"`
 	Memory         string          `json:"memory,omitempty"`
 	Color          string          `json:"color,omitempty"`
+	ProjectID      string          `json:"projectid,omitempty"`
 }
 
 type TeamUpdateMemberData struct {
@@ -1111,11 +1114,13 @@ type TeamUpdateMemberData struct {
 
 type TeamUpdateWorkerData struct {
 	WorkerID       string `json:"workerid"`
+	Name           string `json:"name,omitempty"`
 	Status         string `json:"status,omitempty"`
 	AssignedTaskID string `json:"assignedtaskid,omitempty"`
 	BlockID        string `json:"blockid,omitempty"`
 	TabID          string `json:"tabid,omitempty"`
 	PID            int    `json:"pid,omitempty"`
+	ProjectID      string `json:"projectid"`
 }
 
 type TeamCreateTaskData struct {

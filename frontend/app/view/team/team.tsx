@@ -22,7 +22,7 @@ interface TeamViewProps {
     model: TeamViewModel;
 }
 
-type MemberEditorTarget = { type: "new" } | { type: "edit"; memberId: string };
+type MemberEditorTarget = { type: "new"; projectId?: string | null } | { type: "edit"; memberId: string };
 
 export function TeamView({ model }: TeamViewProps) {
     React.useEffect(() => {
@@ -43,17 +43,19 @@ export function TeamView({ model }: TeamViewProps) {
     const error = jotai.useAtomValue(model.errorAtom) ?? null;
     const projects = jotai.useAtomValue(model.projectsAtom) ?? [];
     const templates = jotai.useAtomValue(model.templatesAtom) ?? [];
+    const allMembers = jotai.useAtomValue(model.membersAtom) ?? [];
 
     const [selectedTask, setSelectedTask] = React.useState<TeamTask | null>(null);
     const [selectedMemberId, setSelectedMemberId] = React.useState<string | null>(null);
-    const [showCreateTask, setShowCreateTask] = React.useState(false);
     const [showActivity, setShowActivity] = React.useState(false);
     const [editorTarget, setEditorTarget] = React.useState<MemberEditorTarget | null>(null);
     const [editorVisible, setEditorVisible] = React.useState(false);
     const [showProjectDialog, setShowProjectDialog] = React.useState(false);
     const [editingProject, setEditingProject] = React.useState<TeamProject | undefined>(undefined);
+    const [showCreateTask, setShowCreateTask] = React.useState(false);
 
     const editorMember = editorTarget?.type === "edit" ? runtimeMembers.find((w) => w.workerid === editorTarget.memberId) : undefined;
+    const editorTemplate = editorMember ? allMembers.find((t) => t.memberid === editorMember.memberid) : undefined;
 
     const openEditor = (target: MemberEditorTarget) => {
         setEditorTarget(target);
@@ -152,7 +154,7 @@ export function TeamView({ model }: TeamViewProps) {
                     onSelectMember={(id) => setSelectedMemberId(id === selectedMemberId ? null : id)}
                     onEditMember={(memberId) => { setSelectedMemberId(null); openEditor({ type: "edit", memberId }); }}
                     onDeleteMember={(memberId) => { model.deleteRuntimeMember(memberId); if (selectedMemberId === memberId) setSelectedMemberId(null); }}
-                    onNewMember={() => { setSelectedMemberId(null); openEditor({ type: "new" }); }}
+                    onNewMember={(projectId) => { setSelectedMemberId(null); openEditor({ type: "new", projectId }); }}
                     onNewProject={() => { setEditingProject(undefined); setShowProjectDialog(true); }}
                     onEditProject={(id) => { setEditingProject(projects.find((p) => p.projectid === id)); setShowProjectDialog(true); }}
                     onDeleteProject={(id) => model.deleteProject(id)}
@@ -218,13 +220,33 @@ export function TeamView({ model }: TeamViewProps) {
                     )}>
                         <MemberEditor
                             member={editorMember}
+                            templateMember={editorTemplate}
                             members={runtimeMembers}
                             templates={templates}
+                            defaultProjectId={editorTarget.type === "new" ? editorTarget.projectId ?? null : null}
                             onClose={closeEditor}
                             onSubmit={editorTarget.type === "edit"
-                                ? async (_tool, config) => { await model.updateRuntimeMember(editorTarget.memberId, config as any); }
+                                ? async (_tool, config) => {
+                                    if (editorMember) {
+                                        await model.updateMember(editorMember.memberid, config as any);
+                                        await model.updateRuntimeMember(editorTarget.memberId, { name: (config as any).name, projectid: (config as any).projectid });
+                                    }
+                                }
                                 : async (tool, config) => { await model.createRuntimeMember(tool, config as any); }
                             }
+                            onSaveTemplate={async (templateName, config) => {
+                                await model.saveTemplate({
+                                    name: templateName,
+                                    tool: "claude",
+                                    description: config.description,
+                                    persona: config.persona,
+                                    skills: config.skills,
+                                    capabilities: config.capabilities,
+                                    customcmd: config.customcmd,
+                                    maxretries: config.maxretries,
+                                    mcpservers: (config.mcpservers ?? []) as TeamMCPConfig[],
+                                });
+                            }}
                         />
                     </div>
                 )}

@@ -888,6 +888,12 @@ export class RpcApiType {
         return client.wshRpcCall("teamdeletetask", data, opts);
     }
 
+    // command "teamdeletetemplate" [call]
+    TeamDeleteTemplateCommand(client: WshClient, data: string, opts?: RpcOpts): Promise<void> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "teamdeletetemplate", data, opts);
+        return client.wshRpcCall("teamdeletetemplate", data, opts);
+    }
+
     // command "teamdeleteworker" [call]
     TeamDeleteWorkerCommand(client: WshClient, data: string, opts?: RpcOpts): Promise<void> {
         if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "teamdeleteworker", data, opts);
@@ -1006,6 +1012,12 @@ export class RpcApiType {
     TeamRetryTaskCommand(client: WshClient, data: string, opts?: RpcOpts): Promise<void> {
         if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "teamretrytask", data, opts);
         return client.wshRpcCall("teamretrytask", data, opts);
+    }
+
+    // command "teamsavetemplate" [call]
+    TeamSaveTemplateCommand(client: WshClient, data: TeamMember, opts?: RpcOpts): Promise<void> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "teamsavetemplate", data, opts);
+        return client.wshRpcCall("teamsavetemplate", data, opts);
     }
 
     // command "teamupdatemember" [call]

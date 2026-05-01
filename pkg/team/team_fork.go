@@ -19,6 +19,7 @@ import (
 type memberInfo struct {
 	Name           string `db:"name"`
 	MaxConcurrency int    `db:"max_concurrency"`
+	ProjectID      string `db:"project_id"`
 }
 
 // workerInfo holds the minimal worker data needed by recycle operations.
@@ -47,28 +48,24 @@ func ForkWorker(ctx context.Context, memberID string) (*TeamWorker, error) {
 			memberID, activeCount, member.MaxConcurrency)
 	}
 
-	nextNum, err := getNextWorkerNumber(ctx, memberID, member.Name)
-	if err != nil {
-		return nil, fmt.Errorf("fork worker: %w", err)
-	}
-
 	now := time.Now().Unix()
 	worker := &TeamWorker{
 		WorkerID:      uuid.New().String(),
 		MemberID:      memberID,
-		Name:          fmt.Sprintf("%s-%d", member.Name, nextNum),
+		Name:          member.Name,
 		Status:        WorkerStatusIdle,
+		ProjectID:     member.ProjectID,
 		CreatedAt:     now,
 		UpdatedAt:     now,
 		LastHeartbeat: now,
 	}
 
 	err = wstore.WithTx(ctx, func(tx *wstore.TxWrap) error {
-		tx.Exec(`INSERT INTO team_workers (worker_id, member_id, name, status, assigned_task_id, block_id, tab_id, pid, created_at, updated_at, last_heartbeat)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		tx.Exec(`INSERT INTO team_workers (worker_id, member_id, name, status, assigned_task_id, block_id, tab_id, pid, project_id, created_at, updated_at, last_heartbeat)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			worker.WorkerID, worker.MemberID, worker.Name, worker.Status,
 			worker.AssignedTaskID, worker.BlockID, worker.TabID, worker.PID,
-			worker.CreatedAt, worker.UpdatedAt, worker.LastHeartbeat)
+			worker.ProjectID, worker.CreatedAt, worker.UpdatedAt, worker.LastHeartbeat)
 		return nil
 	})
 	if err != nil {
@@ -168,7 +165,7 @@ func countActiveWorkers(ctx context.Context, memberID string) (int, error) {
 func getMemberInfo(ctx context.Context, memberID string) (*memberInfo, error) {
 	db := wstore.GetGlobalDB()
 	var info memberInfo
-	err := db.Get(&info, `SELECT name, max_concurrency FROM team_members WHERE member_id = ?`, memberID)
+	err := db.Get(&info, `SELECT name, max_concurrency, project_id FROM team_members WHERE member_id = ?`, memberID)
 	if err != nil {
 		return nil, fmt.Errorf("member %q not found: %w", memberID, err)
 	}

@@ -9,6 +9,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 
@@ -174,9 +175,64 @@ func LoadGlobalTemplates() ([]TeamMember, error) {
 	return members, nil
 }
 
-// LoadProjectConfig reads .wave/team.yaml from the given project directory.
-// Returns project-defined members (already resolved against global templates).
-// Returns an empty slice if the file doesn't exist (not an error).
+func SaveGlobalTemplate(m *TeamMember) error {
+	dir := GetGlobalTemplatesDir()
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("create global templates dir %q: %w", dir, err)
+	}
+	slug := memberNameToFilename(m.Name)
+	path := filepath.Join(dir, slug+".yaml")
+	data, err := memberToYAML(m)
+	if err != nil {
+		return fmt.Errorf("marshal template YAML: %w", err)
+	}
+	return os.WriteFile(path, data, 0644)
+}
+
+func DeleteGlobalTemplate(templateName string) error {
+	dir := GetGlobalTemplatesDir()
+	slug := memberNameToFilename(templateName)
+	path := filepath.Join(dir, slug+".yaml")
+	if err := os.Remove(path); err != nil {
+		return fmt.Errorf("delete template %q: %w", templateName, err)
+	}
+	return nil
+}
+
+func memberToYAML(m *TeamMember) ([]byte, error) {
+	raw := memberYAML{
+		Name:           m.Name,
+		Description:    m.Description,
+		Tool:           m.Tool,
+		CustomCmd:      m.CustomCmd,
+		Model:          m.Model,
+		Color:          m.Color,
+		Persona:        m.Persona,
+		PersonaPath:    m.PersonaPath,
+		Skills:         m.Skills,
+		McpServers:     m.McpServers,
+		Capabilities:   m.Capabilities,
+		MaxConcurrency: m.MaxConcurrency,
+		MaxRetries:     m.MaxRetries,
+		Memory:         m.Memory,
+	}
+	return yaml.Marshal(raw)
+}
+
+func memberNameToFilename(name string) string {
+	slug := strings.ToLower(strings.ReplaceAll(name, " ", "-"))
+	slug = strings.Map(func(r rune) rune {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-' {
+			return r
+		}
+		return -1
+	}, slug)
+	if slug == "" {
+		return "unnamed"
+	}
+	return slug
+}
+
 func LoadProjectConfig(projectDir string) ([]TeamMember, error) {
 	configPath := filepath.Join(projectDir, ".wave", "team.yaml")
 

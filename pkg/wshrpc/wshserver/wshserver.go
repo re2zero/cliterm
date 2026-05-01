@@ -1663,6 +1663,9 @@ func (ws *WshServer) TeamUpdateWorkerCommand(ctx context.Context, data wshrpc.Te
 		}
 		w.Status = data.Status
 	}
+	if data.Name != "" {
+		w.Name = data.Name
+	}
 	if data.AssignedTaskID != "" {
 		w.AssignedTaskID = data.AssignedTaskID
 	}
@@ -1675,6 +1678,7 @@ func (ws *WshServer) TeamUpdateWorkerCommand(ctx context.Context, data wshrpc.Te
 	if data.PID > 0 {
 		w.PID = data.PID
 	}
+	w.ProjectID = data.ProjectID
 	err = team.UpdateWorker(ctx, w)
 	if err != nil {
 		return nil, fmt.Errorf("error updating team worker: %w", err)
@@ -2147,6 +2151,26 @@ func (ws *WshServer) TeamListTemplatesCommand(ctx context.Context) ([]*wshrpc.Te
 	return result, nil
 }
 
+func (ws *WshServer) TeamSaveTemplateCommand(ctx context.Context, member *wshrpc.TeamMember) error {
+	m, err := rpcMemberToDb(member)
+	if err != nil {
+		return fmt.Errorf("error converting template: %w", err)
+	}
+	err = team.SaveGlobalTemplate(m)
+	if err != nil {
+		return fmt.Errorf("error saving template: %w", err)
+	}
+	return nil
+}
+
+func (ws *WshServer) TeamDeleteTemplateCommand(ctx context.Context, templateName string) error {
+	err := team.DeleteGlobalTemplate(templateName)
+	if err != nil {
+		return fmt.Errorf("error deleting template: %w", err)
+	}
+	return nil
+}
+
 // --- Conversion helpers between pkg/team and wshrpc types ---
 
 func getWorkerStartCommand(tool string) string {
@@ -2180,6 +2204,7 @@ func convertRpcMemberToDb(data *wshrpc.TeamCreateMemberData) *team.TeamMember {
 		MaxRetries:     data.MaxRetries,
 		Memory:         data.Memory,
 		Color:          data.Color,
+		ProjectID:      data.ProjectID,
 	}
 }
 
@@ -2261,6 +2286,34 @@ func convertDbMemberToRpc(m *team.TeamMember) *wshrpc.TeamMember {
 		CreatedAt:      m.CreatedAt,
 		UpdatedAt:      m.UpdatedAt,
 	}
+}
+
+func rpcMemberToDb(m *wshrpc.TeamMember) (*team.TeamMember, error) {
+	var mcpservers []team.MCPConfig
+	for _, s := range m.McpServers {
+		mcpservers = append(mcpservers, team.MCPConfig{
+			Name: s.Name, Type: s.Type,
+			Command: s.Command, Args: s.Args,
+			Env: s.Env, URL: s.URL, Headers: s.Headers,
+		})
+	}
+	return &team.TeamMember{
+		Name:           m.Name,
+		Tool:           m.Tool,
+		CustomCmd:      m.CustomCmd,
+		Description:    m.Description,
+		Persona:        m.Persona,
+		PersonaPath:    m.PersonaPath,
+		Skills:         m.Skills,
+		McpServers:     mcpservers,
+		Capabilities:   m.Capabilities,
+		Model:          m.Model,
+		MaxConcurrency: m.MaxConcurrency,
+		MaxRetries:     m.MaxRetries,
+		Memory:         m.Memory,
+		Color:          m.Color,
+		ProjectID:      m.ProjectID,
+	}, nil
 }
 
 func convertDbMcpServers(servers []team.MCPConfig) []wshrpc.TeamMCPConfig {
