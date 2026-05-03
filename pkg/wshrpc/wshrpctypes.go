@@ -133,6 +133,8 @@ type WshRpcInterface interface {
 	JobPrepareConnectCommand(ctx context.Context, data CommandJobPrepareConnectData) (*CommandJobConnectRtnData, error)
 	JobStartStreamCommand(ctx context.Context, data CommandJobStartStreamData) error
 	JobInputCommand(ctx context.Context, data CommandJobInputData) error
+	JobCmdExitedCommand(ctx context.Context, data CommandJobCmdExitedData) error
+	StreamDataCommand(ctx context.Context, data JobManagerStatusUpdate, opts *RpcOpts) error
 	BlockJobStatusCommand(ctx context.Context, blockId string) (*BlockJobStatusData, error)
 	BadgeWatchPidCommand(ctx context.Context, data CommandBadgeWatchPidData) error
 	RemoteProcessListCommand(ctx context.Context, data CommandRemoteProcessListData) (*ProcessListResponse, error)
@@ -211,6 +213,7 @@ type WshRpcInterface interface {
 	TeamPauseTaskCommand(ctx context.Context, taskId string) error
 	TeamResumeTaskCommand(ctx context.Context, taskId string) error
 	TeamRetryTaskCommand(ctx context.Context, taskId string) error
+	TeamSendPromptCommand(ctx context.Context, data TeamSendPromptData) error
 	TeamGetTaskOutputHistoryCommand(ctx context.Context, taskId string) ([]TeamTaskOutput, error)
 	TeamGetStatusCommand(ctx context.Context) (*TeamStatusData, error)
 	TeamDetectRuntimesCommand(ctx context.Context) (*TeamDetectRuntimesReturn, error)
@@ -872,8 +875,20 @@ type CommandJobControllerAttachJobData struct {
 }
 
 type JobManagerStatusUpdate struct {
-	JobId            string `json:"jobid"`
-	JobManagerStatus string `json:"jobmanagerstatus"`
+	JobId                string            `json:"jobid"`
+	JobManagerStatus     string            `json:"jobmanagerstatus"`
+	OID                  string            `json:"oid,omitempty"`
+	ConnName             string            `json:"connname,omitempty"`
+	Connected            bool              `json:"connected,omitempty"`
+	TerminateOnReconnect bool              `json:"terminateonreconnect,omitempty"`
+	Cmd                  string            `json:"cmd,omitempty"`
+	StreamDone           bool              `json:"streamdone,omitempty"`
+	StreamError          string            `json:"streamerror,omitempty"`
+	CmdExitTs            int64             `json:"cmdexitts,omitempty"`
+	CmdExitCode          *int              `json:"cmdexitcode,omitempty"`
+	CmdExitSignal        string            `json:"cmdexitsignal,omitempty"`
+	Reason               string            `json:"reason,omitempty"`
+	Attached             string            `json:"attached,omitempty"`
 }
 
 type CommandWaveFileReadStreamData struct {
@@ -1159,7 +1174,11 @@ type TeamExecuteTaskResponse struct {
 	BlockID string `json:"blockid"`
 	TabID   string `json:"tabid"`
 	Success bool   `json:"success"`
-	Error   string `json:"error,omitempty"`
+}
+
+type TeamSendPromptData struct {
+	WorkerID string `json:"workerid"`
+	Prompt   string `json:"prompt"`
 }
 
 type TeamAddActivityData struct {

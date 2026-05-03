@@ -1842,6 +1842,10 @@ func (ws *WshServer) TeamExecuteTaskCommand(ctx context.Context, data wshrpc.Tea
 		if injectErr := team.InjectWorkerConfig(worker, member); injectErr != nil {
 			log.Printf("warning: failed to inject worker config for %s: %v\n", worker.Name, injectErr)
 		}
+	} else {
+		if injectErr := team.InjectDefaultWorkerConfig(worker); injectErr != nil {
+			log.Printf("warning: failed to inject default worker config for %s: %v\n", worker.Name, injectErr)
+		}
 	}
 
 	blockDef := &waveobj.BlockDef{
@@ -2442,5 +2446,25 @@ func convertDbProjectToRpc(p *team.TeamProject) *wshrpc.TeamProject {
 		CreatedAt: p.CreatedAt,
 		UpdatedAt: p.UpdatedAt,
 	}
+}
+
+func (ws *WshServer) TeamSendPromptCommand(ctx context.Context, data wshrpc.TeamSendPromptData) error {
+	if data.WorkerID == "" {
+		return fmt.Errorf("workerid is required")
+	}
+	worker, err := team.GetWorker(ctx, data.WorkerID)
+	if err != nil {
+		return fmt.Errorf("get worker: %w", err)
+	}
+	if worker == nil {
+		return fmt.Errorf("worker not found: %s", data.WorkerID)
+	}
+	if worker.BlockID == "" {
+		return fmt.Errorf("worker %s has no terminal block", worker.Name)
+	}
+	inputUnion := &blockcontroller.BlockInputUnion{
+		InputData: []byte(data.Prompt + "\r"),
+	}
+	return blockcontroller.SendInput(worker.BlockID, inputUnion)
 }
 

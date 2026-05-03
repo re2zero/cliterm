@@ -945,7 +945,6 @@ func teamExecuteTaskCallback(input any, toolUseData *uctypes.UIMessageDataToolUs
 		"success": resp.Success,
 		"blockid": resp.BlockID,
 		"tabid":   resp.TabID,
-		"error":   resp.Error,
 	}, nil
 }
 

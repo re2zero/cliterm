@@ -508,6 +508,12 @@ func GetWaveAIRateLimitCommand(w *wshutil.WshRpc, opts *wshrpc.RpcOpts) (*uctype
 	return resp, err
 }
 
+// command "jobcmdexited", wshserver.JobCmdExitedCommand
+func JobCmdExitedCommand(w *wshutil.WshRpc, data wshrpc.CommandJobCmdExitedData, opts *wshrpc.RpcOpts) error {
+	_, err := sendRpcRequestCallHelper[any](w, "jobcmdexited", data, opts)
+	return err
+}
+
 // command "jobinput", wshserver.JobInputCommand
 func JobInputCommand(w *wshutil.WshRpc, data wshrpc.CommandJobInputData, opts *wshrpc.RpcOpts) error {
 	_, err := sendRpcRequestCallHelper[any](w, "jobinput", data, opts)
@@ -829,6 +835,12 @@ func StreamCpuDataCommand(w *wshutil.WshRpc, data wshrpc.CpuDataRequest, opts *w
 	return sendRpcRequestResponseStreamHelper[wshrpc.TimeSeriesData](w, "streamcpudata", data, opts)
 }
 
+// command "streamdata", wshserver.StreamDataCommand
+func StreamDataCommand(w *wshutil.WshRpc, arg1 wshrpc.JobManagerStatusUpdate, arg2 *wshrpc.RpcOpts, opts *wshrpc.RpcOpts) error {
+	_, err := sendRpcRequestCallHelper[any](w, "streamdata", wshrpc.MultiArg{Args: []any{arg1, arg2}}, opts)
+	return err
+}
+
 // command "streamtest", wshserver.StreamTestCommand
 func StreamTestCommand(w *wshutil.WshRpc, opts *wshrpc.RpcOpts) chan wshrpc.RespOrErrorUnion[int] {
 	return sendRpcRequestResponseStreamHelper[int](w, "streamtest", nil, opts)
@@ -1010,6 +1022,12 @@ func TeamRetryTaskCommand(w *wshutil.WshRpc, data string, opts *wshrpc.RpcOpts) 
 // command "teamsavetemplate", wshserver.TeamSaveTemplateCommand
 func TeamSaveTemplateCommand(w *wshutil.WshRpc, data *wshrpc.TeamMember, opts *wshrpc.RpcOpts) error {
 	_, err := sendRpcRequestCallHelper[any](w, "teamsavetemplate", data, opts)
+	return err
+}
+
+// command "teamsendprompt", wshserver.TeamSendPromptCommand
+func TeamSendPromptCommand(w *wshutil.WshRpc, data wshrpc.TeamSendPromptData, opts *wshrpc.RpcOpts) error {
+	_, err := sendRpcRequestCallHelper[any](w, "teamsendprompt", data, opts)
 	return err
 }
 

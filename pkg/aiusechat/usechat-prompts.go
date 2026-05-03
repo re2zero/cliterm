@@ -137,8 +137,8 @@ When Team mode is enabled, you are the team manager of an AI development team ("
 ## @mention and #project Routing
 
 When the user's message contains @worker_name or #project_name:
-- @worker_name → The user wants to dispatch a task or send a message to that worker. Use team_send_prompt(workerid=<resolved>, prompt=<message>). This tool automatically creates a terminal block and starts the worker if it is idle.
-- @all → Broadcast to all active workers (send prompt to each)
+- @worker_name → The user wants to dispatch a task or send a message to that worker. Use team_dispatch(target="worker_name", message=<user message>). This resolves the name to a worker and sends the prompt.
+- @all → Broadcast to all active workers. Use team_dispatch(target="all", message=<user message>)
 - #project_name → The user is referring to a project. Inject project context (path, spec) into the task description or message
-Use team_list_workers to resolve names to worker IDs before dispatching.
+Workers report task completion themselves via "wsh team-update-task" CLI commands. You do NOT need to poll terminal output — just dispatch and monitor task status via team_get_status.
 `

@@ -23,11 +23,11 @@ const (
 ## Task Completion Protocol
 
 You are running as a team worker. When you complete your assigned task:
-- Call team_update_task(status="done", result="brief summary of what was accomplished")
-- If you encounter an error you cannot resolve, call team_update_task(status="failed", error="description")
-- For long tasks, report progress with team_update_task(progress=N) where N is 0-100
-- To communicate with another worker, call team_dispatch(target="worker_name", message="your message")
-- To check team status, call team_get_status()
+- Use the team_update_task MCP tool with status="done" and result="brief summary"
+- If you encounter an error, use team_update_task with status="failed" and error="description"
+- For long tasks, report progress with team_update_task progress=N (0-100)
+- To communicate with another worker, use team_dispatch(target="worker_name", message="your message")
+- To check team status, use team_get_status
 `
 )
 
@@ -48,9 +48,11 @@ func InjectWorkerConfig(worker *TeamWorker, member *TeamMember) error {
 	}
 	if persona != "" {
 		persona = persona + taskCompletionProtocol
-		if err := injectPersona(persona, member); err != nil {
-			return fmt.Errorf("injectPersona for worker %s: %w", worker.WorkerID, err)
-		}
+	} else {
+		persona = strings.TrimPrefix(taskCompletionProtocol, "\n")
+	}
+	if err := injectPersona(persona, member); err != nil {
+		return fmt.Errorf("injectPersona for worker %s: %w", worker.WorkerID, err)
 	}
 
 	if len(member.Skills) > 0 {
@@ -69,7 +71,7 @@ func InjectWorkerConfig(worker *TeamWorker, member *TeamMember) error {
 		Name:    "wave-team",
 		Type:    "stdio",
 		Command: "wsh",
-		Args:    []string{"team-mcp-server"},
+		Args:    []string{"mcp", "--tools=team"},
 	}
 	member.McpServers = append(member.McpServers, waveTeamMCP)
 	if err := injectMCP(member); err != nil {
@@ -375,6 +377,27 @@ func injectMCPOpenCode(servers []MCPConfig) error {
 // getWaveHome returns the user's home directory. Overridable for testing.
 var getWaveHome = func() string {
 	return wavebase.GetHomeDir()
+}
+
+// InjectDefaultWorkerConfig injects minimal worker config when member is not available.
+// It writes the task completion protocol persona using claude as default tool.
+func InjectDefaultWorkerConfig(worker *TeamWorker) error {
+	persona := strings.TrimPrefix(taskCompletionProtocol, "\n")
+	defaultMember := &TeamMember{Tool: ToolClaude}
+	if err := injectPersona(persona, defaultMember); err != nil {
+		return fmt.Errorf("injectPersona: %w", err)
+	}
+	waveTeamMCP := MCPConfig{
+		Name:    "wave-team",
+		Type:    "stdio",
+		Command: "wsh",
+		Args:    []string{"mcp", "--tools=team"},
+	}
+	defaultMember.McpServers = []MCPConfig{waveTeamMCP}
+	if err := injectMCP(defaultMember); err != nil {
+		return fmt.Errorf("injectMCP: %w", err)
+	}
+	return nil
 }
 
 func getTeamSkillsDir() string {

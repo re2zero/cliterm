@@ -852,8 +852,8 @@ func TestInjectWorkerConfig_AutoWaveTeamMCP(t *testing.T) {
 	if !strings.Contains(content, `"command": "wsh"`) {
 		t.Errorf("wave-team MCP missing wsh command: %s", content)
 	}
-	if !strings.Contains(content, "team-mcp-server") {
-		t.Errorf("wave-team MCP missing team-mcp-server arg: %s", content)
+	if !strings.Contains(content, "mcp") || !strings.Contains(content, "team") {
+		t.Errorf("wave-team MCP missing mcp --tools=team args: %s", content)
 	}
 }
 
