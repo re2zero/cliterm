@@ -510,6 +510,12 @@ export class RpcApiType {
         return client.wshRpcCall("getwaveairatelimit", null, opts);
     }
 
+    // command "jobcmdexited" [call]
+    JobCmdExitedCommand(client: WshClient, data: CommandJobCmdExitedData, opts?: RpcOpts): Promise<void> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "jobcmdexited", data, opts);
+        return client.wshRpcCall("jobcmdexited", data, opts);
+    }
+
     // command "jobinput" [call]
     JobInputCommand(client: WshClient, data: CommandJobInputData, opts?: RpcOpts): Promise<void> {
         if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "jobinput", data, opts);
@@ -834,6 +840,12 @@ export class RpcApiType {
         return client.wshRpcStream("streamcpudata", data, opts);
     }
 
+    // command "streamdata" [call]
+    StreamDataCommand(client: WshClient, arg1: JobManagerStatusUpdate, arg2: RpcOpts, opts?: RpcOpts): Promise<void> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "streamdata", { args: [arg1, arg2] }, opts);
+        return client.wshRpcCall("streamdata", { args: [arg1, arg2] }, opts);
+    }
+
     // command "streamtest" [responsestream]
 	StreamTestCommand(client: WshClient, opts?: RpcOpts): AsyncGenerator<number, void, boolean> {
         if (this.mockClient) return this.mockClient.mockWshRpcStream(client, "streamtest", null, opts);
@@ -1018,6 +1030,12 @@ export class RpcApiType {
     TeamSaveTemplateCommand(client: WshClient, data: TeamMember, opts?: RpcOpts): Promise<void> {
         if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "teamsavetemplate", data, opts);
         return client.wshRpcCall("teamsavetemplate", data, opts);
+    }
+
+    // command "teamsendprompt" [call]
+    TeamSendPromptCommand(client: WshClient, data: TeamSendPromptData, opts?: RpcOpts): Promise<void> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "teamsendprompt", data, opts);
+        return client.wshRpcCall("teamsendprompt", data, opts);
     }
 
     // command "teamupdatemember" [call]

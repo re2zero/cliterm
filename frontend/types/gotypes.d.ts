@@ -427,6 +427,15 @@ declare global {
         chatid: string;
     };
 
+    // wshrpc.CommandJobCmdExitedData
+    type CommandJobCmdExitedData = {
+        jobid: string;
+        exitcode?: number;
+        exitsignal?: string;
+        exiterr?: string;
+        exitts?: number;
+    };
+
     // wshrpc.CommandJobConnectRtnData
     type CommandJobConnectRtnData = {
         seq: number;
@@ -1013,6 +1022,24 @@ declare global {
         cmdexiterror?: string;
         streamdone?: boolean;
         streamerror?: string;
+    };
+
+    // wshrpc.JobManagerStatusUpdate
+    type JobManagerStatusUpdate = {
+        jobid: string;
+        jobmanagerstatus: string;
+        oid?: string;
+        connname?: string;
+        connected?: boolean;
+        terminateonreconnect?: boolean;
+        cmd?: string;
+        streamdone?: boolean;
+        streamerror?: string;
+        cmdexitts?: number;
+        cmdexitcode?: number;
+        cmdexitsignal?: string;
+        reason?: string;
+        attached?: string;
     };
 
     // waveobj.LayoutActionData
@@ -1713,7 +1740,6 @@ declare global {
         blockid: string;
         tabid: string;
         success: boolean;
-        error?: string;
     };
 
     // wshrpc.TeamListActivityData
@@ -1772,6 +1798,12 @@ declare global {
         spec?: string;
         createdat: number;
         updatedat: number;
+    };
+
+    // wshrpc.TeamSendPromptData
+    type TeamSendPromptData = {
+        workerid: string;
+        prompt: string;
     };
 
     // wshrpc.TeamStatusData
