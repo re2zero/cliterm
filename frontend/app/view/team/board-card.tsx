@@ -1,9 +1,9 @@
-// Copyright 2026, Command Line Inc.
+// Copyright 2026, Command Zone Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 import * as React from "react";
 import { cn } from "@/util/util";
-import { PriorityBadge } from "./priority-badge";
+import { PriorityBar } from "./priority-badge";
 
 interface BoardCardProps {
     task: TeamTask;
@@ -14,10 +14,10 @@ interface BoardCardProps {
 }
 
 const STATUS_DOT: Record<string, string> = {
-    idle: "bg-muted-foreground",
-    working: "bg-green-500",
-    offline: "bg-muted-foreground/40",
-    error: "bg-red-500",
+    idle: "bg-green-400",
+    working: "bg-amber-400 animate-pulse",
+    offline: "bg-slate-500",
+    error: "bg-red-400",
 };
 
 export function BoardCard({ task, members, allTasks, onClick, onRetry }: BoardCardProps) {
@@ -28,76 +28,88 @@ export function BoardCard({ task, members, allTasks, onClick, onRetry }: BoardCa
     const isFailed = task.status === "failed";
     const isWorking = task.status === "working";
     const isDone = task.status === "done";
+    const isPaused = task.status === "paused";
+
+    const deps = task.dependson?.map((depId) => allTasks.find((t) => t.taskid === depId)).filter(Boolean) ?? [];
+    const timestamp = task.createdat ? new Date(task.createdat * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "";
 
     return (
         <div
             className={cn(
-                "group/card rounded-lg border-[0.5px] bg-card py-3 px-2.5 cursor-pointer transition-colors",
-                "shadow-[0_3px_6px_-2px_rgba(0,0,0,0.02),0_1px_1px_0_rgba(0,0,0,0.04)]",
-                "hover:border-accent hover:bg-accent/50",
-                isFailed && "border-destructive/40",
+                "group/row flex items-center gap-2 h-12 px-2 transition-all duration-150 cursor-pointer",
+                "bg-white/[0.02] border border-white/[0.04] rounded-md",
+                "hover:bg-white/[0.03]",
+                isFailed && "border-l-2 border-l-red-400/60",
+                isWorking && "border-l-2 border-l-cyan-500/40",
+                isDone && "opacity-70",
             )}
             onClick={onClick}
         >
-            {/* Row 1: Identifier */}
-            <p className="text-[11px] text-muted-foreground">
-                {task.taskid.slice(0, 8).toUpperCase()}
-            </p>
+            <PriorityBar priority={task.priority} />
 
-            {/* Row 2: Title */}
-            <p className={cn(
-                "mt-1 text-sm font-medium leading-snug line-clamp-2",
-                isDone && "text-muted-foreground",
-            )}>
-                {task.title}
-            </p>
-
-            {/* Row 3: Priority + Member + Progress */}
-            <div className="mt-2 flex items-center gap-2 flex-wrap">
-                <PriorityBadge priority={task.priority} />
-
-                {assignedMember && (
-                    <span className="flex items-center gap-1 text-[11px] text-secondary">
-                        <span className={cn("w-1.5 h-1.5 rounded-full", STATUS_DOT[assignedMember.status] ?? "bg-muted-foreground/40")} />
-                        <span className="text-secondary">{assignedMember.name}</span>
-                    </span>
-                )}
-
-                {task.progress && (
-                    <span className="text-[11px] text-muted-foreground tabular-nums">{task.progress}</span>
-                )}
-
-                {isWorking && !task.progress && (
-                    <span className="text-[11px] text-blue-400">working...</span>
-                )}
-
-                {isDone && (
-                    <span className="text-[11px] text-blue-400">✓ done</span>
-                )}
-
-                {isFailed && task.error && (
-                    <span className="text-[11px] text-red-400 truncate max-w-[140px]">✗ {task.error}</span>
+            <div className="flex-1 min-w-0">
+                <p className={cn(
+                    "text-sm text-slate-200 truncate font-medium",
+                    isDone && "text-slate-400",
+                )}>
+                    {task.title}
+                </p>
+                {deps.length > 0 && (
+                    <div className="flex gap-1 mt-0.5">
+                        {deps.map((dep) => (
+                            <span
+                                key={dep.taskid}
+                                className={cn(
+                                    "px-1.5 py-0.5 text-[9px] rounded-sm",
+                                    dep.status === "done"
+                                        ? "bg-green-400/10 text-green-400"
+                                        : "bg-slate-500/10 text-slate-500",
+                                )}
+                            >
+                                {dep.title.slice(0, 15)}{dep.title.length > 15 ? "…" : ""}
+                            </span>
+                        ))}
+                    </div>
                 )}
             </div>
 
-            {/* Retry button for failed tasks */}
-            {isFailed && task.retrycount != null && task.maxretries != null && task.retrycount < task.maxretries && (
-                <button
-                    className="mt-1.5 text-[11px] text-orange-400 hover:text-orange-300 cursor-pointer"
-                    onClick={(e) => { e.stopPropagation(); onRetry?.(); }}
-                >
-                    ↻ Retry ({task.retrycount}/{task.maxretries})
-                </button>
-            )}
+            <div className="flex items-center gap-2 shrink-0">
+                {assignedMember && (
+                    <div className="flex items-center gap-1.5">
+                        <span className={cn(
+                            "w-1.5 h-1.5 rounded-sm",
+                            STATUS_DOT[assignedMember.status] ?? "bg-slate-500",
+                        )} />
+                        <span className="text-xs text-slate-300">{assignedMember.name}</span>
+                    </div>
+                )}
 
-            {/* Row 4: Dependencies */}
-            {task.dependson && task.dependson.length > 0 && (
-                <div className="mt-1.5 text-[11px] text-muted-foreground">
-                    deps: {task.dependson.map((depId) => {
-                        const dep = allTasks.find((t) => t.taskid === depId);
-                        return dep ? dep.title.slice(0, 20) : depId.slice(0, 8);
-                    }).join(", ")}
-                </div>
+                <span className="text-[10px] text-slate-500 font-mono tabular-nums">
+                    {isWorking && (
+                        <span className="text-cyan-400 animate-pulse">working</span>
+                    )}
+                    {isPaused && (
+                        <span className="text-amber-400">paused</span>
+                    )}
+                    {isDone && (
+                        <span className="text-green-400">done</span>
+                    )}
+                    {isFailed && (
+                        <span className="text-red-400">failed</span>
+                    )}
+                    {!isWorking && !isPaused && !isDone && !isFailed && (
+                        <span className="text-slate-500">{timestamp}</span>
+                    )}
+                </span>
+            </div>
+
+            {isFailed && task.retrycount != null && task.maxretries != null && task.retrycount < task.maxretries && onRetry && (
+                <button
+                    className="ml-2 px-1.5 py-0.5 text-[10px] text-orange-400 hover:text-orange-300 hover:bg-orange-400/10 rounded-sm transition-colors cursor-pointer"
+                    onClick={(e) => { e.stopPropagation(); onRetry(); }}
+                >
+                    ↻ retry ({task.retrycount}/{task.maxretries})
+                </button>
             )}
         </div>
     );

@@ -1,4 +1,4 @@
-// Copyright 2026, Command Line Inc.
+// Copyright 2026, Command Zone Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 import * as jotai from "jotai";
@@ -7,8 +7,6 @@ import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { TeamViewModel } from "./team-model";
 import { BoardView } from "./board-view";
-import { StatusStrip } from "./status-strip";
-import { RuntimeBar } from "./runtime-bar";
 import { TaskDetail } from "./task-detail";
 import { MemberList, MemberEditor, MemberDetailPanel } from "./member-panel";
 import { ProjectDialog } from "./project-dialog";
@@ -51,8 +49,20 @@ export function TeamView({ model }: TeamViewProps) {
     const [editorTarget, setEditorTarget] = React.useState<MemberEditorTarget | null>(null);
     const [editorVisible, setEditorVisible] = React.useState(false);
     const [showProjectDialog, setShowProjectDialog] = React.useState(false);
+    const [projectVisible, setProjectVisible] = React.useState(false);
     const [editingProject, setEditingProject] = React.useState<TeamProject | undefined>(undefined);
-    const [showCreateTask, setShowCreateTask] = React.useState(false);
+
+    const openProjectDialog = (project?: TeamProject) => {
+        setEditingProject(project);
+        setShowProjectDialog(true);
+        requestAnimationFrame(() => setProjectVisible(true));
+    };
+
+    const closeProjectDialog = () => {
+        setProjectVisible(false);
+        setTimeout(() => { setShowProjectDialog(false); setEditingProject(undefined); }, 300);
+    };
+    const [newTaskTitle, setNewTaskTitle] = React.useState("");
 
     const editorMember = editorTarget?.type === "edit" ? runtimeMembers.find((w) => w.workerid === editorTarget.memberId) : undefined;
     const editorTemplate = editorMember ? allMembers.find((t) => t.memberid === editorMember.memberid) : undefined;
@@ -72,7 +82,8 @@ export function TeamView({ model }: TeamViewProps) {
         if (isSupervising) model.stopSupervision();
         else model.startSupervision();
     };
-    const handleTaskClick = (task: TeamTask) => { setSelectedTask(task); };
+    const handleTaskClick = (task: TeamTask) => { setSelectedTask(task); setSelectedMemberId(null); };
+    const handleMemberClick = (memberId: string) => { setSelectedMemberId(memberId); setSelectedTask(null); };
     const handleRetryTask = (taskId: string) => { model.retryTask(taskId); };
 
     const handleProjectSubmit = async (data: { name: string; path: string; spec: string }) => {
@@ -81,8 +92,7 @@ export function TeamView({ model }: TeamViewProps) {
         } else {
             await model.createProject(data);
         }
-        setShowProjectDialog(false);
-        setEditingProject(undefined);
+        closeProjectDialog();
     };
 
     const handleDropMember = async (memberId: string, projectId: string | null) => {
@@ -110,17 +120,43 @@ export function TeamView({ model }: TeamViewProps) {
         }
     };
 
+    const handleCreateTask = async () => {
+        const title = newTaskTitle.trim();
+        if (!title) return;
+        await model.createTask(title, "", "medium");
+        setNewTaskTitle("");
+    };
+
+    const selectedMember = selectedMemberId ? runtimeMembers.find((w) => w.workerid === selectedMemberId) : null;
+
     return (
-        <div className="flex flex-col h-full overflow-hidden" style={{ colorScheme: "dark" }}>
-            <div className="flex items-center justify-between px-4 py-2 border-b border-border/50">
-                <h2 className="text-sm font-semibold text-primary">Team</h2>
-                <div className="flex items-center gap-1.5">
+        <div className="flex flex-col h-full overflow-hidden bg-[#0a0a0f]" style={{ colorScheme: "dark" }}>
+            <div className="flex items-center justify-between px-3 py-2 border-b border-[#1e1e2e] bg-[#12121a] h-12 shrink-0">
+                <div className="flex items-center gap-3">
+                    <h2 className="text-sm font-semibold text-slate-200">Team</h2>
+                    <div className="flex items-center gap-2 text-[11px]">
+                        <span className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-white/[0.02] border border-white/[0.04] text-slate-400">
+                            <span className="w-1.5 h-1.5 rounded-full bg-green-400"></span>
+                            {runtimeMembers.filter((m) => m.status === "idle").length}/{status?.totalmembers ?? 0} members
+                        </span>
+                        <span className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-white/[0.02] border border-white/[0.04] text-slate-400">
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+                            {workingTasks.length} working
+                        </span>
+                        <span className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-white/[0.02] border border-white/[0.04] text-slate-400">
+                            <span className="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>
+                            {doneTasks.length} done
+                        </span>
+                    </div>
+                </div>
+
+                <div className="flex items-center gap-2">
                     <button
                         className={cn(
-                            "px-2.5 py-1 rounded text-xs font-medium transition-colors cursor-pointer",
+                            "px-3 py-1.5 rounded-md text-xs font-medium transition-all duration-150 cursor-pointer",
                             isSupervising
-                                ? "bg-green-600 text-white hover:bg-green-700"
-                                : "bg-accent/80 text-primary hover:bg-accent",
+                                ? "bg-cyan-500/20 border border-cyan-500/30 text-cyan-400 shadow-[0_0_12px_rgba(34,211,238,0.3)]"
+                                : "bg-white/[0.02] border border-white/[0.04] text-slate-400 hover:bg-cyan-500/10 hover:border-cyan-500/20 hover:text-cyan-400",
                         )}
                         onClick={toggleSupervision}
                         disabled={isProcessing}
@@ -128,44 +164,34 @@ export function TeamView({ model }: TeamViewProps) {
                         {isSupervising ? "👑 Supervising" : "👑 Auto"}
                     </button>
                     <button
-                        className="px-2 py-1 rounded text-secondary hover:text-primary transition-colors cursor-pointer text-xs"
+                        className="px-2 py-1.5 rounded-md text-slate-500 hover:text-slate-300 transition-colors duration-150 cursor-pointer text-xs"
                         onClick={handleRefresh}
                     >⟳</button>
-                    {isProcessing && <span className="text-[11px] text-muted-foreground animate-pulse">Processing...</span>}
+                    {isProcessing && <span className="text-[11px] text-cyan-400 animate-pulse">Processing...</span>}
                     {error && <span className="text-[11px] text-red-400 truncate max-w-[200px]">{error}</span>}
-                    <span className="w-px h-4 bg-border/50 mx-1" />
-                    <button
-                        className="px-2.5 py-1 rounded bg-accent/80 text-primary hover:bg-accent transition-colors cursor-pointer text-xs font-medium"
-                        onClick={() => setShowCreateTask(true)}
-                    >+ Task</button>
                 </div>
             </div>
 
-            <RuntimeBar />
+            <div className="flex-1 flex min-h-0 overflow-hidden">
+                <div className="w-[200px] shrink-0 border-r border-[#1e1e2e] bg-[#0a0a0f]">
+                    <MemberList
+                        members={runtimeMembers}
+                        projects={projects}
+                        templates={templates}
+                        selectedMemberId={selectedMemberId}
+                        onSelectMember={handleMemberClick}
+                        onEditMember={(memberId) => { setSelectedMemberId(null); openEditor({ type: "edit", memberId }); }}
+                        onDeleteMember={(memberId) => { model.deleteRuntimeMember(memberId); if (selectedMemberId === memberId) setSelectedMemberId(null); }}
+                        onNewMember={(projectId) => { setSelectedMemberId(null); openEditor({ type: "new", projectId }); }}
+                        onNewProject={() => openProjectDialog()}
+                        onEditProject={(id) => openProjectDialog(projects.find((p) => p.projectid === id))}
+                        onDeleteProject={(id) => model.deleteProject(id)}
+                        onDropMember={handleDropMember}
+                    />
+                </div>
 
-            <StatusStrip status={status} />
-
-            <div className="flex-1 flex min-h-0 relative overflow-hidden">
-                <MemberList
-                    members={runtimeMembers}
-                    projects={projects}
-                    templates={templates}
-                    selectedMemberId={selectedMemberId}
-                    onSelectMember={(id) => setSelectedMemberId(id === selectedMemberId ? null : id)}
-                    onEditMember={(memberId) => { setSelectedMemberId(null); openEditor({ type: "edit", memberId }); }}
-                    onDeleteMember={(memberId) => { model.deleteRuntimeMember(memberId); if (selectedMemberId === memberId) setSelectedMemberId(null); }}
-                    onNewMember={(projectId) => { setSelectedMemberId(null); openEditor({ type: "new", projectId }); }}
-                    onNewProject={() => { setEditingProject(undefined); setShowProjectDialog(true); }}
-                    onEditProject={(id) => { setEditingProject(projects.find((p) => p.projectid === id)); setShowProjectDialog(true); }}
-                    onDeleteProject={(id) => model.deleteProject(id)}
-                    onDropMember={handleDropMember}
-                />
-
-                <div className={cn(
-                    "flex-1 min-w-0 flex transition-all duration-300 ease-in-out",
-                    (editorVisible || selectedMemberId) && "translate-x-full opacity-0 pointer-events-none",
-                )}>
-                    <div className="flex-1 min-w-0">
+                <div className="flex-1 min-w-0 flex flex-col bg-[#0a0a0f]">
+                    <div className="flex-1 min-h-0 overflow-y-auto px-4 py-3">
                         <BoardView
                             pendingTasks={pendingTasks}
                             workingTasks={workingTasks}
@@ -177,7 +203,37 @@ export function TeamView({ model }: TeamViewProps) {
                             onRetryTask={handleRetryTask}
                         />
                     </div>
-                    {selectedTask && (
+
+                    <div className="px-4 pb-3 pt-0">
+                        <div className="relative">
+                            <input
+                                type="text"
+                                className="w-full px-3 py-2 pr-10 text-sm bg-[#12121a] border border-[#1e1e2e] rounded-md text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/20 transition-all duration-150"
+                                placeholder="Describe a task..."
+                                value={newTaskTitle}
+                                onChange={(e) => setNewTaskTitle(e.target.value)}
+                                onKeyDown={(e) => e.key === "Enter" && handleCreateTask()}
+                            />
+                            <button
+                                className={cn(
+                                    "absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded transition-all duration-150",
+                                    newTaskTitle.trim()
+                                        ? "bg-cyan-500/20 text-cyan-400 hover:bg-cyan-500/30 cursor-pointer"
+                                        : "bg-white/[0.02] text-slate-600 cursor-not-allowed",
+                                )}
+                                onClick={handleCreateTask}
+                                disabled={!newTaskTitle.trim()}
+                            >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="w-[380px] shrink-0 border-l border-[#1e1e2e] bg-[#12121a] overflow-y-auto">
+                    {selectedTask ? (
                         <TaskDetail
                             task={selectedTask}
                             workers={runtimeMembers}
@@ -191,31 +247,26 @@ export function TeamView({ model }: TeamViewProps) {
                             onRetry={(taskId) => { model.retryTask(taskId); }}
                             onDelete={(taskId) => { model.deleteTask(taskId); setSelectedTask(null); }}
                         />
-                    )}
-                </div>
-
-                {selectedMemberId && (() => {
-                    const m = runtimeMembers.find((w) => w.workerid === selectedMemberId);
-                    if (!m) return null;
-                    return (
-                        <div className={cn(
-                            "absolute top-0 bottom-0 left-[190px] right-0 flex z-10 transition-transform duration-300 ease-in-out",
-                            selectedMemberId ? "translate-x-0" : "-translate-x-full",
-                        )}>
+                    ) : selectedMember ? (
+                        <div className="h-full">
                             <MemberDetailPanel
-                                member={m}
+                                member={selectedMember}
                                 allTasks={allTasks}
                                 onClose={() => setSelectedMemberId(null)}
-                                onEdit={() => { setSelectedMemberId(null); openEditor({ type: "edit", memberId: m.workerid }); }}
+                                onEdit={() => { setSelectedMemberId(null); openEditor({ type: "edit", memberId: selectedMember.workerid }); }}
                                 onTaskClick={(task) => { setSelectedMemberId(null); setSelectedTask(task); }}
                             />
                         </div>
-                    );
-                })()}
+                    ) : (
+                        <div className="h-full flex items-center justify-center text-slate-600 text-sm">
+                            Select a task or member to view details
+                        </div>
+                    )}
+                </div>
 
                 {editorTarget && (
                     <div className={cn(
-                        "absolute top-0 bottom-0 left-[190px] right-0 flex z-10 transition-transform duration-300 ease-in-out",
+                        "absolute top-0 bottom-0 left-[200px] right-[380px] flex z-10 transition-transform duration-300 ease-in-out bg-[#0a0a0f]",
                         editorVisible ? "translate-x-0" : "-translate-x-full",
                     )}>
                         <MemberEditor
@@ -252,121 +303,46 @@ export function TeamView({ model }: TeamViewProps) {
                 )}
             </div>
 
-            <div className="border-t border-border/50">
+            <div className="border-t border-[#1e1e2e] bg-[#12121a] shrink-0">
                 <button
-                    className="flex items-center gap-1.5 w-full px-4 py-1.5 text-xs text-muted-foreground hover:text-primary transition-colors cursor-pointer"
+                    className="flex items-center gap-1.5 w-full px-3 py-1.5 text-xs text-slate-500 hover:text-slate-300 transition-colors duration-150 cursor-pointer"
                     onClick={() => setShowActivity(!showActivity)}
                 >
                     <span className={cn("transition-transform", showActivity && "rotate-90")}>▸</span>
-                    <span>Activity ({activities.length})</span>
+                    <span className="font-mono">Activity ({activities.length})</span>
                     {activities.length > 0 && (
-                        <span className="truncate max-w-[300px]">
+                        <span className="truncate max-w-[400px] text-slate-600">
                             · Last: {activities[0].description}
                         </span>
                     )}
                 </button>
                 {showActivity && (
-                    <div className="max-h-[200px] overflow-auto px-4 pb-2 space-y-0.5">
+                    <div className="max-h-[200px] overflow-auto px-3 pb-2 space-y-0.5 border-t border-[#1e1e2e]">
                         {activities.map((a) => (
-                            <div key={a.id} className="flex gap-2 text-[11px]">
-                                <span className="text-muted-foreground shrink-0 tabular-nums">
+                            <div key={a.id} className="flex gap-2 text-[11px] font-mono">
+                                <span className="text-slate-600 shrink-0 tabular-nums">
                                     {new Date(a.createdat * 1000).toLocaleTimeString()}
                                 </span>
-                                <span className="text-secondary">[{a.type}]</span>
-                                <span className="text-primary truncate">{a.description}</span>
+                                <span className="text-cyan-400/80">[{a.type}]</span>
+                                <span className="text-slate-400 truncate">{a.description}</span>
                             </div>
                         ))}
                     </div>
                 )}
             </div>
 
-            {showCreateTask && (
-                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50"
-                    onClick={(e) => e.target === e.currentTarget && setShowCreateTask(false)}>
-                    <CreateTaskInline
-                        allTasks={allTasks}
-                        onSubmit={async (title, desc, priority, deps) => {
-                            await model.createTask(title, desc, priority, deps);
-                            setShowCreateTask(false);
-                        }}
-                        onCancel={() => setShowCreateTask(false)}
-                    />
-                </div>
-            )}
-
             {showProjectDialog && (
-                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50"
-                    onClick={(e) => e.target === e.currentTarget && (setShowProjectDialog(false), setEditingProject(undefined))}>
+                <div className={cn(
+                    "absolute top-0 bottom-0 left-[200px] right-[380px] flex z-10 transition-transform duration-300 ease-in-out",
+                    projectVisible ? "translate-x-0" : "-translate-x-full",
+                )}>
                     <ProjectDialog
                         project={editingProject}
                         onSubmit={handleProjectSubmit}
-                        onCancel={() => { setShowProjectDialog(false); setEditingProject(undefined); }}
+                        onCancel={closeProjectDialog}
                     />
                 </div>
             )}
-        </div>
-    );
-}
-
-function CreateTaskInline({ allTasks, onSubmit, onCancel }: {
-    allTasks: TeamTask[];
-    onSubmit: (title: string, desc: string, priority: string, deps?: string[]) => Promise<void>;
-    onCancel: () => void;
-}) {
-    const [title, setTitle] = React.useState("");
-    const [desc, setDesc] = React.useState("");
-    const [priority, setPriority] = React.useState("medium");
-    const [deps, setDeps] = React.useState<string[]>([]);
-    const [submitting, setSubmitting] = React.useState(false);
-
-    const handleSubmit = async () => {
-        if (!title.trim() || submitting) return;
-        setSubmitting(true);
-        await onSubmit(title, desc, priority, deps.length > 0 ? deps : undefined);
-    };
-
-    const inputCls = "w-full bg-base border border-border/50 rounded text-sm text-primary focus:outline-none focus:ring-1 focus:ring-accent px-2.5 py-1.5";
-
-    return (
-        <div className="bg-card border border-border/50 shadow-2xl rounded-lg w-full max-w-md p-5" style={{ colorScheme: "dark" }}>
-            <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-semibold text-primary">New Task</h3>
-                <button className="text-muted-foreground hover:text-primary cursor-pointer text-sm" onClick={onCancel}>✕</button>
-            </div>
-            <input className={inputCls} placeholder="Task title *" value={title} onChange={(e) => setTitle(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleSubmit()} autoFocus />
-            <textarea className={cn(inputCls, "mt-2 resize-none")} rows={2} placeholder="Description (optional)" value={desc} onChange={(e) => setDesc(e.target.value)} />
-            <div className="flex gap-2 mt-2">
-                <select className="bg-base border border-border/50 rounded text-sm text-primary px-2 py-1.5" value={priority} onChange={(e) => setPriority(e.target.value)}>
-                    <option value="low">Low</option>
-                    <option value="medium">Medium</option>
-                    <option value="high">High</option>
-                    <option value="urgent">Urgent</option>
-                </select>
-            </div>
-            {allTasks.length > 0 && (
-                <div className="mt-2">
-                    <label className="text-[11px] text-muted-foreground mb-1 block">Depends on:</label>
-                    <div className="flex flex-wrap gap-1">
-                        {allTasks.filter((t) => t.status !== "done").map((t) => (
-                            <button key={t.taskid}
-                                className={cn(
-                                    "px-1.5 py-0.5 text-[11px] rounded border cursor-pointer transition-colors",
-                                    deps.includes(t.taskid) ? "bg-accent/20 border-accent text-accent" : "border-border/50 text-muted-foreground hover:border-accent/50",
-                                )}
-                                onClick={() => setDeps((prev) => prev.includes(t.taskid) ? prev.filter((d) => d !== t.taskid) : [...prev, t.taskid])}
-                            >
-                                {t.title.slice(0, 20)}
-                            </button>
-                        ))}
-                    </div>
-                </div>
-            )}
-            <div className="flex justify-end gap-2 mt-4">
-                <button className="px-3 py-1.5 rounded text-sm text-muted-foreground hover:text-primary cursor-pointer" onClick={onCancel}>Cancel</button>
-                <button className="px-3 py-1.5 rounded bg-accent/80 text-primary hover:bg-accent text-sm font-medium cursor-pointer disabled:opacity-50" onClick={handleSubmit} disabled={!title.trim() || submitting}>
-                    {submitting ? "Creating..." : "Create Task"}
-                </button>
-            </div>
         </div>
     );
 }
