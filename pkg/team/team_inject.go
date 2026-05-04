@@ -21,14 +21,24 @@ const (
 	teamPersonaMarker      = "<!-- team:persona -->"
 	taskCompletionProtocol = `
 
-## Task Completion Protocol
+## MANDATORY Task Reporting Protocol
 
-You are running as a team worker. When you complete your assigned task:
-- Use the team_update_task MCP tool with status="done" and result="brief summary"
-- If you encounter an error, use team_update_task with status="failed" and error="description"
-- For long tasks, report progress with team_update_task progress=N (0-100)
-- To communicate with another worker, use team_dispatch(target="worker_name", message="your message")
-- To check team status, use team_get_status
+You are a team worker assigned task WAVE_TASK_ID.
+
+**YOU MUST follow this protocol or the team system will break:**
+
+1. **IMMEDIATELY** call team_update_task(status="working") to confirm you started
+2. When your work is **DONE**: call team_update_task(status="done", result="brief summary of what you accomplished")
+3. If you hit an **UNRECOVERABLE ERROR**: call team_update_task(status="failed", error="description of what went wrong")
+4. For long tasks: periodically call team_update_task(progress=N) to report progress
+
+**THIS IS NOT OPTIONAL.** The team manager cannot proceed until you report task completion.
+Every task MUST end with either team_update_task(status="done") or team_update_task(status="failed").
+Do NOT ask the user for confirmation before reporting — just do it.
+
+Other tools:
+- team_dispatch(target="worker_name", message="your message") — send message to another worker
+- team_get_status — check overall team status
 `
 )
 
@@ -461,6 +471,66 @@ func InjectDefaultWorkerConfig(worker *TeamWorker) error {
 
 func getTeamSkillsDir() string {
 	return filepath.Join(getWaveHome(), ".waveterm", teamSkillsSubDir)
+}
+
+func CleanupWorkerConfig(member *TeamMember) {
+	if member == nil {
+		member = &TeamMember{Tool: ToolClaude}
+	}
+	cleanupPersona(member)
+	cleanupMCP(member)
+	if len(member.Skills) > 0 {
+		unlinkSkills(member.Skills, member.Tool)
+	}
+}
+
+func cleanupPersona(member *TeamMember) {
+	switch member.Tool {
+	case ToolClaude, ToolAider:
+		claudeDir := filepath.Join(getWaveHome(), ".claude")
+		claudeMdPath := filepath.Join(claudeDir, "CLAUDE.md")
+		data, err := os.ReadFile(claudeMdPath)
+		if err != nil {
+			return
+		}
+		cleaned := removeMarkerSection(string(data), teamPersonaMarker)
+		cleaned = strings.TrimRight(cleaned, "\n") + "\n"
+		os.WriteFile(claudeMdPath, []byte(cleaned), 0644)
+	case ToolOpenCode:
+		agentsMdPath := filepath.Join(getWaveHome(), "AGENTS.md")
+		data, err := os.ReadFile(agentsMdPath)
+		if err != nil {
+			return
+		}
+		cleaned := removeMarkerSection(string(data), teamPersonaMarker)
+		cleaned = strings.TrimRight(cleaned, "\n") + "\n"
+		os.WriteFile(agentsMdPath, []byte(cleaned), 0644)
+	}
+}
+
+func cleanupMCP(member *TeamMember) {
+	switch member.Tool {
+	case ToolClaude, ToolAider:
+		claudeJsonPath := filepath.Join(getWaveHome(), ".claude.json")
+		existing := make(map[string]interface{})
+		if data, err := os.ReadFile(claudeJsonPath); err == nil {
+			json.Unmarshal(data, &existing)
+		}
+		mcpServers, _ := existing["mcpServers"].(map[string]interface{})
+		if mcpServers == nil {
+			return
+		}
+		delete(mcpServers, "wave-team")
+		for _, srv := range member.McpServers {
+			delete(mcpServers, srv.Name)
+		}
+		existing["mcpServers"] = mcpServers
+		if data, err := json.MarshalIndent(existing, "", "  "); err == nil {
+			os.WriteFile(claudeJsonPath, append(data, '\n'), 0644)
+		}
+	case ToolOpenCode:
+		// OpenCode MCP config is per-invocation, no cleanup needed
+	}
 }
 
 func getCLISkillDir(tool string) string {

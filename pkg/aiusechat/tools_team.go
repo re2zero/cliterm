@@ -1067,6 +1067,10 @@ func teamSendPromptCallback(input any, toolUseData *uctypes.UIMessageDataToolUse
 
 	// Worker has an active terminal block — send prompt directly
 	if worker.BlockID != "" {
+		ctrl := blockcontroller.HasController(worker.BlockID)
+		if !ctrl {
+			return nil, fmt.Errorf("worker %s block %s has no active controller (block may have been closed); try team_dispatch instead", worker.Name, worker.BlockID)
+		}
 		inputUnion := &blockcontroller.BlockInputUnion{
 			InputData: []byte(parsed.Prompt + "\r"),
 		}
@@ -1217,6 +1221,15 @@ func teamDispatchCallback(input any, toolUseData *uctypes.UIMessageDataToolUse) 
 				}
 				continue
 			}
+			ctrl := blockcontroller.HasController(w.BlockID)
+			if !ctrl {
+				dr, dispatchErr := autoStartWorker(rpcClient, w.WorkerID, w.MemberID, message)
+				results = append(results, *dr)
+				if dispatchErr != nil {
+					results[len(results)-1].Error = dispatchErr.Error()
+				}
+				continue
+			}
 			inputUnion := &blockcontroller.BlockInputUnion{
 				InputData: []byte(message + "\r"),
 			}
@@ -1245,15 +1258,24 @@ func teamDispatchCallback(input any, toolUseData *uctypes.UIMessageDataToolUse) 
 			}
 			results = append(results, *dispatchResult)
 		} else {
-			inputUnion := &blockcontroller.BlockInputUnion{
-				InputData: []byte(message + "\r"),
+			ctrl := blockcontroller.HasController(targetWorker.BlockID)
+			if !ctrl {
+				dispatchResult, dispatchErr := autoStartWorker(rpcClient, targetWorker.WorkerID, targetWorker.MemberID, message)
+				if dispatchErr != nil {
+					return nil, dispatchErr
+				}
+				results = append(results, *dispatchResult)
+			} else {
+				inputUnion := &blockcontroller.BlockInputUnion{
+					InputData: []byte(message + "\r"),
+				}
+				err := blockcontroller.SendInput(targetWorker.BlockID, inputUnion)
+				results = append(results, dispatchResult{
+					Worker:  targetWorker.Name,
+					Success: err == nil,
+					Error:   errToString(err),
+				})
 			}
-			err := blockcontroller.SendInput(targetWorker.BlockID, inputUnion)
-			results = append(results, dispatchResult{
-				Worker:  targetWorker.Name,
-				Success: err == nil,
-				Error:   errToString(err),
-			})
 		}
 	}
 
