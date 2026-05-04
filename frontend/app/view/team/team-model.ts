@@ -28,6 +28,7 @@ export class TeamViewModel implements ViewModel {
     workingTasksAtom = jotai.atom<TeamTask[]>([]);
     doneTasksAtom = jotai.atom<TeamTask[]>([]);
     failedTasksAtom = jotai.atom<TeamTask[]>([]);
+    pausedTasksAtom = jotai.atom<TeamTask[]>([]);
     membersAtom = jotai.atom<TeamMember[]>([]);
     runtimeMembersAtom = jotai.atom<TeamWorker[]>([]);
     activityLogAtom = jotai.atom<TeamActivity[]>([]);
@@ -45,6 +46,7 @@ export class TeamViewModel implements ViewModel {
     isProcessingAtom = jotai.atom(false);
     errorAtom = jotai.atom<string>(null as unknown as string);
     supervisionIntervalMs = jotai.atom(10000);
+    private wakeAttempts = new Map<string, { count: number; lastAttempt: number }>();
 
     statusAtom!: jotai.Atom<TeamStatusData>;
 
@@ -70,7 +72,7 @@ export class TeamViewModel implements ViewModel {
                 workingtasks: workingTasks.length,
                 donetasks: doneTasks.length,
                 failedtasks: failedTasks.length,
-                pausedtasks: 0,
+                pausedtasks: (get(this.pausedTasksAtom) ?? []).length,
                 activeworkers: runtimeMembers.filter((w) => w.status === "working").length,
                 idleworkers: runtimeMembers.filter((w) => w.status === "idle").length,
                 offlineworkers: runtimeMembers.filter((w) => w.status === "offline").length,
@@ -148,37 +150,46 @@ export class TeamViewModel implements ViewModel {
         }
     }
 
+    private static readonly STALL_THRESHOLD_MS = 5 * 60 * 1000;
+    private static readonly MAX_WAKE_ATTEMPTS = 2;
+    private static readonly WAKE_COOLDOWN_MS = 60 * 1000;
+
     private async runSupervisionCycle(): Promise<void> {
         try {
             globalStore.set(this.isProcessingAtom, true);
             await this.refreshAllData();
 
-            const pendingTasks = globalStore.get(this.pendingTasksAtom) ?? [];
-            const workingTasks = globalStore.get(this.workingTasksAtom) ?? [];
             const runtimeMembers = globalStore.get(this.runtimeMembersAtom) ?? [];
-
-            if (
-                pendingTasks.length === 0 &&
-                workingTasks.length === 0 &&
-                runtimeMembers.every((w) => w.status !== "working")
-            ) {
-                return;
+            if (runtimeMembers.every((w) => w.status !== "working")) {
+                const pendingTasks = globalStore.get(this.pendingTasksAtom) ?? [];
+                const workingTasks = globalStore.get(this.workingTasksAtom) ?? [];
+                if (pendingTasks.length === 0 && workingTasks.length === 0) {
+                    return;
+                }
             }
 
-            const memberOutputs = await this.collectMemberOutputs(runtimeMembers);
+            await this.checkWorkerLiveness(runtimeMembers);
+            await this.refreshAllData();
+
+            const pendingTasks = globalStore.get(this.pendingTasksAtom) ?? [];
+            const workingTasks = globalStore.get(this.workingTasksAtom) ?? [];
+            const runtimeMembers2 = globalStore.get(this.runtimeMembersAtom) ?? [];
+
+            const memberOutputs = await this.collectMemberOutputs(runtimeMembers2);
 
             const prompt = this.buildAnalysisPrompt(
                 pendingTasks,
                 workingTasks,
                 globalStore.get(this.doneTasksAtom) ?? [],
                 globalStore.get(this.failedTasksAtom) ?? [],
+                globalStore.get(this.pausedTasksAtom) ?? [],
                 memberOutputs
             );
 
             const action = await this.callAssistantLLM(prompt);
             globalStore.set(this.lastLLMCallAtom, new Date().toISOString());
 
-            await this.executeAssistantActions(action);
+            await this.executeAssistantActions(action, runtimeMembers2);
         } catch (e) {
             globalStore.set(this.errorAtom, String(e));
         } finally {
@@ -193,6 +204,7 @@ export class TeamViewModel implements ViewModel {
             const working: TeamTask[] = [];
             const done: TeamTask[] = [];
             const failed: TeamTask[] = [];
+            const paused: TeamTask[] = [];
             for (const t of tasks) {
                 switch (t.status) {
                     case "pending":
@@ -208,12 +220,16 @@ export class TeamViewModel implements ViewModel {
                     case "failed":
                         failed.push(t);
                         break;
+                    case "paused":
+                        paused.push(t);
+                        break;
                 }
             }
             globalStore.set(this.pendingTasksAtom, pending);
             globalStore.set(this.workingTasksAtom, working);
             globalStore.set(this.doneTasksAtom, done);
             globalStore.set(this.failedTasksAtom, failed);
+            globalStore.set(this.pausedTasksAtom, paused);
         } catch {}
 
         try {
@@ -374,6 +390,65 @@ export class TeamViewModel implements ViewModel {
         await this.refreshAllData();
     }
 
+    private async checkWorkerLiveness(runtimeMembers: TeamWorker[]): Promise<void> {
+        const now = Date.now();
+        const workingTasks = new Set((globalStore.get(this.workingTasksAtom) ?? []).map((t) => t.taskid));
+        const workingMembers = runtimeMembers.filter((w) => w.status === "working");
+
+        for (const worker of workingMembers) {
+            const lastActive = worker.lastheartbeat * 1000;
+            const stalledDuration = now - lastActive;
+
+            if (stalledDuration < TeamViewModel.STALL_THRESHOLD_MS) {
+                this.wakeAttempts.delete(worker.workerid);
+                continue;
+            }
+
+            const taskId = worker.assignedtaskid;
+            if (!taskId || !worker.blockid || !workingTasks.has(taskId)) continue;
+
+            const attempt = this.wakeAttempts.get(worker.workerid) ?? { count: 0, lastAttempt: 0 };
+            if (attempt.count >= TeamViewModel.MAX_WAKE_ATTEMPTS) {
+                await RpcApi.TeamUpdateTaskCommand(TabRpcClient, {
+                    taskid: taskId,
+                    status: "paused",
+                    error: `worker unresponsive after ${attempt.count} wake attempts`,
+                });
+                await RpcApi.TeamUpdateWorkerCommand(TabRpcClient, {
+                    workerid: worker.workerid,
+                    status: "idle",
+                    assignedtaskid: "",
+                    projectid: "",
+                });
+                await this.logActivity("task_paused", `Task ${taskId} paused — worker ${worker.name} released`);
+                this.wakeAttempts.delete(worker.workerid);
+                continue;
+            }
+
+            if (now - attempt.lastAttempt < TeamViewModel.WAKE_COOLDOWN_MS) {
+                continue;
+            }
+
+            attempt.count += 1;
+            attempt.lastAttempt = now;
+            this.wakeAttempts.set(worker.workerid, attempt);
+
+            await this.sendToTerminal(worker.blockid, "继续任务。请检查当前进度并报告任务状态。\n");
+            await this.logActivity("worker_wake", `Wake attempt ${attempt.count}/${TeamViewModel.MAX_WAKE_ATTEMPTS} for ${worker.name} (stalled ${Math.round(stalledDuration / 60000)}min)`);
+        }
+
+        const activeWorkerIds = new Set(
+            workingMembers
+                .filter((w) => w.assignedtaskid && workingTasks.has(w.assignedtaskid))
+                .map((w) => w.workerid)
+        );
+        for (const workerId of this.wakeAttempts.keys()) {
+            if (!activeWorkerIds.has(workerId)) {
+                this.wakeAttempts.delete(workerId);
+            }
+        }
+    }
+
     private async collectMemberOutputs(runtimeMembers: TeamWorker[]): Promise<Map<string, WorkerOutput>> {
         const outputs = new Map<string, WorkerOutput>();
         for (const member of runtimeMembers) {
@@ -395,40 +470,51 @@ export class TeamViewModel implements ViewModel {
         working: TeamTask[],
         done: TeamTask[],
         failed: TeamTask[],
+        paused: TeamTask[],
         memberOutputs: Map<string, WorkerOutput>
     ): string {
-        const safePending = pending ?? [];
-        const safeWorking = working ?? [];
-        const safeDone = done ?? [];
-        const safeFailed = failed ?? [];
-
         let prompt = "## Current State\n\n";
-        prompt += `Pending Tasks: ${safePending.map((t) => `"${t.title}" (${t.priority})`).join(", ") || "none"}\n`;
-        prompt += `Working Tasks: ${safeWorking.map((t) => `"${t.title}" → member ${t.assignedworkerid}`).join(", ") || "none"}\n`;
-        prompt += `Done Tasks: ${safeDone.map((t) => `"${t.title}"`).join(", ") || "none"}\n`;
-        prompt += `Failed Tasks: ${safeFailed.map((t) => `"${t.title}"`).join(", ") || "none"}\n\n`;
+        prompt += `Pending Tasks: ${pending.map((t) => `"${t.title}" [${t.taskid}]`).join(", ") || "none"}\n`;
+        prompt += `Working Tasks: ${working.map((t) => `"${t.title}" → worker ${t.assignedworkerid} [${t.taskid}]`).join(", ") || "none"}\n`;
+        prompt += `Done Tasks: ${done.length}\n`;
+        prompt += `Failed Tasks: ${failed.map((t) => `"${t.title}" [${t.taskid}]`).join(", ") || "none"}\n`;
+        prompt += `Paused Tasks: ${paused.map((t) => `"${t.title}" [${t.taskid}]`).join(", ") || "none"}\n\n`;
 
         for (const [memberId, output] of memberOutputs) {
             if (output.error) {
-                prompt += `Member ${memberId} error: ${output.error}\n`;
-            } else if (output.hashChanged && output.lines) {
-                prompt += `Member ${memberId} recent output:\n${output.lines.slice(-20).join("\n")}\n\n`;
+                prompt += `Worker ${memberId} error: ${output.error}\n`;
             }
         }
 
-        prompt += "\nAnalyze the state above and return JSON actions.";
+        prompt += "## Available Actions\n";
+        prompt += "Return a JSON object with an `actions` array. Each action:\n";
+        prompt += "- { type: \"assign_task\", task_id, worker_id } — assign a pending task to an idle worker\n";
+        prompt += "- { type: \"execute_task\", task_id, worker_id, command? } — send task command to worker terminal\n";
+        prompt += "- { type: \"create_worker\", tool: \"claude\"|\"opencode\"|\"custom\", task_id } — create a new worker block\n";
+        prompt += "- { type: \"wake_worker\", worker_id, message } — send text to a worker's terminal\n";
+        prompt += "- { type: \"update_task\", task_id, status, result?, progress? } — update task status\n";
+        prompt += "- { type: \"fail_task\", task_id, reason } — mark task failed\n";
+        prompt += "- { type: \"pause_task\", task_id, reason } — pause a stalled task (releases worker)\n";
+        prompt += "- { type: \"resume_task\", task_id } — resume a paused task\n";
+        prompt += "- { type: \"noop\" } — do nothing\n\n";
+        prompt += "## Rules\n";
+        prompt += "- If idle workers exist and pending tasks exist, assign + execute.\n";
+        prompt += "- If all tasks are done/failed/paused with no pending work, return noop.\n";
+        prompt += "- Do NOT poll status — you will be called again automatically.\n";
+        prompt += "- Use exact task_id and worker_id values from above.\n\n";
+        prompt += "Respond with JSON only.";
         return prompt;
     }
 
     private async callAssistantLLM(prompt: string): Promise<AssistantAction> {
         const aiModeConfigs = globalStore.get(atoms.waveaiModeConfigAtom);
         const currentMode = globalStore.get(getSettingsKeyAtom("waveai:defaultmode")) ?? "waveai@balanced";
-        const modeConfig = aiModeConfigs?.[currentMode];
 
-        const model = modeConfig?.["ai:model"] ?? "claude-sonnet-4-20250514";
-        const endpoint = modeConfig?.["ai:endpoint"] ?? "";
-        const apiToken = modeConfig?.["ai:apitoken"] ?? "";
-        const apiType = modeConfig?.["ai:apitype"] ?? "anthropic";
+        const baseUrl = getWebServerEndpoint();
+        if (!baseUrl) {
+            return { actions: [{ type: "noop", reason: "WaveAI endpoint not configured" }] };
+        }
+        const url = `${baseUrl}/api/post-chat-message`;
 
         const requestBody = {
             msg: {
@@ -441,9 +527,6 @@ export class TeamViewModel implements ViewModel {
             stream: true,
         };
 
-        const baseUrl = getWebServerEndpoint();
-        const url = endpoint || `${baseUrl}/api/post-chat-message`;
-
         let fullResponse = "";
 
         try {
@@ -451,14 +534,13 @@ export class TeamViewModel implements ViewModel {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
-                    ...(apiToken ? { Authorization: `Bearer ${apiToken}` } : {}),
                 },
                 body: JSON.stringify(requestBody),
             });
 
             if (!response.ok) {
                 const errorText = await response.text();
-                throw new Error(`API error: ${response.status} - ${errorText}`);
+                throw new Error(`API error ${response.status}: ${errorText.slice(0, 200)}`);
             }
 
             const reader = response.body?.getReader();
@@ -484,14 +566,14 @@ export class TeamViewModel implements ViewModel {
                             if (parsed.error) {
                                 throw new Error(parsed.error);
                             }
-                        } catch {
-                            fullResponse += data;
+                        } catch (parseErr) {
+                            if (String(parseErr).includes("error")) throw parseErr;
                         }
                     }
                 }
             }
         } catch (e) {
-            globalStore.set(this.errorAtom, String(e));
+            globalStore.set(this.errorAtom, `Supervision LLM call failed: ${String(e)}`);
             return { actions: [{ type: "noop", reason: String(e) }] };
         }
 
@@ -510,7 +592,7 @@ export class TeamViewModel implements ViewModel {
         }
     }
 
-    private async executeAssistantActions(action: AssistantAction): Promise<void> {
+    private async executeAssistantActions(action: AssistantAction, runtimeMembers: TeamWorker[]): Promise<void> {
         for (const act of action.actions) {
             try {
                 switch (act.type) {
@@ -527,16 +609,16 @@ export class TeamViewModel implements ViewModel {
                                 assignedtaskid: act.task_id,
                                 projectid: "",
                             });
-                            if (act.instruction) {
-                                await this.sendToTerminal(act.worker_id, act.instruction + "\n");
-                            }
                             await this.logActivity("task_assign", `Task ${act.task_id} assigned to ${act.worker_id}`);
                         }
                         break;
 
                     case "wake_worker":
                         if (act.worker_id && act.message) {
-                            await this.sendToTerminal(act.worker_id, act.message + "\n");
+                            const wakeWorker = runtimeMembers.find((w) => w.workerid === act.worker_id);
+                            if (wakeWorker?.blockid) {
+                                await this.sendToTerminal(wakeWorker.blockid, act.message + "\n");
+                            }
                             await this.logActivity("worker_wake", `Woke member ${act.worker_id}`);
                         }
                         break;
@@ -562,6 +644,54 @@ export class TeamViewModel implements ViewModel {
                                 assignedworkerid: workerId,
                             });
                             await this.logActivity("worker_create", `Created member ${workerId}`);
+                        }
+                        break;
+
+                    case "execute_task":
+                        if (act.worker_id && act.task_id) {
+                            const command = act.command || act.instruction || "";
+                            await RpcApi.TeamExecuteTaskCommand(TabRpcClient, {
+                                workerid: act.worker_id,
+                                taskid: act.task_id,
+                                command,
+                            });
+                            await this.logActivity("task_execute", `Task ${act.task_id} executing on ${act.worker_id}`);
+                        }
+                        break;
+
+                    case "fail_task":
+                        if (act.task_id) {
+                            await RpcApi.TeamUpdateTaskCommand(TabRpcClient, {
+                                taskid: act.task_id,
+                                status: "failed",
+                                error: act.reason || "failed by supervision",
+                            });
+                            await this.logActivity("task_fail", `Task ${act.task_id} failed: ${act.reason || ""}`);
+                        }
+                        break;
+
+                    case "pause_task":
+                        if (act.task_id) {
+                            await RpcApi.TeamUpdateTaskCommand(TabRpcClient, {
+                                taskid: act.task_id,
+                                status: "paused",
+                                error: act.reason || "paused by supervision",
+                            });
+                            await this.logActivity("task_pause", `Task ${act.task_id} paused: ${act.reason || ""}`);
+                        }
+                        break;
+
+                    case "resume_task":
+                        if (act.task_id) {
+                            await RpcApi.TeamUpdateTaskCommand(TabRpcClient, {
+                                taskid: act.task_id,
+                                status: "working",
+                            });
+                            const resumeWorker = runtimeMembers.find((w) => w.assignedtaskid === act.task_id);
+                            if (resumeWorker?.blockid) {
+                                await this.sendToTerminal(resumeWorker.blockid, "继续任务。\n");
+                            }
+                            await this.logActivity("task_resume", `Task ${act.task_id} resumed`);
                         }
                         break;
 
@@ -630,26 +760,3 @@ export class TeamViewModel implements ViewModel {
         return hash.toString(36);
     }
 }
-
-const ASSISTANT_SYSTEM_PROMPT = `You are a project management assistant embedded in Wave Terminal. You manage a team of AI coding agents that run in terminal sessions.
-
-## Your Role
-- Monitor task progress by analyzing terminal output
-- Assign pending tasks to available members
-- Detect stuck/errored members and send natural language prompts to wake them
-- Report completion status
-
-## Communication with Members
-You communicate with members by writing text into their terminal sessions. The text you output will be typed into their terminal. Be concise and direct.
-
-## Task Status Machine
-- pending → assigned: when you assign to a member
-- assigned → working: when member starts showing activity
-- working → done: when member output indicates completion
-- working → failed: when member shows repeated errors
-
-## Response Format
-You MUST respond with valid JSON in this exact format (no markdown, no explanation):
-{"actions":[{"type":"assign_task","task_id":"...","worker_id":"...","instruction":"..."}]}
-
-Only take actions when the situation actually warrants it. Do not wake members that are making progress. Do not reassign tasks that are being worked on.`;

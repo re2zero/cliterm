@@ -3,7 +3,7 @@
 
 interface AssistantAction {
     actions: Array<{
-        type: "assign_task" | "wake_worker" | "update_task" | "create_worker" | "noop";
+        type: "assign_task" | "execute_task" | "wake_worker" | "update_task" | "create_worker" | "fail_task" | "pause_task" | "resume_task" | "noop";
         task_id?: string;
         worker_id?: string;
         instruction?: string;
@@ -12,6 +12,7 @@ interface AssistantAction {
         result?: string;
         progress?: string;
         tool?: string;
+        command?: string;
         reason?: string;
     }>;
 }
