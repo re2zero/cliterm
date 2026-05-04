@@ -19,6 +19,7 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/jobcontroller"
 	"github.com/wavetermdev/waveterm/pkg/remote"
 	"github.com/wavetermdev/waveterm/pkg/remote/conncontroller"
+	"github.com/wavetermdev/waveterm/pkg/team"
 	"github.com/wavetermdev/waveterm/pkg/util/ds"
 	"github.com/wavetermdev/waveterm/pkg/util/shellutil"
 	"github.com/wavetermdev/waveterm/pkg/wavebase"
@@ -94,6 +95,13 @@ func getController(blockId string) Controller {
 	return controllerRegistry[blockId]
 }
 
+func HasController(blockId string) bool {
+	registryLock.RLock()
+	defer registryLock.RUnlock()
+	_, ok := controllerRegistry[blockId]
+	return ok
+}
+
 func registerController(blockId string, controller Controller) {
 	var existingController Controller
 
@@ -143,6 +151,7 @@ func handleBlockCloseEvent(event *wps.WaveEvent) {
 		log.Printf("[blockclose] invalid event data type")
 		return
 	}
+	team.CleanupWorkerByBlockId(context.Background(), blockId)
 	go DestroyBlockController(blockId)
 }
 

@@ -40,7 +40,7 @@ const (
 var ValidTaskTransitions = map[string][]string{
 	TaskStatusPending:  {TaskStatusAssigned, "cancelled"},
 	TaskStatusAssigned: {TaskStatusWorking, TaskStatusPending, "cancelled"},
-	TaskStatusWorking:  {TaskStatusDone, TaskStatusFailed, TaskStatusPaused},
+	TaskStatusWorking:  {TaskStatusDone, TaskStatusFailed, TaskStatusPaused, TaskStatusWorking},
 	TaskStatusPaused:   {TaskStatusWorking, "cancelled"},
 	TaskStatusFailed:   {TaskStatusWorking},
 	"cancelled":        {},
@@ -103,7 +103,8 @@ type TeamWorker struct {
 	BlockID        string `json:"blockId"`
 	TabID          string `json:"tabId"`
 	PID            int    `json:"pid"`
-	ProjectID      string `json:"projectId"` // inherited from member at fork time
+	ProjectID      string `json:"projectId"`
+	SessionID      string `json:"sessionId"`
 	CreatedAt      int64  `json:"createdAt"`
 	UpdatedAt      int64  `json:"updatedAt"`
 	LastHeartbeat  int64  `json:"lastHeartbeat"`
@@ -128,6 +129,7 @@ type TeamTask struct {
 	CreatedAt        int64        `json:"createdAt"`
 	UpdatedAt        int64        `json:"updatedAt"`
 	CompletedAt      int64        `json:"completedAt"`
+	OldUpdatedAt     int64        `json:"-" db:"-"`
 }
 
 type TaskOutput struct {

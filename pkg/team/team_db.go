@@ -121,15 +121,15 @@ func CreateWorker(ctx context.Context, w *TeamWorker) error {
     w.Status = WorkerStatusIdle
   }
   return wstore.WithTx(ctx, func(tx *wstore.TxWrap) error {
-    tx.Exec(`INSERT INTO team_workers (worker_id, member_id, name, status, assigned_task_id, block_id, tab_id, pid, project_id, created_at, updated_at, last_heartbeat) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      w.WorkerID, w.MemberID, w.Name, w.Status, w.AssignedTaskID, w.BlockID, w.TabID, w.PID, w.ProjectID, w.CreatedAt, w.UpdatedAt, w.LastHeartbeat)
+    tx.Exec(`INSERT INTO team_workers (worker_id, member_id, name, status, assigned_task_id, block_id, tab_id, pid, project_id, session_id, created_at, updated_at, last_heartbeat) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      w.WorkerID, w.MemberID, w.Name, w.Status, w.AssignedTaskID, w.BlockID, w.TabID, w.PID, w.ProjectID, w.SessionID, w.CreatedAt, w.UpdatedAt, w.LastHeartbeat)
     return nil
   })
 }
 
 func scanWorker(row interface{ Scan(dest ...any) error }) (*TeamWorker, error) {
   var w TeamWorker
-  err := row.Scan(&w.WorkerID, &w.MemberID, &w.Name, &w.Status, &w.AssignedTaskID, &w.BlockID, &w.TabID, &w.PID, &w.ProjectID, &w.CreatedAt, &w.UpdatedAt, &w.LastHeartbeat)
+  err := row.Scan(&w.WorkerID, &w.MemberID, &w.Name, &w.Status, &w.AssignedTaskID, &w.BlockID, &w.TabID, &w.PID, &w.ProjectID, &w.SessionID, &w.CreatedAt, &w.UpdatedAt, &w.LastHeartbeat)
   if err != nil {
     return nil, err
   }
@@ -138,15 +138,15 @@ func scanWorker(row interface{ Scan(dest ...any) error }) (*TeamWorker, error) {
 
 func GetWorker(ctx context.Context, workerID string) (*TeamWorker, error) {
   db := wstore.GetGlobalDB()
-  row := db.QueryRowx(`SELECT worker_id, member_id, name, status, assigned_task_id, block_id, tab_id, pid, project_id, created_at, updated_at, last_heartbeat FROM team_workers WHERE worker_id = ?`, workerID)
+  row := db.QueryRowx(`SELECT worker_id, member_id, name, status, assigned_task_id, block_id, tab_id, pid, project_id, session_id, created_at, updated_at, last_heartbeat FROM team_workers WHERE worker_id = ?`, workerID)
   return scanWorker(row)
 }
 
 func UpdateWorker(ctx context.Context, w *TeamWorker) error {
   w.UpdatedAt = time.Now().Unix()
   return wstore.WithTx(ctx, func(tx *wstore.TxWrap) error {
-    tx.Exec(`UPDATE team_workers SET member_id=?, name=?, status=?, assigned_task_id=?, block_id=?, tab_id=?, pid=?, project_id=?, updated_at=? WHERE worker_id=?`,
-      w.MemberID, w.Name, w.Status, w.AssignedTaskID, w.BlockID, w.TabID, w.PID, w.ProjectID, w.UpdatedAt, w.WorkerID)
+    tx.Exec(`UPDATE team_workers SET member_id=?, name=?, status=?, assigned_task_id=?, block_id=?, tab_id=?, pid=?, project_id=?, session_id=?, updated_at=? WHERE worker_id=?`,
+      w.MemberID, w.Name, w.Status, w.AssignedTaskID, w.BlockID, w.TabID, w.PID, w.ProjectID, w.SessionID, w.UpdatedAt, w.WorkerID)
     return nil
   })
 }
@@ -171,9 +171,9 @@ func ListWorkers(ctx context.Context, memberID string) ([]*TeamWorker, error) {
   var rows *sqlx.Rows
   var err error
   if memberID != "" {
-    rows, err = db.Queryx(`SELECT worker_id, member_id, name, status, assigned_task_id, block_id, tab_id, pid, project_id, created_at, updated_at, last_heartbeat FROM team_workers WHERE member_id = ? ORDER BY created_at DESC`, memberID)
+    rows, err = db.Queryx(`SELECT worker_id, member_id, name, status, assigned_task_id, block_id, tab_id, pid, project_id, session_id, created_at, updated_at, last_heartbeat FROM team_workers WHERE member_id = ? ORDER BY created_at DESC`, memberID)
   } else {
-    rows, err = db.Queryx(`SELECT worker_id, member_id, name, status, assigned_task_id, block_id, tab_id, pid, project_id, created_at, updated_at, last_heartbeat FROM team_workers ORDER BY created_at DESC`)
+    rows, err = db.Queryx(`SELECT worker_id, member_id, name, status, assigned_task_id, block_id, tab_id, pid, project_id, session_id, created_at, updated_at, last_heartbeat FROM team_workers ORDER BY created_at DESC`)
   }
   if err != nil {
     return nil, err
@@ -199,6 +199,7 @@ func CreateTask(ctx context.Context, t *TeamTask) error {
   now := time.Now().Unix()
   t.CreatedAt = now
   t.UpdatedAt = now
+  t.OldUpdatedAt = now
   if t.Status == "" {
     t.Status = TaskStatusPending
   }
@@ -243,6 +244,7 @@ func scanTask(row interface{ Scan(dest ...any) error }) (*TeamTask, error) {
   if completedAt.Valid {
     t.CompletedAt = completedAt.Int64
   }
+  t.OldUpdatedAt = t.UpdatedAt
   return &t, nil
 }
 
@@ -269,10 +271,47 @@ func UpdateTask(ctx context.Context, t *TeamTask) error {
     completedAt = nil
   }
   return wstore.WithTx(ctx, func(tx *wstore.TxWrap) error {
-    tx.Exec(`UPDATE team_tasks SET title=?, description=?, priority=?, status=?, assigned_member_id=?, assigned_worker_id=?, depends_on=?, result=?, error=?, output_history=?, progress=?, retry_count=?, max_retries=?, next_retry_at=?, updated_at=?, completed_at=? WHERE task_id=?`,
+    result := tx.Exec(`UPDATE team_tasks SET title=?, description=?, priority=?, status=?, assigned_member_id=?, assigned_worker_id=?, depends_on=?, result=?, error=?, output_history=?, progress=?, retry_count=?, max_retries=?, next_retry_at=?, updated_at=?, completed_at=? WHERE task_id=? AND updated_at=?`,
       t.Title, t.Description, t.Priority, t.Status, t.AssignedMemberID, t.AssignedWorkerID,
       string(depsJson), t.Result, t.Error, string(outputJson),
-      t.Progress, t.RetryCount, t.MaxRetries, nextRetry, t.UpdatedAt, completedAt, t.TaskID)
+      t.Progress, t.RetryCount, t.MaxRetries, nextRetry, t.UpdatedAt, completedAt, t.TaskID, t.OldUpdatedAt)
+    rowsAffected, _ := result.RowsAffected()
+    if rowsAffected == 0 {
+      return fmt.Errorf("task %s was modified concurrently (optimistic lock)", t.TaskID)
+    }
+    return nil
+  })
+}
+
+func UpdateTaskAtomic(ctx context.Context, t *TeamTask, releaseWorker bool, workerID string) error {
+  t.UpdatedAt = time.Now().Unix()
+  depsJson, _ := json.Marshal(t.DependsOn)
+  outputJson, _ := json.Marshal(t.OutputHistory)
+  var nextRetry interface{}
+  if t.NextRetryAt != 0 {
+    nextRetry = t.NextRetryAt
+  } else {
+    nextRetry = nil
+  }
+  var completedAt interface{}
+  if t.CompletedAt != 0 {
+    completedAt = t.CompletedAt
+  } else {
+    completedAt = nil
+  }
+  return wstore.WithTx(ctx, func(tx *wstore.TxWrap) error {
+    result := tx.Exec(`UPDATE team_tasks SET title=?, description=?, priority=?, status=?, assigned_member_id=?, assigned_worker_id=?, depends_on=?, result=?, error=?, output_history=?, progress=?, retry_count=?, max_retries=?, next_retry_at=?, updated_at=?, completed_at=? WHERE task_id=? AND updated_at=?`,
+      t.Title, t.Description, t.Priority, t.Status, t.AssignedMemberID, t.AssignedWorkerID,
+      string(depsJson), t.Result, t.Error, string(outputJson),
+      t.Progress, t.RetryCount, t.MaxRetries, nextRetry, t.UpdatedAt, completedAt, t.TaskID, t.OldUpdatedAt)
+    rowsAffected, _ := result.RowsAffected()
+    if rowsAffected == 0 {
+      return fmt.Errorf("task %s was modified concurrently (optimistic lock)", t.TaskID)
+    }
+    if releaseWorker && workerID != "" {
+      tx.Exec(`UPDATE team_workers SET status=?, assigned_task_id='', updated_at=? WHERE worker_id=? AND status=?`,
+        WorkerStatusIdle, t.UpdatedAt, workerID, WorkerStatusWorking)
+    }
     return nil
   })
 }

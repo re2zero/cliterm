@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/wavetermdev/waveterm/pkg/wshrpc"
@@ -333,12 +334,8 @@ func splitComma(s string) []string {
 	if s == "" {
 		return nil
 	}
-	return splitBy(s, ",")
-}
-
-func splitBy(s, sep string) []string {
 	var result []string
-	for _, part := range splitComma(s) {
+	for _, part := range strings.Split(s, ",") {
 		if part != "" {
 			result = append(result, part)
 		}

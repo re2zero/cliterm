@@ -6,12 +6,12 @@ package team
 import (
 	"context"
 	"database/sql"
+	"encoding/base64"
 	"fmt"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/wavetermdev/waveterm/pkg/wstore"
 )
 
@@ -49,10 +49,12 @@ func ForkWorker(ctx context.Context, memberID string) (*TeamWorker, error) {
 	}
 
 	now := time.Now().Unix()
+	workerNum, _ := getNextWorkerNumber(ctx, memberID, member.Name)
+	workerName := fmt.Sprintf("%s-%d", member.Name, workerNum)
 	worker := &TeamWorker{
-		WorkerID:      uuid.New().String(),
+		WorkerID:      base64Encode(workerName),
 		MemberID:      memberID,
-		Name:          member.Name,
+		Name:          workerName,
 		Status:        WorkerStatusIdle,
 		ProjectID:     member.ProjectID,
 		CreatedAt:     now,
@@ -61,11 +63,11 @@ func ForkWorker(ctx context.Context, memberID string) (*TeamWorker, error) {
 	}
 
 	err = wstore.WithTx(ctx, func(tx *wstore.TxWrap) error {
-		tx.Exec(`INSERT INTO team_workers (worker_id, member_id, name, status, assigned_task_id, block_id, tab_id, pid, project_id, created_at, updated_at, last_heartbeat)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		tx.Exec(`INSERT INTO team_workers (worker_id, member_id, name, status, assigned_task_id, block_id, tab_id, pid, project_id, session_id, created_at, updated_at, last_heartbeat)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			worker.WorkerID, worker.MemberID, worker.Name, worker.Status,
 			worker.AssignedTaskID, worker.BlockID, worker.TabID, worker.PID,
-			worker.ProjectID, worker.CreatedAt, worker.UpdatedAt, worker.LastHeartbeat)
+			worker.ProjectID, worker.SessionID, worker.CreatedAt, worker.UpdatedAt, worker.LastHeartbeat)
 		return nil
 	})
 	if err != nil {
@@ -96,13 +98,25 @@ func RecycleWorker(ctx context.Context, workerID string) error {
 
 	now := time.Now().Unix()
 	err = wstore.WithTx(ctx, func(tx *wstore.TxWrap) error {
+		var assignedTaskID string
+		tx.Get(&assignedTaskID, `SELECT assigned_task_id FROM team_workers WHERE worker_id=?`, workerID)
 		tx.Exec(`UPDATE team_workers SET status=?, assigned_task_id='', block_id='', tab_id='', pid=0, updated_at=?, last_heartbeat=? WHERE worker_id=?`,
 			WorkerStatusOffline, now, now, workerID)
+		if assignedTaskID != "" {
+			tx.Exec(`UPDATE team_tasks SET status=?, error=?, updated_at=?, completed_at=? WHERE task_id=? AND status=?`,
+				TaskStatusFailed, "worker recycled", now, now, assignedTaskID, TaskStatusWorking)
+		}
 		return nil
 	})
 	if err != nil {
 		return fmt.Errorf("recycle worker: failed to update worker: %w", err)
 	}
+
+	PublishWorkerUpdate()
+	PublishTaskUpdate()
+
+	member, _ := GetMember(ctx, worker.MemberID)
+	CleanupWorkerConfig(member)
 
 	addActivity(ctx, &TeamActivity{
 		MemberID:    worker.MemberID,
@@ -191,4 +205,8 @@ func addActivity(ctx context.Context, activity *TeamActivity) {
 			activity.Type, activity.Description, activity.Meta, activity.CreatedAt)
 		return nil
 	})
+}
+
+func base64Encode(s string) string {
+	return base64.RawURLEncoding.EncodeToString([]byte(s))
 }

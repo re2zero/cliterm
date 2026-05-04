@@ -94,6 +94,33 @@ func markWorkerOffline(ctx context.Context, workerID string) error {
 			`UPDATE team_workers SET status = ?, updated_at = ? WHERE worker_id = ?`,
 			WorkerStatusOffline, now, workerID,
 		)
+		var assignedTaskID string
+		tx.Get(&assignedTaskID, `SELECT assigned_task_id FROM team_workers WHERE worker_id = ?`, workerID)
+		if assignedTaskID != "" {
+			tx.Exec(
+				`UPDATE team_tasks SET status = ?, error = ?, updated_at = ?, completed_at = ? WHERE task_id = ? AND status = ?`,
+				TaskStatusFailed, "worker went offline", now, now, assignedTaskID, TaskStatusWorking,
+			)
+		}
 		return nil
 	})
+}
+
+func CleanupWorkerByBlockId(ctx context.Context, blockId string) {
+	if blockId == "" {
+		return
+	}
+	db := wstore.GetGlobalDB()
+	var workerID string
+	err := db.Get(&workerID, `SELECT worker_id FROM team_workers WHERE block_id = ? AND status != ?`, blockId, WorkerStatusOffline)
+	if err != nil {
+		return
+	}
+	log.Printf("[team] block closed: cleaning up worker %s (block %s)", workerID, blockId)
+	if err := markWorkerOffline(ctx, workerID); err != nil {
+		log.Printf("[team] failed to cleanup worker %s on block close: %v", workerID, err)
+		return
+	}
+	PublishWorkerUpdate()
+	PublishTaskUpdate()
 }

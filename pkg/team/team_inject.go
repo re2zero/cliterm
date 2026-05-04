@@ -9,6 +9,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/wavetermdev/waveterm/pkg/wavebase"
@@ -70,7 +71,7 @@ func InjectWorkerConfig(worker *TeamWorker, member *TeamMember) error {
 	waveTeamMCP := MCPConfig{
 		Name:    "wave-team",
 		Type:    "stdio",
-		Command: "wsh",
+		Command: getWshPath(),
 		Args:    []string{"mcp", "--tools=team"},
 	}
 	member.McpServers = append(member.McpServers, waveTeamMCP)
@@ -272,6 +273,37 @@ func resolveSkillSource(name, projectSkillDir, teamGlobalDir string) string {
 }
 
 // injectMCP creates MCP server config files for the Member's tool.
+func getWshPath() string {
+	binDir := wavebase.GetWaveAppBinPath()
+
+	if wavebase.IsDevMode() {
+		wshPath := filepath.Join(binDir, "wsh")
+		if _, err := os.Stat(wshPath); err == nil {
+			return wshPath
+		}
+	}
+
+	// Taskfile builds wsh as wsh-<version>-<os>.x64 (amd64 is renamed to x64)
+	archName := runtime.GOARCH
+	if archName == "amd64" {
+		archName = "x64"
+	}
+	platform := runtime.GOOS + "." + archName
+	globPattern := filepath.Join(binDir, fmt.Sprintf("wsh-%s-*", wavebase.WaveVersion))
+
+	matches, _ := filepath.Glob(globPattern)
+	for _, match := range matches {
+		if strings.Contains(filepath.Base(match), platform) {
+			return match
+		}
+	}
+	fallbackPattern := filepath.Join(binDir, fmt.Sprintf("wsh-%s", wavebase.WaveVersion))
+	if matches, _ := filepath.Glob(fallbackPattern); len(matches) > 0 {
+		return matches[0]
+	}
+	return "wsh"
+}
+
 func injectMCP(member *TeamMember) error {
 	switch member.Tool {
 	case ToolClaude:
@@ -285,93 +317,120 @@ func injectMCP(member *TeamMember) error {
 }
 
 func injectMCPClaude(servers []MCPConfig) error {
-	mcpDir := filepath.Join(getWaveHome(), ".claude", "mcp")
-	if err := os.MkdirAll(mcpDir, 0755); err != nil {
-		return fmt.Errorf("create claude mcp dir: %w", err)
+	// Claude Code reads MCP servers from ~/.claude.json under "mcpServers" key.
+	claudeJsonPath := filepath.Join(getWaveHome(), ".claude.json")
+
+	existing := make(map[string]interface{})
+	if data, err := os.ReadFile(claudeJsonPath); err == nil {
+		json.Unmarshal(data, &existing)
+	}
+
+	mcpServers, _ := existing["mcpServers"].(map[string]interface{})
+	if mcpServers == nil {
+		mcpServers = make(map[string]interface{})
 	}
 
 	for _, srv := range servers {
-		if err := writeMCPClaudeFile(mcpDir, srv); err != nil {
-			return fmt.Errorf("write MCP config for %q: %w", srv.Name, err)
+		entry := buildClaudeMCPEntry(srv)
+		if entry != nil {
+			mcpServers[srv.Name] = entry
 		}
 	}
 
-	return nil
+	existing["mcpServers"] = mcpServers
+	data, err := json.MarshalIndent(existing, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshal ~/.claude.json: %w", err)
+	}
+
+	return os.WriteFile(claudeJsonPath, append(data, '\n'), 0644)
 }
 
-func writeMCPClaudeFile(mcpDir string, srv MCPConfig) error {
-	// Claude Code MCP JSON format: one file per server.
-	var config interface{}
-
+func buildClaudeMCPEntry(srv MCPConfig) map[string]interface{} {
 	switch srv.Type {
 	case "stdio":
-		config = map[string]interface{}{
+		entry := map[string]interface{}{
 			"command": srv.Command,
 			"args":    srv.Args,
 		}
 		if len(srv.Env) > 0 {
-			config.(map[string]interface{})["env"] = srv.Env
+			entry["env"] = srv.Env
 		}
+		return entry
 	case "http":
-		config = map[string]interface{}{
+		entry := map[string]interface{}{
 			"url": srv.URL,
 		}
 		if len(srv.Headers) > 0 {
-			config.(map[string]interface{})["headers"] = srv.Headers
+			entry["headers"] = srv.Headers
 		}
+		return entry
 	default:
 		log.Printf("warning: unknown MCP type %q for server %q, skipping", srv.Type, srv.Name)
 		return nil
 	}
-
-	data, err := json.MarshalIndent(config, "", "  ")
-	if err != nil {
-		return fmt.Errorf("marshal MCP config: %w", err)
-	}
-
-	fileName := sanitizeFileName(srv.Name) + ".json"
-	filePath := filepath.Join(mcpDir, fileName)
-	return os.WriteFile(filePath, append(data, '\n'), 0644)
 }
 
 func injectMCPOpenCode(servers []MCPConfig) error {
-	// OpenCode uses a JSON overlay merged into AGENTS.md settings.
-	// For now, write to a well-known location that OpenCode can discover.
 	configDir := filepath.Join(getWaveHome(), ".config", "opencode")
-	mcpFile := filepath.Join(configDir, "mcp.json")
+	configPath := filepath.Join(configDir, "opencode.json")
 
 	if err := os.MkdirAll(configDir, 0755); err != nil {
 		return fmt.Errorf("create opencode config dir: %w", err)
 	}
 
-	entries := make([]map[string]interface{}, 0, len(servers))
+	existing := make(map[string]interface{})
+	if data, err := os.ReadFile(configPath); err == nil {
+		json.Unmarshal(data, &existing)
+	}
+
+	mcpMap, _ := existing["mcp"].(map[string]interface{})
+	if mcpMap == nil {
+		mcpMap = make(map[string]interface{})
+	}
+
 	for _, srv := range servers {
-		entry := map[string]interface{}{
-			"name": srv.Name,
-			"type": srv.Type,
+		entry := buildOpenCodeMCPEntry(srv)
+		if entry != nil {
+			mcpMap[srv.Name] = entry
 		}
-		switch srv.Type {
-		case "stdio":
-			entry["command"] = srv.Command
-			entry["args"] = srv.Args
-			if len(srv.Env) > 0 {
-				entry["env"] = srv.Env
-			}
-		case "http":
-			entry["url"] = srv.URL
-			if len(srv.Headers) > 0 {
-				entry["headers"] = srv.Headers
-			}
-		}
-		entries = append(entries, entry)
 	}
 
-	data, err := json.MarshalIndent(map[string]interface{}{"mcpServers": entries}, "", "  ")
+	existing["mcp"] = mcpMap
+	data, err := json.MarshalIndent(existing, "", "  ")
 	if err != nil {
-		return fmt.Errorf("marshal MCP config: %w", err)
+		return fmt.Errorf("marshal opencode.json: %w", err)
 	}
 
-	return os.WriteFile(mcpFile, append(data, '\n'), 0644)
+	return os.WriteFile(configPath, append(data, '\n'), 0644)
+}
+
+func buildOpenCodeMCPEntry(srv MCPConfig) map[string]interface{} {
+	switch srv.Type {
+	case "stdio":
+		cmd := []string{srv.Command}
+		cmd = append(cmd, srv.Args...)
+		entry := map[string]interface{}{
+			"type":    "local",
+			"command": cmd,
+		}
+		if len(srv.Env) > 0 {
+			entry["environment"] = srv.Env
+		}
+		return entry
+	case "http":
+		entry := map[string]interface{}{
+			"type": "remote",
+			"url":  srv.URL,
+		}
+		if len(srv.Headers) > 0 {
+			entry["headers"] = srv.Headers
+		}
+		return entry
+	default:
+		log.Printf("warning: unknown MCP type %q for server %q, skipping", srv.Type, srv.Name)
+		return nil
+	}
 }
 
 // getWaveHome returns the user's home directory. Overridable for testing.
@@ -390,7 +449,7 @@ func InjectDefaultWorkerConfig(worker *TeamWorker) error {
 	waveTeamMCP := MCPConfig{
 		Name:    "wave-team",
 		Type:    "stdio",
-		Command: "wsh",
+		Command: getWshPath(),
 		Args:    []string{"mcp", "--tools=team"},
 	}
 	defaultMember.McpServers = []MCPConfig{waveTeamMCP}

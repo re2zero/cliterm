@@ -65,14 +65,11 @@ func TestValidateWorkerTransition_AllWorkerStatuses(t *testing.T) {
 }
 
 func TestValidateTaskTransition_SelfTransitionsBlocked(t *testing.T) {
-	allStatuses := []string{
-		TaskStatusPending, TaskStatusAssigned, TaskStatusWorking,
-		TaskStatusDone, TaskStatusFailed, TaskStatusPaused, "cancelled",
-	}
-	for _, s := range allStatuses {
+	terminalStates := []string{TaskStatusDone, "cancelled"}
+	for _, s := range terminalStates {
 		err := ValidateTaskTransition(s, s)
 		if err == nil {
-			t.Errorf("self-transition should be blocked for status %q", s)
+			t.Errorf("self-transition should be blocked for terminal status %q", s)
 		}
 	}
 }

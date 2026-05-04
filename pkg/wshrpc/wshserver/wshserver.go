@@ -7,6 +7,7 @@ package wshserver
 
 import (
 	"context"
+	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -1778,11 +1779,19 @@ func (ws *WshServer) TeamUpdateTaskCommand(ctx context.Context, data wshrpc.Team
 	if data.Progress > 0 {
 		t.Progress = data.Progress
 	}
-	err = team.UpdateTask(ctx, t)
+
+	taskDoneOrFailed := t.Status == team.TaskStatusDone || t.Status == team.TaskStatusFailed
+	assignedWorkerID := t.AssignedWorkerID
+
+	err = team.UpdateTaskAtomic(ctx, t, taskDoneOrFailed, assignedWorkerID)
 	if err != nil {
 		return nil, fmt.Errorf("error updating team task: %w", err)
 	}
+
 	team.PublishTaskUpdate()
+	if taskDoneOrFailed {
+		team.PublishWorkerUpdate()
+	}
 	return convertDbTaskToRpc(t), nil
 }
 
@@ -1813,10 +1822,16 @@ func (ws *WshServer) TeamExecuteTaskCommand(ctx context.Context, data wshrpc.Tea
 		return nil, fmt.Errorf("error getting worker: %w", err)
 	}
 
+	if worker.Status == team.WorkerStatusWorking {
+		return nil, fmt.Errorf("worker %s is already working on task %s; cannot assign new task", worker.Name, worker.AssignedTaskID)
+	}
+
 	task, err := team.GetTask(ctx, data.TaskID)
 	if err != nil {
 		return nil, fmt.Errorf("error getting task: %w", err)
 	}
+
+	worker.SessionID = generateUUID()
 
 	var cmd string
 	member, _ := team.GetMember(ctx, worker.MemberID)
@@ -1827,7 +1842,11 @@ func (ws *WshServer) TeamExecuteTaskCommand(ctx context.Context, data wshrpc.Tea
 		if member != nil && member.Tool != "" {
 			tool = member.Tool
 		}
-		cmd = getWorkerStartCommand(tool)
+		customCmd := ""
+		if member != nil && member.Tool == team.ToolCustom {
+			customCmd = member.CustomCmd
+		}
+		cmd = getWorkerStartCommand(tool, customCmd, worker.SessionID)
 	}
 
 	var projectPath string
@@ -1884,6 +1903,18 @@ func (ws *WshServer) TeamExecuteTaskCommand(ctx context.Context, data wshrpc.Tea
 	}
 	blockId := blockRef.OID
 
+	// Generate JWT for MCP connection
+	sockName := wavebase.GetDomainSocketName()
+	rpcContext := wshrpc.RpcContext{
+		ProcRoute: true,
+		SockName:  sockName,
+		BlockId:   blockId,
+	}
+	jwtStr, err := wshutil.MakeClientJWTToken(rpcContext)
+	if err != nil {
+		return nil, fmt.Errorf("error generating JWT: %w", err)
+	}
+
 	if projectPath != "" {
 		cdInput := &blockcontroller.BlockInputUnion{
 			InputData: []byte("cd " + projectPath + "\n"),
@@ -1901,7 +1932,7 @@ func (ws *WshServer) TeamExecuteTaskCommand(ctx context.Context, data wshrpc.Tea
 	}
 
 	envInput := &blockcontroller.BlockInputUnion{
-		InputData: []byte(fmt.Sprintf("export WAVE_WORKER_ID=%s WAVE_TASK_ID=%s WAVE_TEAM_MCP=1\n", worker.WorkerID, task.TaskID)),
+		InputData: []byte(fmt.Sprintf("export WAVE_WORKER_ID=%s WAVE_TASK_ID=%s WAVE_SESSION_ID=%s WAVE_TEAM_MCP=1 WAVETERM_JWT='%s'\n", worker.WorkerID, task.TaskID, worker.SessionID, jwtStr)),
 	}
 	for attempt := 1; attempt <= 3; attempt++ {
 		err = blockcontroller.SendInput(blockId, envInput)
@@ -1913,6 +1944,12 @@ func (ws *WshServer) TeamExecuteTaskCommand(ctx context.Context, data wshrpc.Tea
 		}
 	}
 	time.Sleep(200 * time.Millisecond)
+
+	waveTaskInput := &blockcontroller.BlockInputUnion{
+		InputData: []byte(fmt.Sprintf("printf '{\"taskId\":\"%s\",\"workerId\":\"%s\"}' > .wave-task\n", task.TaskID, worker.WorkerID)),
+	}
+	blockcontroller.SendInput(blockId, waveTaskInput)
+	time.Sleep(100 * time.Millisecond)
 
 	inputUnion := &blockcontroller.BlockInputUnion{
 		InputData: []byte(cmd + "\n"),
@@ -2215,19 +2252,39 @@ func (ws *WshServer) TeamDeleteTemplateCommand(ctx context.Context, templateName
 
 // --- Conversion helpers between pkg/team and wshrpc types ---
 
-func getWorkerStartCommand(tool string) string {
+func getWorkerStartCommand(tool string, customCmd string, sessionID string) string {
 	switch tool {
 	case "claude":
-		return "claude"
+		cmd := "claude --dangerously-skip-permissions"
+		if sessionID != "" {
+			cmd += " --session-id " + sessionID
+		}
+		return cmd
 	case "opencode":
 		return "opencode"
 	case "cursor":
 		return "cursor-agent"
 	case "aider":
 		return "aider"
+	case "custom":
+		if customCmd != "" {
+			return customCmd
+		}
+		return tool
 	default:
 		return tool
 	}
+}
+
+func generateUUID() string {
+	var uuid [16]byte
+	_, err := rand.Read(uuid[:])
+	if err != nil {
+		return fmt.Sprintf("%d", time.Now().UnixNano())
+	}
+	uuid[6] = (uuid[6] & 0x0f) | 0x40
+	uuid[8] = (uuid[8] & 0x3f) | 0x80
+	return fmt.Sprintf("%x-%x-%x-%x-%x", uuid[0:4], uuid[4:6], uuid[6:8], uuid[8:10], uuid[10:])
 }
 
 func convertRpcMemberToDb(data *wshrpc.TeamCreateMemberData) *team.TeamMember {
