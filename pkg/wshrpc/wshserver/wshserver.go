@@ -1629,7 +1629,7 @@ func (ws *WshServer) TeamListMembersCommand(ctx context.Context) ([]*wshrpc.Team
 	if err != nil {
 		return nil, fmt.Errorf("error listing team members: %w", err)
 	}
-	var result []*wshrpc.TeamMember
+	var result = make([]*wshrpc.TeamMember, 0)
 	for _, m := range members {
 		result = append(result, convertDbMemberToRpc(m))
 	}
@@ -1702,7 +1702,7 @@ func (ws *WshServer) TeamListWorkersCommand(ctx context.Context, memberId string
 	if err != nil {
 		return nil, fmt.Errorf("error listing team workers: %w", err)
 	}
-	var result []*wshrpc.TeamWorker
+	var result = make([]*wshrpc.TeamWorker, 0)
 	for _, w := range workers {
 		result = append(result, convertDbWorkerToRpc(w))
 	}
@@ -1809,7 +1809,7 @@ func (ws *WshServer) TeamListTasksCommand(ctx context.Context, data wshrpc.TeamL
 	if err != nil {
 		return nil, fmt.Errorf("error listing team tasks: %w", err)
 	}
-	var result []*wshrpc.TeamTask
+	var result = make([]*wshrpc.TeamTask, 0)
 	for _, t := range tasks {
 		result = append(result, convertDbTaskToRpc(t))
 	}
@@ -2059,7 +2059,7 @@ func (ws *WshServer) TeamGetTaskOutputHistoryCommand(ctx context.Context, taskId
 	if err != nil {
 		return nil, fmt.Errorf("error getting team task: %w", err)
 	}
-	var result []wshrpc.TeamTaskOutput
+	var result = make([]wshrpc.TeamTaskOutput, 0)
 	for _, o := range task.OutputHistory {
 		result = append(result, wshrpc.TeamTaskOutput{
 			Timestamp: o.Timestamp,
@@ -2136,7 +2136,7 @@ func (ws *WshServer) TeamListActivityCommand(ctx context.Context, data wshrpc.Te
 	if err != nil {
 		return nil, fmt.Errorf("error listing team activities: %w", err)
 	}
-	var result []*wshrpc.TeamActivity
+	var result = make([]*wshrpc.TeamActivity, 0)
 	for _, a := range activities {
 		result = append(result, convertDbActivityToRpc(a))
 	}
@@ -2197,7 +2197,7 @@ func (ws *WshServer) TeamListProjectsCommand(ctx context.Context) ([]*wshrpc.Tea
 	if err != nil {
 		return nil, fmt.Errorf("error listing team projects: %w", err)
 	}
-	var result []*wshrpc.TeamProject
+	var result = make([]*wshrpc.TeamProject, 0)
 	for _, p := range projects {
 		result = append(result, convertDbProjectToRpc(p))
 	}
@@ -2214,7 +2214,7 @@ func (ws *WshServer) TeamListTemplatesCommand(ctx context.Context) ([]*wshrpc.Te
 		return nil, fmt.Errorf("error loading global templates: %w", err)
 	}
 	seen := make(map[string]bool)
-	var result []*wshrpc.TeamMember
+	var result = make([]*wshrpc.TeamMember, 0)
 	for i := range defaults {
 		if !seen[defaults[i].Name] {
 			seen[defaults[i].Name] = true
@@ -2353,7 +2353,7 @@ func applyMemberUpdate(m *team.TeamMember, data *wshrpc.TeamUpdateMemberData) {
 }
 
 func convertRpcMcpServers(servers []wshrpc.TeamMCPConfig) []team.MCPConfig {
-	var result []team.MCPConfig
+	var result = make([]team.MCPConfig, 0)
 	for _, s := range servers {
 		result = append(result, team.MCPConfig{
 			Name: s.Name, Type: s.Type,
@@ -2416,7 +2416,7 @@ func rpcMemberToDb(m *wshrpc.TeamMember) (*team.TeamMember, error) {
 }
 
 func convertDbMcpServers(servers []team.MCPConfig) []wshrpc.TeamMCPConfig {
-	var result []wshrpc.TeamMCPConfig
+	var result = make([]wshrpc.TeamMCPConfig, 0)
 	for _, s := range servers {
 		result = append(result, wshrpc.TeamMCPConfig{
 			Name: s.Name, Type: s.Type,

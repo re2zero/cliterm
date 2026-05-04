@@ -6,7 +6,6 @@ package team
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"testing"
 	"time"
 )
@@ -573,16 +572,16 @@ func TestForkWorker_MemberWithHyphenatedName(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ForkWorker: %v", err)
 	}
-	if w1.Name != "Go-Backend-Dev-1" {
-		t.Errorf("expected name 'Go-Backend-Dev-1', got %q", w1.Name)
+	if w1.Name != "Go-Backend-Dev" {
+		t.Errorf("expected name 'Go-Backend-Dev', got %q", w1.Name)
 	}
 
 	w2, err := ForkWorker(ctx, "m-hyphen")
 	if err != nil {
 		t.Fatalf("ForkWorker #2: %v", err)
 	}
-	if w2.Name != "Go-Backend-Dev-2" {
-		t.Errorf("expected name 'Go-Backend-Dev-2', got %q", w2.Name)
+	if w2.Name != "Go-Backend-Dev" {
+		t.Errorf("expected name 'Go-Backend-Dev', got %q", w2.Name)
 	}
 }
 
@@ -602,9 +601,8 @@ func TestForkAndRecycle_MultipleTimes(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ForkWorker #%d: %v", i, err)
 		}
-		expectedName := fmt.Sprintf("Multi-%d", i)
-		if w.Name != expectedName {
-			t.Errorf("worker #%d: expected name %q, got %q", i, expectedName, w.Name)
+		if w.Name != "Multi" {
+			t.Errorf("worker #%d: expected name %q, got %q", i, "Multi", w.Name)
 		}
 	}
 
@@ -628,8 +626,8 @@ func TestForkAndRecycle_MultipleTimes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ForkWorker after recycle: %v", err)
 	}
-	if w.Name != "Multi-4" {
-		t.Errorf("expected name 'Multi-4' after recycle, got %q", w.Name)
+	if w.Name != "Multi" {
+		t.Errorf("expected name 'Multi' after recycle, got %q", w.Name)
 	}
 }
 
@@ -1397,8 +1395,8 @@ func TestForkWorker_MemberNameWithNumber(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ForkWorker: %v", err)
 	}
-	if w.Name != "Worker2-1" {
-		t.Errorf("expected 'Worker2-1', got %q", w.Name)
+	if w.Name != "Worker2" {
+		t.Errorf("expected 'Worker2', got %q", w.Name)
 	}
 }
 

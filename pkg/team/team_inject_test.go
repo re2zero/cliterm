@@ -472,26 +472,23 @@ func TestInjectMCPClaude(t *testing.T) {
 		t.Fatalf("injectMCP failed: %v", err)
 	}
 
-	// Check stdio server file
-	stdioFile := filepath.Join(tmpDir, ".claude", "mcp", "context7.json")
-	data, err := os.ReadFile(stdioFile)
+	data, err := os.ReadFile(filepath.Join(tmpDir, ".claude.json"))
 	if err != nil {
-		t.Fatalf("missing stdio MCP file: %v", err)
+		t.Fatalf("missing .claude.json: %v", err)
 	}
-	stdioContent := string(data)
-	if !strings.Contains(stdioContent, `"command": "npx"`) {
-		t.Errorf("stdio config missing command: %s", stdioContent)
-	}
+	content := string(data)
 
-	// Check http server file
-	httpFile := filepath.Join(tmpDir, ".claude", "mcp", "remote-api.json")
-	data, err = os.ReadFile(httpFile)
-	if err != nil {
-		t.Fatalf("missing http MCP file: %v", err)
+	if !strings.Contains(content, `"context7"`) {
+		t.Errorf("claude.json missing context7 server: %s", content)
 	}
-	httpContent := string(data)
-	if !strings.Contains(httpContent, `"url": "https://api.example.com/mcp"`) {
-		t.Errorf("http config missing url: %s", httpContent)
+	if !strings.Contains(content, `"command": "npx"`) {
+		t.Errorf("claude.json missing stdio command: %s", content)
+	}
+	if !strings.Contains(content, `"remote-api"`) {
+		t.Errorf("claude.json missing remote-api server: %s", content)
+	}
+	if !strings.Contains(content, `"url": "https://api.example.com/mcp"`) {
+		t.Errorf("claude.json missing http url: %s", content)
 	}
 }
 
@@ -511,16 +508,13 @@ func TestInjectMCPClaude_SanitizesFileName(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Should not create file outside mcp dir
-	entries, err := os.ReadDir(filepath.Join(tmpDir, ".claude", "mcp"))
+	data, err := os.ReadFile(filepath.Join(tmpDir, ".claude.json"))
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("missing .claude.json: %v", err)
 	}
-	if len(entries) != 1 {
-		t.Fatalf("expected 1 file, got %d", len(entries))
-	}
-	if entries[0].Name() != "______etc_evil.json" {
-		t.Errorf("unexpected filename: %s", entries[0].Name())
+	content := string(data)
+	if !strings.Contains(content, `"../../etc/evil"`) {
+		t.Errorf("claude.json missing sanitized server entry: %s", content)
 	}
 }
 
@@ -542,16 +536,16 @@ func TestInjectMCPOpenCode(t *testing.T) {
 		t.Fatalf("injectMCP failed: %v", err)
 	}
 
-	data, err := os.ReadFile(filepath.Join(tmpDir, ".config", "opencode", "mcp.json"))
+	data, err := os.ReadFile(filepath.Join(tmpDir, ".config", "opencode", "opencode.json"))
 	if err != nil {
-		t.Fatalf("missing opencode MCP file: %v", err)
+		t.Fatalf("missing opencode.json: %v", err)
 	}
 	content := string(data)
 	if !strings.Contains(content, "playwright") {
-		t.Errorf("opencode MCP config missing server name: %s", content)
+		t.Errorf("opencode.json missing server name: %s", content)
 	}
-	if !strings.Contains(content, `"type": "stdio"`) {
-		t.Errorf("opencode MCP config missing type: %s", content)
+	if !strings.Contains(content, `"type": "local"`) {
+		t.Errorf("opencode.json missing local type: %s", content)
 	}
 }
 
@@ -773,9 +767,13 @@ func TestInjectWorkerConfig_WithMCP(t *testing.T) {
 		t.Fatalf("InjectWorkerConfig with MCP failed: %v", err)
 	}
 
-	mcpFile := filepath.Join(tmpDir, ".claude", "mcp", "test-srv.json")
-	if _, err := os.Stat(mcpFile); err != nil {
-		t.Fatalf("MCP config file not created: %v", err)
+	data, err := os.ReadFile(filepath.Join(tmpDir, ".claude.json"))
+	if err != nil {
+		t.Fatalf("missing .claude.json: %v", err)
+	}
+	content := string(data)
+	if !strings.Contains(content, `"test-srv"`) {
+		t.Errorf("claude.json missing test-srv MCP entry: %s", content)
 	}
 }
 
@@ -813,7 +811,7 @@ func TestInjectWorkerConfig_PersonaContainsTaskProtocol(t *testing.T) {
 	}
 
 	content := string(data)
-	if !strings.Contains(content, "Task Completion Protocol") {
+	if !strings.Contains(content, "Task Reporting Protocol") {
 		t.Error("CLAUDE.md missing task completion protocol")
 	}
 	if !strings.Contains(content, "team_update_task") {
@@ -842,18 +840,17 @@ func TestInjectWorkerConfig_AutoWaveTeamMCP(t *testing.T) {
 		t.Fatalf("InjectWorkerConfig failed: %v", err)
 	}
 
-	mcpFile := filepath.Join(tmpDir, ".claude", "mcp", "wave-team.json")
-	data, err := os.ReadFile(mcpFile)
+	data, err := os.ReadFile(filepath.Join(tmpDir, ".claude.json"))
 	if err != nil {
-		t.Fatalf("wave-team MCP config not created: %v", err)
+		t.Fatalf("missing .claude.json: %v", err)
 	}
 
 	content := string(data)
-	if !strings.Contains(content, `"command": "wsh"`) {
-		t.Errorf("wave-team MCP missing wsh command: %s", content)
+	if !strings.Contains(content, `"wave-team"`) {
+		t.Errorf("claude.json missing wave-team MCP entry: %s", content)
 	}
-	if !strings.Contains(content, "mcp") || !strings.Contains(content, "team") {
-		t.Errorf("wave-team MCP missing mcp --tools=team args: %s", content)
+	if !strings.Contains(content, `"--tools=team"`) {
+		t.Errorf("wave-team MCP missing --tools=team arg: %s", content)
 	}
 }
 

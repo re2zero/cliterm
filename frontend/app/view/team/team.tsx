@@ -97,23 +97,6 @@ export function TeamView({ model }: TeamViewProps) {
 
     const handleDropMember = async (memberId: string, projectId: string | null) => {
         if (projectId) {
-            const project = projects.find((p) => p.projectid === projectId);
-            const member = runtimeMembers.find((m) => m.workerid === memberId);
-            if (!member || !project) return;
-
-            const existingInProject = runtimeMembers.filter(
-                (m) => m.projectid === projectId && m.workerid !== memberId
-            );
-            const baseName = member.name.replace(/-\d+$/, "");
-            const matchCount = existingInProject.filter(
-                (m) => m.name.startsWith(baseName)
-            ).length;
-
-            if (matchCount > 0) {
-                const newName = `${baseName}-${matchCount + 1}`;
-                await model.updateRuntimeMember(memberId, { name: newName });
-            }
-
             await model.assignMemberToProject(memberId, projectId);
         } else {
             await model.assignMemberToProject(memberId, "");
@@ -245,7 +228,7 @@ export function TeamView({ model }: TeamViewProps) {
                             onPause={(taskId) => { model.pauseTask(taskId); }}
                             onResume={(taskId) => { model.resumeTask(taskId); }}
                             onRetry={(taskId) => { model.retryTask(taskId); }}
-                            onDelete={(taskId) => { model.deleteTask(taskId); setSelectedTask(null); }}
+                            onDelete={async (taskId) => { await model.deleteTask(taskId); setSelectedTask(null); }}
                         />
                     ) : selectedMember ? (
                         <div className="h-full">

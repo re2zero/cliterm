@@ -54,8 +54,8 @@ func TestForkWorker(t *testing.T) {
 	if worker.MemberID != "member-1" {
 		t.Errorf("expected MemberID 'member-1', got '%s'", worker.MemberID)
 	}
-	if worker.Name != "GoDev-1" {
-		t.Errorf("expected name 'GoDev-1', got '%s'", worker.Name)
+	if worker.Name != "GoDev" {
+		t.Errorf("expected name 'GoDev', got '%s'", worker.Name)
 	}
 	if worker.Status != WorkerStatusIdle {
 		t.Errorf("expected status '%s', got '%s'", WorkerStatusIdle, worker.Status)
@@ -82,14 +82,17 @@ func TestForkWorkerIncrementalNaming(t *testing.T) {
 	w2, _ := ForkWorker(ctx, "member-1")
 	w3, _ := ForkWorker(ctx, "member-1")
 
-	if w1.Name != "GoDev-1" {
-		t.Errorf("expected 'GoDev-1', got '%s'", w1.Name)
+	if w1.Name != "GoDev" {
+		t.Errorf("expected 'GoDev', got '%s'", w1.Name)
 	}
-	if w2.Name != "GoDev-2" {
-		t.Errorf("expected 'GoDev-2', got '%s'", w2.Name)
+	if w2.Name != "GoDev" {
+		t.Errorf("expected 'GoDev', got '%s'", w2.Name)
 	}
-	if w3.Name != "GoDev-3" {
-		t.Errorf("expected 'GoDev-3', got '%s'", w3.Name)
+	if w3.Name != "GoDev" {
+		t.Errorf("expected 'GoDev', got '%s'", w3.Name)
+	}
+	if w1.WorkerID == w2.WorkerID || w2.WorkerID == w3.WorkerID || w1.WorkerID == w3.WorkerID {
+		t.Error("worker IDs should be unique even with same names")
 	}
 }
 
@@ -271,7 +274,7 @@ func TestRecycleWorkerRecordsActivity(t *testing.T) {
 	}
 }
 
-func TestRecycleThenForkReusesNumber(t *testing.T) {
+func TestRecycleThenForkSameName(t *testing.T) {
 	db := initTestDB(t)
 	defer cleanupTestDB(t, db)
 	ctx := context.Background()
@@ -281,14 +284,15 @@ func TestRecycleThenForkReusesNumber(t *testing.T) {
 		MaxConcurrency: 3, MaxRetries: 3, Memory: MemorySession,
 	})
 
-	w1, _ := ForkWorker(ctx, "member-1") // GoDev-1
+	w1, _ := ForkWorker(ctx, "member-1")
 	RecycleWorker(ctx, w1.WorkerID)
 
-	// After recycle, worker-1 still exists in DB with offline status.
-	// Next fork should be GoDev-2 (max existing number + 1).
 	w2, _ := ForkWorker(ctx, "member-1")
-	if w2.Name != "GoDev-2" {
-		t.Errorf("expected 'GoDev-2' after recycle, got '%s'", w2.Name)
+	if w2.Name != "GoDev" {
+		t.Errorf("expected 'GoDev' after recycle, got '%s'", w2.Name)
+	}
+	if w2.WorkerID == w1.WorkerID {
+		t.Error("recycled then forked worker should have a different ID")
 	}
 }
 
@@ -323,8 +327,16 @@ func TestGetNextWorkerNumberWithExisting(t *testing.T) {
 		MaxConcurrency: 5, MaxRetries: 3, Memory: MemorySession,
 	})
 
-	ForkWorker(ctx, "member-1") // GoDev-1
-	ForkWorker(ctx, "member-1") // GoDev-2
+	now := time.Now().Unix()
+	wstore.WithTx(ctx, func(tx *wstore.TxWrap) error {
+		tx.Exec(`INSERT INTO team_workers (worker_id, member_id, name, status, created_at, updated_at, last_heartbeat)
+			VALUES (?, ?, ?, ?, ?, ?, ?)`,
+			"w1", "member-1", "GoDev-1", WorkerStatusIdle, now, now, now)
+		tx.Exec(`INSERT INTO team_workers (worker_id, member_id, name, status, created_at, updated_at, last_heartbeat)
+			VALUES (?, ?, ?, ?, ?, ?, ?)`,
+			"w2", "member-1", "GoDev-2", WorkerStatusIdle, now, now, now)
+		return nil
+	})
 
 	num, err := GetNextWorkerNumber(ctx, "member-1")
 	if err != nil {

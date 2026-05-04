@@ -5,6 +5,7 @@ package team
 
 import (
 	"context"
+	"crypto/rand"
 	"database/sql"
 	"encoding/base64"
 	"fmt"
@@ -31,7 +32,7 @@ type workerInfo struct {
 }
 
 // ForkWorker creates a new Worker instance for a Member.
-// It checks MaxConcurrency, generates a runtime name (MemberName-N),
+// It checks MaxConcurrency, uses the Member's name directly,
 // creates a DB entry, and records Activity.
 func ForkWorker(ctx context.Context, memberID string) (*TeamWorker, error) {
 	member, err := getMemberInfo(ctx, memberID)
@@ -49,10 +50,10 @@ func ForkWorker(ctx context.Context, memberID string) (*TeamWorker, error) {
 	}
 
 	now := time.Now().Unix()
-	workerNum, _ := getNextWorkerNumber(ctx, memberID, member.Name)
-	workerName := fmt.Sprintf("%s-%d", member.Name, workerNum)
+	workerName := member.Name
+	workerID := generateWorkerID(workerName)
 	worker := &TeamWorker{
-		WorkerID:      base64Encode(workerName),
+		WorkerID:      workerID,
 		MemberID:      memberID,
 		Name:          workerName,
 		Status:        WorkerStatusIdle,
@@ -209,4 +210,10 @@ func addActivity(ctx context.Context, activity *TeamActivity) {
 
 func base64Encode(s string) string {
 	return base64.RawURLEncoding.EncodeToString([]byte(s))
+}
+
+func generateWorkerID(name string) string {
+	b := make([]byte, 4)
+	rand.Read(b)
+	return fmt.Sprintf("%s-%x", base64Encode(name), b)
 }

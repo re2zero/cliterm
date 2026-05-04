@@ -54,6 +54,7 @@ export class TeamViewModel implements ViewModel {
     private eventUnsubRuntimeMember?: () => void;
     private eventUnsubMember?: () => void;
     private eventUnsubProject?: () => void;
+    private refreshTimer: number | null = null;
 
     constructor(initOpts: ViewModelInitType) {
         this.blockId = initOpts.blockId;
@@ -94,34 +95,39 @@ export class TeamViewModel implements ViewModel {
 
     async init(): Promise<void> {
         await this.refreshAllData();
+        const debouncedRefresh = () => {
+            if (this.refreshTimer != null) {
+                clearTimeout(this.refreshTimer);
+            }
+            this.refreshTimer = window.setTimeout(() => {
+                this.refreshTimer = null;
+                fireAndForget(async () => this.refreshAllData());
+            }, 200);
+        };
         this.eventUnsubTask = waveEventSubscribeSingle({
             eventType: "team:taskupdate",
-            handler: () => {
-                fireAndForget(async () => this.refreshAllData());
-            },
+            handler: debouncedRefresh,
         });
         this.eventUnsubRuntimeMember = waveEventSubscribeSingle({
             eventType: "team:workerupdate",
-            handler: () => {
-                fireAndForget(async () => this.refreshAllData());
-            },
+            handler: debouncedRefresh,
         });
         this.eventUnsubMember = waveEventSubscribeSingle({
             eventType: "team:memberupdate",
-            handler: () => {
-                fireAndForget(async () => this.refreshAllData());
-            },
+            handler: debouncedRefresh,
         });
         this.eventUnsubProject = waveEventSubscribeSingle({
             eventType: "team:projectupdate",
-            handler: () => {
-                fireAndForget(async () => this.refreshAllData());
-            },
+            handler: debouncedRefresh,
         });
     }
 
     dispose(): void {
         this.stopSupervision();
+        if (this.refreshTimer != null) {
+            clearTimeout(this.refreshTimer);
+            this.refreshTimer = null;
+        }
         this.eventUnsubTask?.();
         this.eventUnsubRuntimeMember?.();
         this.eventUnsubMember?.();
@@ -199,7 +205,7 @@ export class TeamViewModel implements ViewModel {
 
     async refreshAllData(): Promise<void> {
         try {
-            const tasks = await RpcApi.TeamListTasksCommand(TabRpcClient, {});
+            const tasks = await RpcApi.TeamListTasksCommand(TabRpcClient, {}) ?? [];
             const pending: TeamTask[] = [];
             const working: TeamTask[] = [];
             const done: TeamTask[] = [];
@@ -230,33 +236,45 @@ export class TeamViewModel implements ViewModel {
             globalStore.set(this.doneTasksAtom, done);
             globalStore.set(this.failedTasksAtom, failed);
             globalStore.set(this.pausedTasksAtom, paused);
-        } catch {}
+        } catch (e) {
+            console.warn("[team] refreshAllData tasks failed:", e);
+        }
 
         try {
             const workers = await RpcApi.TeamListWorkersCommand(TabRpcClient, "");
             globalStore.set(this.runtimeMembersAtom, workers);
-        } catch {}
+        } catch (e) {
+            console.warn("[team] refreshAllData workers failed:", e);
+        }
 
         try {
             const members = await RpcApi.TeamListMembersCommand(TabRpcClient, {});
             globalStore.set(this.membersAtom, members);
-        } catch {}
+        } catch (e) {
+            console.warn("[team] refreshAllData members failed:", e);
+        }
 
         try {
             const activities = await RpcApi.TeamListActivityCommand(TabRpcClient, { limit: 50 });
             globalStore.set(this.activityLogAtom, activities);
-        } catch {}
+        } catch (e) {
+            console.warn("[team] refreshAllData activities failed:", e);
+        }
 
         try {
             const projects = await RpcApi.TeamListProjectsCommand(TabRpcClient);
             globalStore.set(this.projectsAtom, projects);
-        } catch {}
+        } catch (e) {
+            console.warn("[team] refreshAllData projects failed:", e);
+        }
 
         if (globalStore.get(this.templatesAtom).length === 0) {
             try {
                 const templates = await RpcApi.TeamListTemplatesCommand(TabRpcClient);
                 globalStore.set(this.templatesAtom, templates ?? []);
-            } catch {}
+            } catch (e) {
+                console.warn("[team] refreshAllData templates failed:", e);
+            }
         }
     }
 
