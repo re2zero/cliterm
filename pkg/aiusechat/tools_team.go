@@ -664,24 +664,78 @@ func teamAssignTaskCallback(input any, toolUseData *uctypes.UIMessageDataToolUse
 		return nil, fmt.Errorf("memberid is required")
 	}
 
+	rpcClient := wshclient.GetBareRpcClient()
+
+	member, err := wshclient.TeamGetMemberCommand(rpcClient, parsed.MemberId, &wshrpc.RpcOpts{})
+	if err != nil {
+		return nil, fmt.Errorf("member not found: %w", err)
+	}
+
+	allWorkers, err := wshclient.TeamListWorkersCommand(rpcClient, "", &wshrpc.RpcOpts{})
+	if err != nil {
+		return nil, fmt.Errorf("error listing workers: %w", err)
+	}
+
+	var bestWorker *wshrpc.TeamWorker
+	for _, w := range allWorkers {
+		if w.MemberID != parsed.MemberId {
+			continue
+		}
+		if w.Status == "idle" {
+			bestWorker = w
+			break
+		}
+		if w.Status == "offline" && (bestWorker == nil || bestWorker.Status != "idle") {
+			bestWorker = w
+		}
+	}
+
+	var workerID string
+	if bestWorker != nil {
+		workerID = bestWorker.WorkerID
+	} else {
+		forked, forkErr := wshclient.TeamForkWorkerCommand(rpcClient, parsed.MemberId, &wshrpc.RpcOpts{})
+		if forkErr != nil {
+			return nil, fmt.Errorf("failed to fork worker: %w", forkErr)
+		}
+		workerID = forked.WorkerID
+	}
+
 	data := wshrpc.TeamUpdateTaskData{
 		TaskID:           parsed.TaskId,
 		AssignedMemberID: parsed.MemberId,
+		AssignedWorkerID: workerID,
 		Status:           team.TaskStatusAssigned,
 	}
 
-	rpcClient := wshclient.GetBareRpcClient()
 	task, err := wshclient.TeamUpdateTaskCommand(rpcClient, data, &wshrpc.RpcOpts{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to assign task: %w", err)
+	}
+
+	resp, err := wshclient.TeamExecuteTaskCommand(rpcClient, wshrpc.TeamExecuteTaskData{
+		WorkerID: workerID,
+		TaskID:   parsed.TaskId,
+	}, &wshrpc.RpcOpts{Timeout: 30000})
+	if err != nil {
+		return map[string]any{
+			"success":  false,
+			"taskid":   parsed.TaskId,
+			"memberid": parsed.MemberId,
+			"workerid": workerID,
+			"status":   task.Status,
+			"error":    fmt.Sprintf("task assigned but execution failed: %v", err),
+		}, nil
 	}
 
 	return map[string]any{
 		"success":  true,
 		"taskid":   parsed.TaskId,
 		"memberid": parsed.MemberId,
-		"status":   task.Status,
-		"message":  "Task assigned to member",
+		"workerid": workerID,
+		"status":   "working",
+		"blockid":  resp.BlockID,
+		"message":  fmt.Sprintf("Task assigned to %s and execution started (worker %s)", member.Name, workerID),
 	}, nil
 }
 
@@ -689,7 +743,7 @@ func GetTeamAssignTaskToolDefinition() uctypes.ToolDefinition {
 	return uctypes.ToolDefinition{
 		Name:        "team_assign_task",
 		DisplayName: "Assign Task to Member",
-		Description: "Assign a task to a member (auto-forks a worker if needed, respects maxConcurrency). Use after creating a task and choosing the right member.",
+		Description: "One-step task execution: finds or forks a worker for the member (reusing idle/offline workers first), assigns the task, creates a terminal block, and starts execution. Prefer this over manually calling team_fork_worker + team_execute_task.",
 		ToolLogName: "team:assigntask",
 		Strict:      false,
 		InputSchema: map[string]any{
@@ -952,7 +1006,7 @@ func GetTeamExecuteTaskToolDefinition() uctypes.ToolDefinition {
 	return uctypes.ToolDefinition{
 		Name:        "team_execute_task",
 		DisplayName: "Execute Team Task",
-		Description: "Start task execution: creates a terminal block and sends the command to the worker. For sending additional instructions to a running worker, use team_send_prompt instead.",
+		Description: "Execute a task on a worker. Creates a terminal block, handles task state transitions (pending→assigned→working) automatically. Do NOT call team_assign_task before this. For sending additional instructions to a running worker, use team_send_prompt instead.",
 		ToolLogName: "team:executetask",
 		Strict:      false,
 		InputSchema: map[string]any{
@@ -1210,9 +1264,6 @@ func teamDispatchCallback(input any, toolUseData *uctypes.UIMessageDataToolUse) 
 
 	if parsed.Target == "all" {
 		for _, w := range allWorkers {
-			if w.Status == "offline" {
-				continue
-			}
 			if w.BlockID == "" {
 				dr, dispatchErr := autoStartWorker(rpcClient, w.WorkerID, w.MemberID, message)
 				results = append(results, *dr)
@@ -1244,8 +1295,9 @@ func teamDispatchCallback(input any, toolUseData *uctypes.UIMessageDataToolUse) 
 		var targetWorker *team.TeamWorker
 		for _, w := range allWorkers {
 			if w.Name == parsed.Target || w.WorkerID == parsed.Target {
-				targetWorker = w
-				break
+				if targetWorker == nil || targetWorker.Status == team.WorkerStatusOffline {
+					targetWorker = w
+				}
 			}
 		}
 		if targetWorker == nil {

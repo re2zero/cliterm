@@ -10,7 +10,6 @@ interface BoardCardProps {
     members: TeamWorker[];
     allTasks: TeamTask[];
     onClick: () => void;
-    onRetry?: () => void;
 }
 
 const STATUS_DOT: Record<string, string> = {
@@ -20,7 +19,7 @@ const STATUS_DOT: Record<string, string> = {
     error: "bg-red-400",
 };
 
-export function BoardCard({ task, members, allTasks, onClick, onRetry }: BoardCardProps) {
+export function BoardCard({ task, members, allTasks, onClick }: BoardCardProps) {
     const assignedMember = task.assignedworkerid
         ? members.find((w) => w.workerid === task.assignedworkerid)
         : null;
@@ -102,15 +101,6 @@ export function BoardCard({ task, members, allTasks, onClick, onRetry }: BoardCa
                     )}
                 </span>
             </div>
-
-            {isFailed && task.retrycount != null && task.maxretries != null && task.retrycount < task.maxretries && onRetry && (
-                <button
-                    className="ml-2 px-1.5 py-0.5 text-[10px] text-orange-400 hover:text-orange-300 hover:bg-orange-400/10 rounded-sm transition-colors cursor-pointer"
-                    onClick={(e) => { e.stopPropagation(); onRetry(); }}
-                >
-                    ↻ retry ({task.retrycount}/{task.maxretries})
-                </button>
-            )}
         </div>
     );
 }

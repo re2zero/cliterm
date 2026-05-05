@@ -14,7 +14,6 @@ import (
 	"fmt"
 	"io/fs"
 	"log"
-	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -1654,6 +1653,27 @@ func (ws *WshServer) TeamGetWorkerCommand(ctx context.Context, workerId string) 
 }
 
 func (ws *WshServer) TeamUpdateWorkerCommand(ctx context.Context, data wshrpc.TeamUpdateWorkerData) (*wshrpc.TeamWorker, error) {
+	if data.Status == team.WorkerStatusOffline {
+		existing, err := team.GetWorker(ctx, data.WorkerID)
+		if err != nil {
+			return nil, fmt.Errorf("error getting team worker: %w", err)
+		}
+		if err := team.ValidateWorkerTransition(existing.Status, team.WorkerStatusOffline); err != nil {
+			return nil, err
+		}
+		if existing.AssignedTaskID != "" {
+			task, taskErr := team.GetTask(ctx, existing.AssignedTaskID)
+			if taskErr == nil && task.Status == team.TaskStatusWorking {
+				task.Status = team.TaskStatusFailed
+				task.Error = "worker offline"
+				_ = team.UpdateTask(ctx, task)
+			}
+		}
+		if err := team.DeleteWorker(ctx, data.WorkerID); err != nil {
+			return nil, fmt.Errorf("error deleting offline worker: %w", err)
+		}
+		return nil, nil
+	}
 	w, err := team.GetWorker(ctx, data.WorkerID)
 	if err != nil {
 		return nil, fmt.Errorf("error getting team worker: %w", err)
@@ -1822,6 +1842,9 @@ func (ws *WshServer) TeamExecuteTaskCommand(ctx context.Context, data wshrpc.Tea
 		return nil, fmt.Errorf("error getting worker: %w", err)
 	}
 
+	if worker.Status == team.WorkerStatusWorking && worker.AssignedTaskID == data.TaskID {
+		return nil, fmt.Errorf("worker %s is already working on task %s", worker.Name, worker.AssignedTaskID)
+	}
 	if worker.Status == team.WorkerStatusWorking {
 		return nil, fmt.Errorf("worker %s is already working on task %s; cannot assign new task", worker.Name, worker.AssignedTaskID)
 	}
@@ -1969,8 +1992,9 @@ func (ws *WshServer) TeamExecuteTaskCommand(ctx context.Context, data wshrpc.Tea
 	if task.Description != "" {
 		go func() {
 			time.Sleep(5 * time.Second)
+			taskPrompt := task.Description + "\n\nIMPORTANT: When done, you MUST call the team_update_task MCP tool with status=\"done\" and result=\"summary\". If unrecoverable error, call with status=\"failed\" and error=\"description\"."
 			taskText := &blockcontroller.BlockInputUnion{
-				InputData: []byte(task.Description),
+				InputData: []byte(taskPrompt),
 			}
 			blockcontroller.SendInput(blockId, taskText)
 			time.Sleep(200 * time.Millisecond)
@@ -1979,6 +2003,13 @@ func (ws *WshServer) TeamExecuteTaskCommand(ctx context.Context, data wshrpc.Tea
 			}
 			blockcontroller.SendInput(blockId, taskEnter)
 		}()
+	}
+
+	if worker.Status == team.WorkerStatusOffline {
+		if err := team.ValidateWorkerTransition(worker.Status, team.WorkerStatusIdle); err != nil {
+			return nil, fmt.Errorf("cannot reactivate offline worker: %w", err)
+		}
+		worker.Status = team.WorkerStatusIdle
 	}
 
 	if err := team.ValidateWorkerTransition(worker.Status, team.WorkerStatusWorking); err != nil {
@@ -1992,13 +2023,26 @@ func (ws *WshServer) TeamExecuteTaskCommand(ctx context.Context, data wshrpc.Tea
 		return nil, fmt.Errorf("error updating worker: %w", err)
 	}
 
-	if err := team.ValidateTaskTransition(task.Status, team.TaskStatusWorking); err != nil {
-		return nil, fmt.Errorf("cannot set task to working: %w", err)
-	}
-	task.Status = team.TaskStatusWorking
-	err = team.UpdateTask(ctx, task)
-	if err != nil {
-		return nil, fmt.Errorf("error updating task: %w", err)
+	if task.Status != team.TaskStatusWorking {
+		if task.Status == team.TaskStatusPending {
+			task.Status = team.TaskStatusAssigned
+			task.AssignedWorkerID = worker.WorkerID
+			if err := team.UpdateTask(ctx, task); err != nil {
+				return nil, fmt.Errorf("cannot assign task: %w", err)
+			}
+			task, err = team.GetTask(ctx, task.TaskID)
+			if err != nil {
+				return nil, fmt.Errorf("cannot refresh task after assign: %w", err)
+			}
+		}
+		if err := team.ValidateTaskTransition(task.Status, team.TaskStatusWorking); err != nil {
+			return nil, fmt.Errorf("cannot set task to working (current: %s): %w", task.Status, err)
+		}
+		task.Status = team.TaskStatusWorking
+		err = team.UpdateTask(ctx, task)
+		if err != nil {
+			return nil, fmt.Errorf("error updating task: %w", err)
+		}
 	}
 
 	team.PublishWorkerUpdate()
@@ -2009,6 +2053,57 @@ func (ws *WshServer) TeamExecuteTaskCommand(ctx context.Context, data wshrpc.Tea
 		TabID:   worker.TabID,
 		Success: true,
 	}, nil
+}
+
+func (ws *WshServer) TeamAssignTaskCommand(ctx context.Context, data wshrpc.TeamAssignTaskData) (*wshrpc.TeamExecuteTaskResponse, error) {
+	if data.TaskID == "" || data.MemberID == "" {
+		return nil, fmt.Errorf("taskid and memberid are required")
+	}
+
+	task, err := team.GetTask(ctx, data.TaskID)
+	if err != nil {
+		return nil, fmt.Errorf("error getting task: %w", err)
+	}
+
+	member, err := team.GetMember(ctx, data.MemberID)
+	if err != nil {
+		return nil, fmt.Errorf("member not found: %w", err)
+	}
+
+	allWorkers, _ := team.ListWorkers(ctx, data.MemberID)
+	var bestWorker *team.TeamWorker
+	for _, w := range allWorkers {
+		if w.Status == team.WorkerStatusIdle {
+			bestWorker = w
+			break
+		}
+		if w.Status == team.WorkerStatusOffline && (bestWorker == nil || bestWorker.Status != team.WorkerStatusIdle) {
+			bestWorker = w
+		}
+	}
+
+	var workerID string
+	if bestWorker != nil {
+		workerID = bestWorker.WorkerID
+	} else {
+		forked, forkErr := team.ForkWorker(ctx, data.MemberID)
+		if forkErr != nil {
+			return nil, fmt.Errorf("failed to fork worker for %s: %w", member.Name, forkErr)
+		}
+		workerID = forked.WorkerID
+	}
+
+	task.AssignedMemberID = data.MemberID
+	task.AssignedWorkerID = workerID
+	task.Error = ""
+	task.Result = ""
+	task.Status = team.TaskStatusWorking
+	team.UpdateTask(ctx, task)
+
+	return ws.TeamExecuteTaskCommand(ctx, wshrpc.TeamExecuteTaskData{
+		WorkerID: workerID,
+		TaskID:   data.TaskID,
+	})
 }
 
 func (ws *WshServer) TeamPauseTaskCommand(ctx context.Context, taskId string) error {
@@ -2047,11 +2142,56 @@ func (ws *WshServer) TeamRetryTaskCommand(ctx context.Context, taskId string) er
 		return fmt.Errorf("task has exceeded max retries (%d/%d)", task.RetryCount, task.MaxRetries)
 	}
 	task.RetryCount++
-	delaySeconds := math.Pow(2, float64(task.RetryCount))
-	task.NextRetryAt = time.Now().Add(time.Duration(delaySeconds) * time.Second).Unix()
 	task.Status = team.TaskStatusPending
 	task.Error = ""
-	return team.UpdateTask(ctx, task)
+	task.Result = ""
+	if err := team.UpdateTask(ctx, task); err != nil {
+		return fmt.Errorf("error resetting task: %w", err)
+	}
+
+	memberID := task.AssignedMemberID
+	if memberID == "" {
+		return nil
+	}
+
+	allWorkers, _ := team.ListWorkers(ctx, memberID)
+	var bestWorker *team.TeamWorker
+	for _, w := range allWorkers {
+		if w.Status == team.WorkerStatusIdle {
+			bestWorker = w
+			break
+		}
+		if w.Status == team.WorkerStatusOffline && (bestWorker == nil || bestWorker.Status != team.WorkerStatusIdle) {
+			bestWorker = w
+		}
+	}
+
+	var workerID string
+	if bestWorker != nil {
+		workerID = bestWorker.WorkerID
+	} else {
+		forked, forkErr := team.ForkWorker(ctx, memberID)
+		if forkErr != nil {
+			return fmt.Errorf("task reset to pending but failed to fork worker: %w", forkErr)
+		}
+		workerID = forked.WorkerID
+	}
+
+	task.AssignedWorkerID = workerID
+	task.Status = team.TaskStatusAssigned
+	if err := team.UpdateTask(ctx, task); err != nil {
+		task, _ = team.GetTask(ctx, taskId)
+	}
+
+	_, execErr := ws.TeamExecuteTaskCommand(ctx, wshrpc.TeamExecuteTaskData{
+		WorkerID: workerID,
+		TaskID:   taskId,
+	})
+	if execErr != nil {
+		return fmt.Errorf("task assigned but execution failed: %w", execErr)
+	}
+
+	return nil
 }
 
 func (ws *WshServer) TeamGetTaskOutputHistoryCommand(ctx context.Context, taskId string) ([]wshrpc.TeamTaskOutput, error) {

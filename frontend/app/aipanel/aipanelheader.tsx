@@ -4,13 +4,23 @@
 import { handleWaveAIContextMenu } from "@/app/aipanel/aipanel-contextmenu";
 import { useAtomValue } from "jotai";
 import { memo } from "react";
+import { cn } from "@/util/util";
 import { WaveAIModel } from "./waveai-model";
+import { globalStore } from "@/app/store/jotaiStore";
+import * as WOS from "@/app/store/wos";
+import { getLayoutModelForStaticTab } from "@/layout/lib/layoutModelHooks";
 
 export const AIPanelHeader = memo(() => {
     const model = WaveAIModel.getInstance();
     const widgetAccess = useAtomValue(model.widgetAccessAtom);
     const teamMode = useAtomValue(model.teamModeAtom);
     const inBuilder = model.inBuilder;
+
+    const isTeamBlockOpen = getLayoutModelForStaticTab()?.getter(getLayoutModelForStaticTab().leafs)?.some((leaf) => {
+        const blockAtom = WOS.getWaveObjectAtom<Block>(WOS.makeORef("block", leaf.data.blockId));
+        const blockData = globalStore.get(blockAtom);
+        return blockData?.meta?.view === "team";
+    }) ?? false;
 
     const handleKebabClick = (e: React.MouseEvent) => {
         handleWaveAIContextMenu(e, false);
@@ -91,10 +101,15 @@ export const AIPanelHeader = memo(() => {
                             onClick={() => {
                                 model.openTeamBlock();
                             }}
-                            className="ml-2 px-2 py-1 bg-accent/80 hover:bg-accent text-white text-xs rounded transition-colors cursor-pointer"
-                            title="Open Team Dashboard"
+                            className={cn(
+                                "ml-2 px-2.5 py-1 text-[10px] font-medium rounded transition-all cursor-pointer border",
+                                isTeamBlockOpen
+                                    ? "bg-accent/25 text-accent border-accent/40"
+                                    : "border-white/10 text-slate-400 hover:text-slate-200 hover:border-white/20",
+                            )}
+                            title={isTeamBlockOpen ? "Close Team Dashboard" : "Open Team Dashboard"}
                         >
-                            👥
+                            {isTeamBlockOpen ? "✕ Team" : "Team"}
                         </button>
                     </div>
                 )}

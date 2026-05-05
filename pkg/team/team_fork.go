@@ -32,12 +32,46 @@ type workerInfo struct {
 }
 
 // ForkWorker creates a new Worker instance for a Member.
-// It checks MaxConcurrency, uses the Member's name directly,
-// creates a DB entry, and records Activity.
+// It first tries to reuse an existing offline worker with the same name,
+// falling back to creating a new one. Checks MaxConcurrency and records Activity.
 func ForkWorker(ctx context.Context, memberID string) (*TeamWorker, error) {
 	member, err := getMemberInfo(ctx, memberID)
 	if err != nil {
 		return nil, fmt.Errorf("fork worker: %w", err)
+	}
+
+	db := wstore.GetGlobalDB()
+	var existingWorkers []TeamWorker
+	err = db.Select(&existingWorkers,
+		`SELECT worker_id, member_id, name, status FROM team_workers WHERE member_id = ? AND name = ? AND status = ?`,
+		memberID, member.Name, WorkerStatusOffline)
+	if err == nil && len(existingWorkers) > 0 {
+		reused := existingWorkers[0]
+		now := time.Now().Unix()
+		err = wstore.WithTx(ctx, func(tx *wstore.TxWrap) error {
+			tx.Exec(`UPDATE team_workers SET status=?, assigned_task_id='', block_id='', tab_id='', pid=0, project_id=?, updated_at=?, last_heartbeat=? WHERE worker_id=?`,
+				WorkerStatusIdle, member.ProjectID, now, now, reused.WorkerID)
+			return nil
+		})
+		if err != nil {
+			return nil, fmt.Errorf("fork worker: failed to reuse offline worker: %w", err)
+		}
+
+		reused.Status = WorkerStatusIdle
+		reused.ProjectID = member.ProjectID
+		reused.AssignedTaskID = ""
+		reused.BlockID = ""
+		reused.UpdatedAt = now
+		reused.LastHeartbeat = now
+
+		addActivity(ctx, &TeamActivity{
+			MemberID:    memberID,
+			WorkerID:    reused.WorkerID,
+			Type:        "reused",
+			Description: fmt.Sprintf("reused offline worker %q from member %q", reused.Name, member.Name),
+		})
+
+		return &reused, nil
 	}
 
 	activeCount, err := countActiveWorkers(ctx, memberID)
@@ -101,16 +135,15 @@ func RecycleWorker(ctx context.Context, workerID string) error {
 	err = wstore.WithTx(ctx, func(tx *wstore.TxWrap) error {
 		var assignedTaskID string
 		tx.Get(&assignedTaskID, `SELECT assigned_task_id FROM team_workers WHERE worker_id=?`, workerID)
-		tx.Exec(`UPDATE team_workers SET status=?, assigned_task_id='', block_id='', tab_id='', pid=0, updated_at=?, last_heartbeat=? WHERE worker_id=?`,
-			WorkerStatusOffline, now, now, workerID)
 		if assignedTaskID != "" {
 			tx.Exec(`UPDATE team_tasks SET status=?, error=?, updated_at=?, completed_at=? WHERE task_id=? AND status=?`,
 				TaskStatusFailed, "worker recycled", now, now, assignedTaskID, TaskStatusWorking)
 		}
+		tx.Exec(`DELETE FROM team_workers WHERE worker_id=?`, workerID)
 		return nil
 	})
 	if err != nil {
-		return fmt.Errorf("recycle worker: failed to update worker: %w", err)
+		return fmt.Errorf("recycle worker: failed to delete worker: %w", err)
 	}
 
 	PublishWorkerUpdate()

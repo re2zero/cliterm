@@ -19,7 +19,6 @@ interface BoardViewProps {
     allTasks: TeamTask[];
     members: TeamWorker[];
     onTaskClick: (task: TeamTask) => void;
-    onRetryTask: (taskId: string) => void;
 }
 
 export function BoardView({
@@ -30,7 +29,6 @@ export function BoardView({
     allTasks,
     members,
     onTaskClick,
-    onRetryTask,
 }: BoardViewProps) {
     const columnData = [
         { column: COLUMNS[0], tasks: pendingTasks },
@@ -49,7 +47,6 @@ export function BoardView({
                     members={members}
                     allTasks={allTasks}
                     onTaskClick={onTaskClick}
-                    onRetryTask={onRetryTask}
                 />
             ))}
         </div>

@@ -6,6 +6,7 @@ import { atoms, getSettingsKeyAtom, globalStore } from "@/app/store/global";
 import type { TabModel } from "@/app/store/tab-model";
 import { waveEventSubscribeSingle } from "@/app/store/wps";
 import { RpcApi } from "@/app/store/wshclientapi";
+import { services } from "@/app/store/services";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { getWebServerEndpoint } from "@/util/endpoints";
 import { fireAndForget, stringToBase64 } from "@/util/util";
@@ -120,6 +121,7 @@ export class TeamViewModel implements ViewModel {
             eventType: "team:projectupdate",
             handler: debouncedRefresh,
         });
+        this.startSupervision();
     }
 
     dispose(): void {
@@ -196,8 +198,15 @@ export class TeamViewModel implements ViewModel {
             globalStore.set(this.lastLLMCallAtom, new Date().toISOString());
 
             await this.executeAssistantActions(action, runtimeMembers2);
+
+            globalStore.set(this.errorAtom, null);
         } catch (e) {
-            globalStore.set(this.errorAtom, String(e));
+            const msg = String(e);
+            if (msg.includes("messageid") || msg.includes("API error 500")) {
+                console.warn("[team] supervision cycle error (will retry):", e);
+            } else {
+                globalStore.set(this.errorAtom, msg);
+            }
         } finally {
             globalStore.set(this.isProcessingAtom, false);
         }
@@ -333,14 +342,6 @@ export class TeamViewModel implements ViewModel {
         await this.refreshAllData();
     }
 
-    async assignTask(taskId: string, memberId: string): Promise<void> {
-        await RpcApi.TeamUpdateTaskCommand(TabRpcClient, {
-            taskid: taskId,
-            assignedworkerid: memberId,
-        });
-        await this.refreshAllData();
-    }
-
     async pauseTask(taskId: string): Promise<void> {
         await RpcApi.TeamPauseTaskCommand(TabRpcClient, taskId);
         await this.refreshAllData();
@@ -351,9 +352,14 @@ export class TeamViewModel implements ViewModel {
         await this.refreshAllData();
     }
 
-    async retryTask(taskId: string): Promise<void> {
-        await RpcApi.TeamRetryTaskCommand(TabRpcClient, taskId);
-        await this.refreshAllData();
+    async assignTask(taskId: string, memberId: string): Promise<void> {
+        try {
+            await RpcApi.TeamAssignTaskCommand(TabRpcClient, { taskid: taskId, memberid: memberId });
+            await this.refreshAllData();
+        } catch (e) {
+            console.error("[team] assign failed:", e);
+            globalStore.set(this.errorAtom, `Assign failed: ${e instanceof Error ? e.message : String(e)}`);
+        }
     }
 
     async updateTask(taskId: string, updates: Record<string, any>): Promise<void> {
@@ -399,18 +405,16 @@ export class TeamViewModel implements ViewModel {
         await this.refreshAllData();
     }
 
-    async executeTask(taskId: string, command: string): Promise<void> {
-        const runtimeMembers = globalStore.get(this.runtimeMembersAtom) ?? [];
-        const task = [...(globalStore.get(this.pendingTasksAtom) ?? []), ...(globalStore.get(this.workingTasksAtom) ?? [])].find((t) => t.taskid === taskId);
-        const memberId = task?.assignedworkerid ?? runtimeMembers.find((w) => w.status === "idle")?.workerid;
-        if (!memberId) return;
-        await RpcApi.TeamExecuteTaskCommand(TabRpcClient, { workerid: memberId, taskid: taskId, command });
-        await this.refreshAllData();
-    }
-
     private async checkWorkerLiveness(runtimeMembers: TeamWorker[]): Promise<void> {
         const now = Date.now();
-        const workingTasks = new Set((globalStore.get(this.workingTasksAtom) ?? []).map((t) => t.taskid));
+        const allTasks = [
+            ...(globalStore.get(this.pendingTasksAtom) ?? []),
+            ...(globalStore.get(this.workingTasksAtom) ?? []),
+            ...(globalStore.get(this.doneTasksAtom) ?? []),
+            ...(globalStore.get(this.failedTasksAtom) ?? []),
+            ...(globalStore.get(this.pausedTasksAtom) ?? []),
+        ];
+        const taskMap = new Map(allTasks.map((t) => [t.taskid, t]));
         const workingMembers = runtimeMembers.filter((w) => w.status === "working");
 
         for (const worker of workingMembers) {
@@ -423,7 +427,13 @@ export class TeamViewModel implements ViewModel {
             }
 
             const taskId = worker.assignedtaskid;
-            if (!taskId || !worker.blockid || !workingTasks.has(taskId)) continue;
+            if (!taskId || !worker.blockid) continue;
+
+            const task = taskMap.get(taskId);
+            if (!task || task.status === "done" || task.status === "failed" || task.status === "cancelled") {
+                this.wakeAttempts.delete(worker.workerid);
+                continue;
+            }
 
             const attempt = this.wakeAttempts.get(worker.workerid) ?? { count: 0, lastAttempt: 0 };
             if (attempt.count >= TeamViewModel.MAX_WAKE_ATTEMPTS) {
@@ -447,11 +457,28 @@ export class TeamViewModel implements ViewModel {
                 continue;
             }
 
+            const controllerStatus = await services.BlockService.GetControllerStatus(worker.blockid).catch(() => null);
+            if (controllerStatus?.shellprocstatus === "running") {
+                this.wakeAttempts.delete(worker.workerid);
+                continue;
+            }
+
             attempt.count += 1;
             attempt.lastAttempt = now;
             this.wakeAttempts.set(worker.workerid, attempt);
 
-            await this.sendToTerminal(worker.blockid, "继续任务。请检查当前进度并报告任务状态。\n");
+            const sent = await this.sendToTerminal(worker.blockid, "If your task is done, call team_update_task MCP tool with status=\"done\" and result=\"summary\". If failed, call with status=\"failed\" and error=\"description\". What is your current status?\r");
+            if (!sent) {
+                await RpcApi.TeamUpdateWorkerCommand(TabRpcClient, {
+                    workerid: worker.workerid,
+                    status: "offline",
+                    assignedtaskid: "",
+                    projectid: "",
+                });
+                await this.logActivity("worker_offline", `Worker ${worker.name} block gone, marked offline`);
+                this.wakeAttempts.delete(worker.workerid);
+                continue;
+            }
             await this.logActivity("worker_wake", `Wake attempt ${attempt.count}/${TeamViewModel.MAX_WAKE_ATTEMPTS} for ${worker.name} (stalled ${Math.round(stalledDuration / 60000)}min)`);
         }
 
@@ -536,6 +563,7 @@ export class TeamViewModel implements ViewModel {
 
         const requestBody = {
             msg: {
+                messageid: crypto.randomUUID(),
                 role: "user",
                 parts: [{ type: "text", content: prompt }],
             },
@@ -616,6 +644,14 @@ export class TeamViewModel implements ViewModel {
                 switch (act.type) {
                     case "assign_task":
                         if (act.task_id && act.worker_id) {
+                            const assignWorker = runtimeMembers.find((w) => w.workerid === act.worker_id);
+                            if (assignWorker?.status === "offline") {
+                                await RpcApi.TeamUpdateWorkerCommand(TabRpcClient, {
+                                    workerid: act.worker_id,
+                                    status: "idle",
+                                    projectid: assignWorker.projectid ?? "",
+                                });
+                            }
                             await RpcApi.TeamUpdateTaskCommand(TabRpcClient, {
                                 taskid: act.task_id,
                                 status: "assigned",
@@ -635,7 +671,17 @@ export class TeamViewModel implements ViewModel {
                         if (act.worker_id && act.message) {
                             const wakeWorker = runtimeMembers.find((w) => w.workerid === act.worker_id);
                             if (wakeWorker?.blockid) {
-                                await this.sendToTerminal(wakeWorker.blockid, act.message + "\n");
+                                const sent = await this.sendToTerminal(wakeWorker.blockid, act.message + "\r");
+                                if (!sent) {
+                                    await RpcApi.TeamUpdateWorkerCommand(TabRpcClient, {
+                                        workerid: act.worker_id,
+                                        status: "offline",
+                                        assignedtaskid: "",
+                                        projectid: "",
+                                    });
+                                    await this.logActivity("worker_offline", `Worker ${wakeWorker.name} block gone during wake, marked offline`);
+                                    break;
+                                }
                             }
                             await this.logActivity("worker_wake", `Woke member ${act.worker_id}`);
                         }
@@ -707,7 +753,7 @@ export class TeamViewModel implements ViewModel {
                             });
                             const resumeWorker = runtimeMembers.find((w) => w.assignedtaskid === act.task_id);
                             if (resumeWorker?.blockid) {
-                                await this.sendToTerminal(resumeWorker.blockid, "继续任务。\n");
+                                await this.sendToTerminal(resumeWorker.blockid, "Resume your task. When done, call team_update_task MCP tool with status=\"done\" and result=\"summary\".\r");
                             }
                             await this.logActivity("task_resume", `Task ${act.task_id} resumed`);
                         }
@@ -754,12 +800,17 @@ export class TeamViewModel implements ViewModel {
         return this.createRuntimeMember(tool);
     }
 
-    private async sendToTerminal(blockId: string, text: string): Promise<void> {
-        const b64data = stringToBase64(text);
-        await RpcApi.ControllerInputCommand(TabRpcClient, {
-            blockid: blockId,
-            inputdata64: b64data,
-        });
+    private async sendToTerminal(blockId: string, text: string): Promise<boolean> {
+        try {
+            const b64data = stringToBase64(text);
+            await RpcApi.ControllerInputCommand(TabRpcClient, {
+                blockid: blockId,
+                inputdata64: b64data,
+            });
+            return true;
+        } catch {
+            return false;
+        }
     }
 
     private async logActivity(type: string, description: string): Promise<void> {

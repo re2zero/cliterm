@@ -64,6 +64,8 @@ interface MemberListProps {
     projects: TeamProject[];
     templates: TeamMember[];
     selectedMemberId: string | null;
+    isEditorOpen: boolean;
+    isProjectDialogOpen: boolean;
     onSelectMember: (memberId: string | null) => void;
     onEditMember: (memberId: string) => void;
     onDeleteMember: (memberId: string) => void;
@@ -74,7 +76,7 @@ interface MemberListProps {
     onDropMember: (memberId: string, projectId: string | null) => void;
 }
 
-export function MemberList({ members, projects, selectedMemberId, onSelectMember, onEditMember, onDeleteMember, onNewMember, onNewProject, onEditProject, onDeleteProject, onDropMember }: MemberListProps) {
+export function MemberList({ members, projects, selectedMemberId, isEditorOpen, isProjectDialogOpen, onSelectMember, onEditMember, onDeleteMember, onNewMember, onNewProject, onEditProject, onDeleteProject, onDropMember }: MemberListProps) {
     const [deleteConfirm, setDeleteConfirm] = React.useState<string | null>(null);
     const [deleteProjectConfirm, setDeleteProjectConfirm] = React.useState<string | null>(null);
 
@@ -137,23 +139,33 @@ export function MemberList({ members, projects, selectedMemberId, onSelectMember
                     );
                 })}
                 {members.length === 0 && sortedGroups.length === 0 && (
-                    <div className="px-3 py-8 text-[10px] text-slate-600 text-center leading-relaxed">
-                        No members<br />Create one to begin
+                    <div className="px-3 py-6 text-[10px] text-slate-600 text-center leading-relaxed">
+                        No members yet<br /><span className="text-slate-500">Click "+ Member" to begin</span>
                     </div>
                 )}
             </div>
             <div className="border-t border-white/5 p-2 flex gap-1.5">
                 <button
-                    className="flex-1 px-2.5 py-1.5 rounded-md text-[10px] bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20 cursor-pointer font-medium transition-colors border border-cyan-500/20"
+                    className={cn(
+                        "flex-1 px-2.5 py-1.5 rounded-md text-[10px] font-medium transition-all duration-150 cursor-pointer border",
+                        isEditorOpen
+                            ? "bg-accent/25 text-accent border-accent/40"
+                            : "border-white/10 text-slate-400 hover:text-slate-200 hover:border-white/20",
+                    )}
                     onClick={() => onNewMember()}
                 >
-                    + Member
+                    {isEditorOpen ? "✕ Close" : "+ Member"}
                 </button>
                 <button
-                    className="flex-1 px-2.5 py-1.5 rounded-md text-[10px] bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20 cursor-pointer font-medium transition-colors border border-cyan-500/20"
+                    className={cn(
+                        "flex-1 px-2.5 py-1.5 rounded-md text-[10px] font-medium transition-all duration-150 cursor-pointer border",
+                        isProjectDialogOpen
+                            ? "bg-accent/25 text-accent border-accent/40"
+                            : "border-white/10 text-slate-400 hover:text-slate-200 hover:border-white/20",
+                    )}
                     onClick={onNewProject}
                 >
-                    + Project
+                    {isProjectDialogOpen ? "✕ Close" : "+ Project"}
                 </button>
             </div>
         </div>
@@ -575,23 +587,28 @@ export function MemberEditor({ member, templateMember, members, templates, defau
                         <div className="grid grid-cols-2 gap-1.5">
                             <button
                                 className={cn(
-                                    "px-2 py-1.5 rounded-md border cursor-pointer transition-colors text-left",
-                                    selectedTemplate === null ? "border-cyan-500/50 bg-cyan-500/10" : "border-white/10 hover:border-cyan-500/30",
+                                    "px-2 py-2 rounded-md border cursor-pointer transition-colors text-left min-h-[52px] flex flex-col justify-center",
+                                    selectedTemplate === null ? "border-accent/40 bg-accent/10" : "border-white/10 hover:border-accent/30",
                                 )}
                                 onClick={() => { setSelectedTemplate(null); setNameDirty(true); setName(""); setDescription(""); setPersona(""); setSkills([]); setMcpJson("[]"); setCapabilities([]); setCustomCmd(""); }}
                             >
-                                <span className="text-[11px] text-slate-400">Empty</span>
+                                <span className="text-[11px] text-slate-300 font-medium block truncate">Empty</span>
+                                <span className="text-[9px] text-slate-500 block truncate">Start from scratch</span>
                             </button>
                             {templates.map((t) => (
                                 <button key={t.name}
                                     className={cn(
-                                        "px-2 py-1.5 rounded-md border cursor-pointer transition-colors text-left",
-                                        selectedTemplate === t.name ? "border-cyan-500/50 bg-cyan-500/10" : "border-white/10 hover:border-cyan-500/30",
+                                        "px-2 py-2 rounded-md border cursor-pointer transition-colors text-left min-h-[52px] flex flex-col justify-center",
+                                        selectedTemplate === t.name ? "border-accent/40 bg-accent/10" : "border-white/10 hover:border-accent/30",
                                     )}
                                     onClick={() => applyTemplate(t)}
                                 >
                                     <span className="text-[11px] text-slate-200 font-medium block truncate">{t.name}</span>
-                                    {t.description && <span className="text-[9px] text-slate-500 block leading-tight line-clamp-2">{t.description}</span>}
+                                    {t.description ? (
+                                        <span className="text-[9px] text-slate-500 block truncate">{t.description}</span>
+                                    ) : (
+                                        <span className="text-[9px] text-slate-600 block truncate">No description</span>
+                                    )}
                                 </button>
                             ))}
                         </div>

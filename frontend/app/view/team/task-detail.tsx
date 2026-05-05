@@ -11,14 +11,14 @@ import { TabRpcClient } from "@/app/store/wshrpcutil";
 interface TaskDetailProps {
     task: TeamTask;
     workers: TeamWorker[];
+    members: TeamMember[];
     allTasks: TeamTask[];
     activities: TeamActivity[];
     onClose: () => void;
     onUpdate: (taskId: string, updates: Record<string, any>) => void;
-    onExecute: (taskId: string, command: string) => void;
+    onAssign: (taskId: string, memberId: string) => void;
     onPause: (taskId: string) => void;
     onResume: (taskId: string) => void;
-    onRetry: (taskId: string) => void;
     onDelete: (taskId: string) => void;
 }
 
@@ -46,19 +46,18 @@ const STATUS_BG: Record<string, string> = {
 export function TaskDetail({
     task,
     workers,
+    members,
     allTasks,
     activities,
     onClose,
     onUpdate,
-    onExecute,
+    onAssign,
     onPause,
     onResume,
-    onRetry,
     onDelete,
 }: TaskDetailProps) {
     const [confirmDelete, setConfirmDelete] = React.useState(false);
-    const [executeCmd, setExecuteCmd] = React.useState("");
-    const [showExecute, setShowExecute] = React.useState(false);
+    const [showRunPicker, setShowRunPicker] = React.useState(false);
     const [outputHistory, setOutputHistory] = React.useState<TeamTaskOutput[]>([]);
 
     React.useEffect(() => {
@@ -185,12 +184,12 @@ export function TaskDetail({
                 <div className="pb-3 border-b border-white/5">
                     <div className="text-[10px] uppercase tracking-widest text-slate-500 font-medium mb-1.5">Actions</div>
                     <div className="flex flex-wrap gap-1.5">
-                        {task.status !== "working" && (
+                        {(task.status === "pending" || task.status === "failed" || task.status === "paused") && (
                             <button
-                                className="px-2 py-1 text-[10px] rounded-sm bg-cyan-500/20 text-cyan-400 hover:bg-cyan-500/30 transition-colors cursor-pointer"
-                                onClick={() => setShowExecute(!showExecute)}
+                                className="px-2 py-1 text-[10px] rounded-sm bg-accent/20 text-accent hover:bg-accent/30 transition-colors cursor-pointer"
+                                onClick={() => setShowRunPicker(!showRunPicker)}
                             >
-                                ▶ Execute
+                                {showRunPicker ? "✕ Run" : "▶ Run"}
                             </button>
                         )}
                         {task.status === "working" && (
@@ -209,43 +208,24 @@ export function TaskDetail({
                                 ▶ Resume
                             </button>
                         )}
-                        {task.status === "failed" && (
-                            <button
-                                className="px-2 py-1 text-[10px] rounded-sm bg-orange-400/10 text-orange-400 hover:bg-orange-400/20 transition-colors cursor-pointer"
-                                onClick={() => onRetry(task.taskid)}
-                            >
-                                ↻ Retry
-                            </button>
-                        )}
                     </div>
-                    {showExecute && (
-                        <div className="mt-2 flex gap-1.5">
-                            <input
-                                className="flex-1 bg-white/[0.02] border border-white/[0.04] rounded-sm text-xs text-slate-200 px-2 py-1 focus:outline-none focus:border-cyan-500/30 transition-colors"
-                                placeholder="Command to execute..."
-                                value={executeCmd}
-                                onChange={(e) => setExecuteCmd(e.target.value)}
-                                onKeyDown={(e) => {
-                                    if (e.key === "Enter" && executeCmd.trim()) {
-                                        onExecute(task.taskid, executeCmd);
-                                        setExecuteCmd("");
-                                        setShowExecute(false);
-                                    }
-                                }}
-                                autoFocus
-                            />
-                            <button
-                                className="px-2 py-1 text-[10px] rounded-sm bg-cyan-500/20 text-cyan-400 hover:bg-cyan-500/30 transition-colors cursor-pointer"
-                                onClick={() => {
-                                    if (executeCmd.trim()) {
-                                        onExecute(task.taskid, executeCmd);
-                                        setExecuteCmd("");
-                                        setShowExecute(false);
-                                    }
-                                }}
-                            >
-                                Run
-                            </button>
+                    {showRunPicker && members.length > 0 && (
+                        <div className="mt-2 flex flex-col gap-1">
+                            <div className="text-[10px] text-slate-500 mb-0.5">Assign to member:</div>
+                            {members.map((m) => (
+                                <button
+                                    key={m.memberid}
+                                    className="flex items-center gap-2 px-2 py-1 text-[11px] rounded-sm bg-white/[0.02] border border-white/[0.04] text-slate-300 hover:border-accent/30 hover:text-accent transition-colors cursor-pointer"
+                                    onClick={() => {
+                                        onAssign(task.taskid, m.memberid);
+                                        setShowRunPicker(false);
+                                    }}
+                                >
+                                    <span className="w-2 h-2 rounded-full bg-green-400" />
+                                    {m.name}
+                                    {m.tool && <span className="text-slate-500">({m.tool})</span>}
+                                </button>
+                            ))}
                         </div>
                     )}
                 </div>

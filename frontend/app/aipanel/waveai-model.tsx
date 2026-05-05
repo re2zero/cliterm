@@ -10,11 +10,13 @@ import {
 import { FocusManager } from "@/app/store/focusManager";
 import { atoms, createBlock, getOrefMetaKeyAtom, getSettingsKeyAtom } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
+import { uxCloseBlock } from "@/app/store/keymodel";
 import { isBuilderWindow } from "@/app/store/windowtype";
 import * as WOS from "@/app/store/wos";
 import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { WorkspaceLayoutModel } from "@/app/workspace/workspace-layout-model";
+import { getLayoutModelForStaticTab } from "@/layout/lib/layoutModelHooks";
 import { BuilderFocusManager } from "@/builder/store/builder-focusmanager";
 import { getWebServerEndpoint } from "@/util/endpoints";
 import { base64ToArrayBuffer } from "@/util/util";
@@ -411,6 +413,16 @@ export class WaveAIModel {
     }
 
     openTeamBlock() {
+        const layoutModel = getLayoutModelForStaticTab();
+        const leafs = layoutModel.getter(layoutModel.leafs);
+        for (const leaf of leafs) {
+            const blockAtom = WOS.getWaveObjectAtom<Block>(WOS.makeORef("block", leaf.data.blockId));
+            const blockData = globalStore.get(blockAtom);
+            if (blockData?.meta?.view === "team") {
+                uxCloseBlock(leaf.data.blockId);
+                return;
+            }
+        }
         const blockDef: BlockDef = {
             meta: { view: "team" },
         };

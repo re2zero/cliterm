@@ -857,6 +857,12 @@ func TeamAddActivityCommand(w *wshutil.WshRpc, data wshrpc.TeamAddActivityData, 
 	return err
 }
 
+// command "teamassigntask", wshserver.TeamAssignTaskCommand
+func TeamAssignTaskCommand(w *wshutil.WshRpc, data wshrpc.TeamAssignTaskData, opts *wshrpc.RpcOpts) (*wshrpc.TeamExecuteTaskResponse, error) {
+	resp, err := sendRpcRequestCallHelper[*wshrpc.TeamExecuteTaskResponse](w, "teamassigntask", data, opts)
+	return resp, err
+}
+
 // command "teamcreatemember", wshserver.TeamCreateMemberCommand
 func TeamCreateMemberCommand(w *wshutil.WshRpc, data wshrpc.TeamCreateMemberData, opts *wshrpc.RpcOpts) (*wshrpc.TeamMember, error) {
 	resp, err := sendRpcRequestCallHelper[*wshrpc.TeamMember](w, "teamcreatemember", data, opts)

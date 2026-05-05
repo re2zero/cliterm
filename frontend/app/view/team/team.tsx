@@ -36,7 +36,6 @@ export function TeamView({ model }: TeamViewProps) {
     const runtimeMembers = jotai.useAtomValue(model.runtimeMembersAtom) ?? [];
     const activities = jotai.useAtomValue(model.activityLogAtom) ?? [];
     const status = jotai.useAtomValue(model.statusAtom);
-    const isSupervising = jotai.useAtomValue(model.isSupervisingAtom) ?? false;
     const isProcessing = jotai.useAtomValue(model.isProcessingAtom) ?? false;
     const error = jotai.useAtomValue(model.errorAtom) ?? null;
     const projects = jotai.useAtomValue(model.projectsAtom) ?? [];
@@ -53,6 +52,10 @@ export function TeamView({ model }: TeamViewProps) {
     const [editingProject, setEditingProject] = React.useState<TeamProject | undefined>(undefined);
 
     const openProjectDialog = (project?: TeamProject) => {
+        if (showProjectDialog && projectVisible && editingProject?.projectid === project?.projectid) {
+            closeProjectDialog();
+            return;
+        }
         setEditingProject(project);
         setShowProjectDialog(true);
         requestAnimationFrame(() => setProjectVisible(true));
@@ -68,6 +71,10 @@ export function TeamView({ model }: TeamViewProps) {
     const editorTemplate = editorMember ? allMembers.find((t) => t.memberid === editorMember.memberid) : undefined;
 
     const openEditor = (target: MemberEditorTarget) => {
+        if (editorVisible && editorTarget?.type === target.type && (target.type === "new" || (editorTarget?.type === "edit" && target.type === "edit" && editorTarget.memberId === target.memberId))) {
+            closeEditor();
+            return;
+        }
         setEditorTarget(target);
         requestAnimationFrame(() => setEditorVisible(true));
     };
@@ -77,14 +84,8 @@ export function TeamView({ model }: TeamViewProps) {
         setTimeout(() => setEditorTarget(null), 300);
     };
 
-    const handleRefresh = () => { model.refreshAllData(); };
-    const toggleSupervision = () => {
-        if (isSupervising) model.stopSupervision();
-        else model.startSupervision();
-    };
     const handleTaskClick = (task: TeamTask) => { setSelectedTask(task); setSelectedMemberId(null); };
     const handleMemberClick = (memberId: string) => { setSelectedMemberId(memberId); setSelectedTask(null); };
-    const handleRetryTask = (taskId: string) => { model.retryTask(taskId); };
 
     const handleProjectSubmit = async (data: { name: string; path: string; spec: string }) => {
         if (editingProject) {
@@ -134,22 +135,6 @@ export function TeamView({ model }: TeamViewProps) {
                 </div>
 
                 <div className="flex items-center gap-2">
-                    <button
-                        className={cn(
-                            "px-3 py-1.5 rounded-md text-xs font-medium transition-all duration-150 cursor-pointer",
-                            isSupervising
-                                ? "bg-cyan-500/20 border border-cyan-500/30 text-cyan-400 shadow-[0_0_12px_rgba(34,211,238,0.3)]"
-                                : "bg-white/[0.02] border border-white/[0.04] text-slate-400 hover:bg-cyan-500/10 hover:border-cyan-500/20 hover:text-cyan-400",
-                        )}
-                        onClick={toggleSupervision}
-                        disabled={isProcessing}
-                    >
-                        {isSupervising ? "👑 Supervising" : "👑 Auto"}
-                    </button>
-                    <button
-                        className="px-2 py-1.5 rounded-md text-slate-500 hover:text-slate-300 transition-colors duration-150 cursor-pointer text-xs"
-                        onClick={handleRefresh}
-                    >⟳</button>
                     {isProcessing && <span className="text-[11px] text-cyan-400 animate-pulse">Processing...</span>}
                     {error && <span className="text-[11px] text-red-400 truncate max-w-[200px]">{error}</span>}
                 </div>
@@ -162,6 +147,8 @@ export function TeamView({ model }: TeamViewProps) {
                         projects={projects}
                         templates={templates}
                         selectedMemberId={selectedMemberId}
+                        isEditorOpen={editorVisible}
+                        isProjectDialogOpen={showProjectDialog}
                         onSelectMember={handleMemberClick}
                         onEditMember={(memberId) => { setSelectedMemberId(null); openEditor({ type: "edit", memberId }); }}
                         onDeleteMember={(memberId) => { model.deleteRuntimeMember(memberId); if (selectedMemberId === memberId) setSelectedMemberId(null); }}
@@ -183,7 +170,6 @@ export function TeamView({ model }: TeamViewProps) {
                             allTasks={allTasks}
                             members={runtimeMembers}
                             onTaskClick={handleTaskClick}
-                            onRetryTask={handleRetryTask}
                         />
                     </div>
 
@@ -220,14 +206,14 @@ export function TeamView({ model }: TeamViewProps) {
                         <TaskDetail
                             task={selectedTask}
                             workers={runtimeMembers}
+                            members={allMembers}
                             allTasks={allTasks}
                             activities={activities}
                             onClose={() => setSelectedTask(null)}
                             onUpdate={(taskId, updates) => { model.updateTask(taskId, updates); }}
-                            onExecute={(taskId, command) => { model.executeTask(taskId, command); }}
+                            onAssign={(taskId, memberId) => { model.assignTask(taskId, memberId); }}
                             onPause={(taskId) => { model.pauseTask(taskId); }}
                             onResume={(taskId) => { model.resumeTask(taskId); }}
-                            onRetry={(taskId) => { model.retryTask(taskId); }}
                             onDelete={async (taskId) => { await model.deleteTask(taskId); setSelectedTask(null); }}
                         />
                     ) : selectedMember ? (

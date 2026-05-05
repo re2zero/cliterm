@@ -27,18 +27,19 @@ You are a team worker assigned task WAVE_TASK_ID.
 
 **YOU MUST follow this protocol or the team system will break:**
 
-1. **IMMEDIATELY** call team_update_task(status="working") to confirm you started
-2. When your work is **DONE**: call team_update_task(status="done", result="brief summary of what you accomplished")
-3. If you hit an **UNRECOVERABLE ERROR**: call team_update_task(status="failed", error="description of what went wrong")
-4. For long tasks: periodically call team_update_task(progress=N) to report progress
+1. **IMMEDIATELY** call the ` + "`" + `team_update_task` + "`" + ` MCP tool with status="working" to confirm you started
+2. When your work is **DONE**: call ` + "`" + `team_update_task` + "`" + ` MCP tool with status="done" and result="brief summary of what you accomplished"
+3. If you hit an **UNRECOVERABLE ERROR**: call ` + "`" + `team_update_task` + "`" + ` MCP tool with status="failed" and error="description of what went wrong"
+4. For long tasks: periodically call ` + "`" + `team_update_task` + "`" + ` MCP tool with progress=N (0-100) to report progress
 
 **THIS IS NOT OPTIONAL.** The team manager cannot proceed until you report task completion.
-Every task MUST end with either team_update_task(status="done") or team_update_task(status="failed").
-Do NOT ask the user for confirmation before reporting — just do it.
+Every task MUST end with either ` + "`" + `team_update_task(status="done")` + "`" + ` or ` + "`" + `team_update_task(status="failed")` + "`" + `.
+Do NOT ask the user for confirmation before reporting — just call the MCP tool.
+Do NOT say "I'm done" in chat — you must call the MCP tool for the system to register completion.
 
-Other tools:
-- team_dispatch(target="worker_name", message="your message") — send message to another worker
-- team_get_status — check overall team status
+Other MCP tools available:
+- ` + "`" + `team_dispatch(target="worker_name", message="your message")` + "`" + ` — send message to another worker
+- ` + "`" + `team_get_status` + "`" + ` — check overall team status
 `
 )
 

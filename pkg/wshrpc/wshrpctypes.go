@@ -213,6 +213,7 @@ type WshRpcInterface interface {
 	TeamPauseTaskCommand(ctx context.Context, taskId string) error
 	TeamResumeTaskCommand(ctx context.Context, taskId string) error
 	TeamRetryTaskCommand(ctx context.Context, taskId string) error
+	TeamAssignTaskCommand(ctx context.Context, data TeamAssignTaskData) (*TeamExecuteTaskResponse, error)
 	TeamSendPromptCommand(ctx context.Context, data TeamSendPromptData) error
 	TeamGetTaskOutputHistoryCommand(ctx context.Context, taskId string) ([]TeamTaskOutput, error)
 	TeamGetStatusCommand(ctx context.Context) (*TeamStatusData, error)
@@ -1162,6 +1163,11 @@ type TeamListTasksData struct {
 	Status   string `json:"status,omitempty"`
 	Priority string `json:"priority,omitempty"`
 	MemberID string `json:"memberid,omitempty"`
+}
+
+type TeamAssignTaskData struct {
+	TaskID   string `json:"taskid"`
+	MemberID string `json:"memberid"`
 }
 
 type TeamExecuteTaskData struct {

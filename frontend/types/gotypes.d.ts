@@ -1689,6 +1689,12 @@ declare global {
         meta?: string;
     };
 
+    // wshrpc.TeamAssignTaskData
+    type TeamAssignTaskData = {
+        taskid: string;
+        memberid: string;
+    };
+
     // wshrpc.TeamCreateMemberData
     type TeamCreateMemberData = {
         name: string;
