@@ -642,4 +642,13 @@ export class TermWrap {
         const lines = bufferLinesToText(buffer, 0, buffer.length);
         return lines.join("\n");
     }
+
+    getLastLines(count: number): string {
+        if (!this.terminal) return "";
+        const buffer = this.terminal.buffer.active;
+        const start = Math.max(0, buffer.length - count * 3);
+        const lines = bufferLinesToText(buffer, start, buffer.length);
+        const nonEmpty = lines.filter((l) => l.trim() !== "");
+        return nonEmpty.slice(-count).join("\n");
+    }
 }

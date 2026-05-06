@@ -724,6 +724,14 @@ func WaveAIPostMessageHandler(w http.ResponseWriter, r *http.Request) {
 
 	if req.TeamMode {
 		chatOpts.Tools = append(chatOpts.Tools, GetTeamToolDefinitions()...)
+		blockedTools := map[string]bool{"term_execute": true, "term_create": true}
+		var filteredTools []uctypes.ToolDefinition
+		for _, t := range chatOpts.Tools {
+			if !blockedTools[t.Name] {
+				filteredTools = append(filteredTools, t)
+			}
+		}
+		chatOpts.Tools = filteredTools
 	}
 
 	// Validate the message

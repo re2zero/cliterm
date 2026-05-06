@@ -2,11 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { BlockNodeModel } from "@/app/block/blocktypes";
+import { getTerminalLastLines } from "@/app/block/terminal-snapshot";
 import { atoms, getSettingsKeyAtom, globalStore } from "@/app/store/global";
 import type { TabModel } from "@/app/store/tab-model";
 import { waveEventSubscribeSingle } from "@/app/store/wps";
 import { RpcApi } from "@/app/store/wshclientapi";
-import { services } from "@/app/store/services";
+import { BlockService } from "@/app/store/services";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { getWebServerEndpoint } from "@/util/endpoints";
 import { fireAndForget, stringToBase64 } from "@/util/util";
@@ -48,6 +49,7 @@ export class TeamViewModel implements ViewModel {
     errorAtom = jotai.atom<string>(null as unknown as string);
     supervisionIntervalMs = jotai.atom(10000);
     private wakeAttempts = new Map<string, { count: number; lastAttempt: number }>();
+    private outputSnapshots = new Map<string, { content: string; stalledCount: number }>();
 
     statusAtom!: jotai.Atom<TeamStatusData>;
 
@@ -134,6 +136,8 @@ export class TeamViewModel implements ViewModel {
         this.eventUnsubRuntimeMember?.();
         this.eventUnsubMember?.();
         this.eventUnsubProject?.();
+        this.wakeAttempts.clear();
+        this.outputSnapshots.clear();
     }
 
     startSupervision(): void {
@@ -161,6 +165,8 @@ export class TeamViewModel implements ViewModel {
     private static readonly STALL_THRESHOLD_MS = 5 * 60 * 1000;
     private static readonly MAX_WAKE_ATTEMPTS = 2;
     private static readonly WAKE_COOLDOWN_MS = 60 * 1000;
+    private static readonly STALL_SNAPSHOT_LINES = 3;
+    private static readonly ANALYSIS_SNAPSHOT_LINES = 30;
 
     private async runSupervisionCycle(): Promise<void> {
         try {
@@ -457,9 +463,69 @@ export class TeamViewModel implements ViewModel {
                 continue;
             }
 
-            const controllerStatus = await services.BlockService.GetControllerStatus(worker.blockid).catch(() => null);
+            const controllerStatus = await BlockService.GetControllerStatus(worker.blockid).catch(() => null);
+
             if (controllerStatus?.shellprocstatus === "running") {
-                this.wakeAttempts.delete(worker.workerid);
+                const currentSnapshot = getTerminalLastLines(worker.blockid, TeamViewModel.STALL_SNAPSHOT_LINES);
+                const prev = this.outputSnapshots.get(worker.workerid);
+
+                if (currentSnapshot == null) {
+                    this.wakeAttempts.delete(worker.workerid);
+                    this.outputSnapshots.delete(worker.workerid);
+                    continue;
+                }
+
+                if (prev && prev.content === currentSnapshot) {
+                    prev.stalledCount += 1;
+                    if (prev.stalledCount < 2) {
+                        continue;
+                    }
+                } else {
+                    this.outputSnapshots.set(worker.workerid, { content: currentSnapshot, stalledCount: 0 });
+                    this.wakeAttempts.delete(worker.workerid);
+                    continue;
+                }
+
+                attempt.count += 1;
+                attempt.lastAttempt = now;
+                this.wakeAttempts.set(worker.workerid, attempt);
+                this.outputSnapshots.delete(worker.workerid);
+
+                const analysisSnapshot = getTerminalLastLines(worker.blockid, TeamViewModel.ANALYSIS_SNAPSHOT_LINES);
+                const analysisResult = await this.analyzeWorkerOutput(worker.name, analysisSnapshot ?? currentSnapshot);
+                if (analysisResult.action === "wait") {
+                    this.wakeAttempts.delete(worker.workerid);
+                    await this.logActivity("supervision_analysis", `Worker ${worker.name}: LLM says still working — resetting stall counter`);
+                    continue;
+                }
+                if (analysisResult.action === "fail") {
+                    await RpcApi.TeamUpdateTaskCommand(TabRpcClient, {
+                        taskid: taskId,
+                        status: "failed",
+                        error: analysisResult.reason || "supervision detected failure",
+                    });
+                    await RpcApi.TeamUpdateWorkerCommand(TabRpcClient, {
+                        workerid: worker.workerid,
+                        status: "idle",
+                        assignedtaskid: "",
+                        projectid: "",
+                    });
+                    await this.logActivity("task_failed", `Task ${taskId} failed — supervision detected: ${analysisResult.reason}`);
+                    this.wakeAttempts.delete(worker.workerid);
+                    continue;
+                }
+
+                const sent = await this.sendToTerminal(worker.blockid, analysisResult.prompt + "\r");
+                if (!sent) {
+                    await RpcApi.TeamUpdateWorkerCommand(TabRpcClient, {
+                        workerid: worker.workerid,
+                        status: "offline",
+                        assignedtaskid: "",
+                        projectid: "",
+                    });
+                    await this.logActivity("worker_offline", `Worker ${worker.name} terminal gone, marked offline`);
+                }
+                await this.logActivity("supervision_analysis", `Worker ${worker.name}: ${analysisResult.action} — ${analysisResult.reason}`);
                 continue;
             }
 
@@ -482,15 +548,68 @@ export class TeamViewModel implements ViewModel {
             await this.logActivity("worker_wake", `Wake attempt ${attempt.count}/${TeamViewModel.MAX_WAKE_ATTEMPTS} for ${worker.name} (stalled ${Math.round(stalledDuration / 60000)}min)`);
         }
 
+        const workingTasksSet = new Set((globalStore.get(this.workingTasksAtom) ?? []).map((t) => t.taskid));
         const activeWorkerIds = new Set(
             workingMembers
-                .filter((w) => w.assignedtaskid && workingTasks.has(w.assignedtaskid))
+                .filter((w) => w.assignedtaskid && workingTasksSet.has(w.assignedtaskid))
                 .map((w) => w.workerid)
         );
         for (const workerId of this.wakeAttempts.keys()) {
             if (!activeWorkerIds.has(workerId)) {
                 this.wakeAttempts.delete(workerId);
             }
+        }
+    }
+
+    private async analyzeWorkerOutput(
+        workerName: string,
+        terminalOutput: string
+    ): Promise<{ action: "wake" | "fail" | "wait"; prompt: string; reason: string }> {
+        try {
+            const response = await this.callLLMRaw(
+                `You are a team supervisor. Analyze this worker's terminal output to determine its state.
+
+Worker "${workerName}" terminal output (last ${TeamViewModel.ANALYSIS_SNAPSHOT_LINES} lines):
+\`\`\`
+${terminalOutput}
+\`\`\`
+
+Determine the worker's state and respond with EXACTLY one of:
+1. WAIT — The worker is still actively working (e.g., compiling, downloading, processing). Just needs more time.
+2. WAKE — The worker is stuck or waiting for input. It needs a nudge.
+   For WAKE, provide a specific prompt to send to the worker's terminal.
+3. FAIL — The worker has clearly failed (error message, crash, or unrecoverable state).
+
+Respond in this exact format:
+ACTION: WAIT|WAKE|FAIL
+REASON: <brief explanation>
+PROMPT: <only for WAKE — the exact text to send to the terminal, including any MCP tool calls>`
+            );
+
+            const actionMatch = response.match(/ACTION:\s*(WAIT|WAKE|FAIL)/i);
+            const reasonMatch = response.match(/REASON:\s*(.+)/i);
+            const promptMatch = response.match(/PROMPT:\s*(.+)/i);
+
+            const action = actionMatch?.[1]?.toUpperCase();
+            const reason = reasonMatch?.[1]?.trim() ?? "no reason provided";
+
+            if (action === "WAIT") {
+                return { action: "wait", prompt: "", reason };
+            }
+            if (action === "FAIL") {
+                return { action: "fail", prompt: "", reason };
+            }
+            return {
+                action: "wake",
+                prompt: promptMatch?.[1]?.trim() ?? "What is your current status? Please call team_update_task MCP tool.",
+                reason,
+            };
+        } catch (err) {
+            return {
+                action: "wake",
+                prompt: "What is your current status? Please call team_update_task MCP tool.",
+                reason: `LLM analysis failed: ${err}`,
+            };
         }
     }
 
@@ -551,16 +670,12 @@ export class TeamViewModel implements ViewModel {
         return prompt;
     }
 
-    private async callAssistantLLM(prompt: string): Promise<AssistantAction> {
-        const aiModeConfigs = globalStore.get(atoms.waveaiModeConfigAtom);
-        const currentMode = globalStore.get(getSettingsKeyAtom("waveai:defaultmode")) ?? "waveai@balanced";
-
+    private async callLLMRaw(prompt: string): Promise<string> {
         const baseUrl = getWebServerEndpoint();
-        if (!baseUrl) {
-            return { actions: [{ type: "noop", reason: "WaveAI endpoint not configured" }] };
-        }
-        const url = `${baseUrl}/api/post-chat-message`;
+        if (!baseUrl) throw new Error("WaveAI endpoint not configured");
 
+        const currentMode = globalStore.get(getSettingsKeyAtom("waveai:defaultmode")) ?? "waveai@balanced";
+        const url = `${baseUrl}/api/post-chat-message`;
         const requestBody = {
             msg: {
                 messageid: crypto.randomUUID(),
@@ -574,56 +689,55 @@ export class TeamViewModel implements ViewModel {
         };
 
         let fullResponse = "";
+        const response = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(requestBody),
+        });
 
-        try {
-            const response = await fetch(url, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify(requestBody),
-            });
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`API error ${response.status}: ${errorText.slice(0, 200)}`);
+        }
 
-            if (!response.ok) {
-                const errorText = await response.text();
-                throw new Error(`API error ${response.status}: ${errorText.slice(0, 200)}`);
-            }
+        const reader = response.body?.getReader();
+        if (!reader) throw new Error("No response body");
 
-            const reader = response.body?.getReader();
-            if (!reader) {
-                throw new Error("No response body");
-            }
-
-            const decoder = new TextDecoder();
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
-                const chunk = decoder.decode(value);
-                const lines = chunk.split("\n");
-                for (const line of lines) {
-                    if (line.startsWith("data: ")) {
-                        const data = line.slice(6);
-                        if (data === "[DONE]") continue;
-                        try {
-                            const parsed = JSON.parse(data);
-                            if (parsed.text) {
-                                fullResponse += parsed.text;
-                            }
-                            if (parsed.error) {
-                                throw new Error(parsed.error);
-                            }
-                        } catch (parseErr) {
-                            if (String(parseErr).includes("error")) throw parseErr;
-                        }
+        const decoder = new TextDecoder();
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            const chunk = decoder.decode(value);
+            const lines = chunk.split("\n");
+            for (const line of lines) {
+                if (line.startsWith("data: ")) {
+                    const data = line.slice(6);
+                    if (data === "[DONE]") continue;
+                    try {
+                        const parsed = JSON.parse(data);
+                        if (parsed.text) fullResponse += parsed.text;
+                        if (parsed.error) throw new Error(parsed.error);
+                    } catch (parseErr) {
+                        if (String(parseErr).includes("error")) throw parseErr;
                     }
                 }
             }
+        }
+
+        return fullResponse;
+    }
+
+    private async callAssistantLLM(prompt: string): Promise<AssistantAction> {
+        const aiModeConfigs = globalStore.get(atoms.waveaiModeConfigAtom);
+        const currentMode = globalStore.get(getSettingsKeyAtom("waveai:defaultmode")) ?? "waveai@balanced";
+
+        try {
+            const fullResponse = await this.callLLMRaw(prompt);
+            return this.parseAssistantResponse(fullResponse);
         } catch (e) {
             globalStore.set(this.errorAtom, `Supervision LLM call failed: ${String(e)}`);
             return { actions: [{ type: "noop", reason: String(e) }] };
         }
-
-        return this.parseAssistantResponse(fullResponse);
     }
 
     private parseAssistantResponse(text: string): AssistantAction {

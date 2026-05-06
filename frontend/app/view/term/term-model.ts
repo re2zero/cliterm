@@ -3,6 +3,7 @@
 
 import { WaveAIModel } from "@/app/aipanel/waveai-model";
 import { BlockNodeModel } from "@/app/block/blocktypes";
+import { registerTerminalSnapshot, unregisterTerminalSnapshot } from "@/app/block/terminal-snapshot";
 import { appHandleKeyDown } from "@/app/store/keymodel";
 import { modalsModel } from "@/app/store/modalmodel";
 import type { TabModel } from "@/app/store/tab-model";
@@ -397,6 +398,7 @@ export class TermViewModel implements ViewModel {
                 this.termRef.current.setCursorBlink(globalStore.get(termCursorBlinkAtom) ?? false);
             }
         });
+        registerTerminalSnapshot(blockId, (n) => this.termRef.current?.getLastLines(n) ?? "");
     }
 
     getShellIntegrationIconButton(get: jotai.Getter): IconButtonDecl | null {
@@ -591,6 +593,7 @@ export class TermViewModel implements ViewModel {
 
     dispose() {
         DefaultRouter.unregisterRoute(makeFeBlockRouteId(this.blockId));
+        unregisterTerminalSnapshot(this.blockId);
         this.shellProcStatusUnsubFn?.();
         this.blockJobStatusUnsubFn?.();
         this.termBPMUnsubFn?.();

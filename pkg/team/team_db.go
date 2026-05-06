@@ -160,10 +160,29 @@ func UpdateWorkerHeartbeat(ctx context.Context, workerID string) error {
 }
 
 func DeleteWorker(ctx context.Context, workerID string) error {
-  return wstore.WithTx(ctx, func(tx *wstore.TxWrap) error {
+  db := wstore.GetGlobalDB()
+  var memberID string
+  db.Get(&memberID, `SELECT member_id FROM team_workers WHERE worker_id = ?`, workerID)
+
+  err := wstore.WithTx(ctx, func(tx *wstore.TxWrap) error {
     tx.Exec(`DELETE FROM team_workers WHERE worker_id = ?`, workerID)
     return nil
   })
+  if err != nil {
+    return err
+  }
+
+  if memberID != "" {
+    var remaining int
+    db.Get(&remaining, `SELECT COUNT(*) FROM team_workers WHERE member_id = ?`, memberID)
+    if remaining == 0 {
+      wstore.WithTx(ctx, func(tx *wstore.TxWrap) error {
+        tx.Exec(`DELETE FROM team_members WHERE member_id = ?`, memberID)
+        return nil
+      })
+    }
+  }
+  return nil
 }
 
 func ListWorkers(ctx context.Context, memberID string) ([]*TeamWorker, error) {
